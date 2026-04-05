@@ -101,6 +101,9 @@ def run() -> int:
         if not api_base_url:
             store = JsonStore(logger=logger)
             service = CardService(store, logger)
+            seeded_demo = service.ensure_demo_board()
+            if seeded_demo:
+                logger.info("embedded_api_demo_seeded=true")
             operator_service = OperatorAuthService(store, service, logger=logger)
             resolved_api_host = _runtime_bind_host(
                 get_api_host() if os.environ.get("MINIMAL_KANBAN_API_HOST") is not None else settings.local_api.local_api_host,

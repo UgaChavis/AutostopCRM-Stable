@@ -703,6 +703,36 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(len(cards), 1)
         self.assertEqual(cards[0]["id"], created["card"]["id"])
 
+    def test_seeds_demo_board_for_empty_generic_board_with_only_setup_events(self) -> None:
+        bundle = self.store.read_bundle()
+        bundle["columns"] = [column for column in bundle["columns"] if column.id != "control"]
+        bundle["events"].append(
+            AuditEvent(
+                id="setup-column-delete",
+                timestamp=utc_now().isoformat(),
+                actor_name="ADMIN",
+                source="ui",
+                action="column_deleted",
+                message="ADMIN удалил столбец",
+                card_id=None,
+                details={"column_id": "control", "label": "На контроле"},
+            )
+        )
+        self.store.write_bundle(
+            columns=bundle["columns"],
+            cards=bundle["cards"],
+            stickies=bundle["stickies"],
+            events=bundle["events"],
+            settings=bundle["settings"],
+        )
+
+        seeded = self.service.ensure_demo_board()
+        snapshot = self.service.get_board_snapshot()
+
+        self.assertTrue(seeded)
+        self.assertGreaterEqual(len(snapshot["columns"]), 6)
+        self.assertTrue(any(column["id"] == "priemka" for column in snapshot["columns"]))
+
     def test_get_cards_skips_expensive_prep_when_board_is_empty(self) -> None:
         snapshot_service = self.service._snapshot_service
         snapshot_service._column_labels = Mock(wraps=snapshot_service._column_labels)

@@ -4,7 +4,8 @@ import logging
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -13,6 +14,7 @@ if str(SRC) not in sys.path:
 
 from minimal_kanban.mcp.client import BoardApiTransportError
 from minimal_kanban.mcp.main import _reachable_board_api_url, _runtime_bind_host
+from minimal_kanban.settings_models import IntegrationSettings
 
 
 class ReachableBoardApiUrlTests(unittest.TestCase):
@@ -55,3 +57,62 @@ class RuntimeBindHostTests(unittest.TestCase):
     def test_keeps_host_when_env_is_explicit(self) -> None:
         self.assertEqual(_runtime_bind_host("127.0.0.1", env_explicit=True), "127.0.0.1")
         self.assertEqual(_runtime_bind_host("0.0.0.0", env_explicit=True), "0.0.0.0")
+
+
+class McpMainRunTests(unittest.TestCase):
+    def test_run_seeds_demo_board_before_starting_embedded_api(self) -> None:
+        logger = logging.getLogger("test.mcp.main.run")
+        logger.handlers.clear()
+        logger.addHandler(logging.NullHandler())
+        logger.propagate = False
+        settings = IntegrationSettings.defaults()
+        card_service = Mock()
+        card_service.ensure_demo_board.return_value = True
+        api_server = Mock()
+        api_server.base_url = "http://127.0.0.1:41731"
+        runtime = Mock()
+
+        def fake_signal(_signum, handler):
+            handler(None, None)
+
+        with patch("minimal_kanban.mcp.main.configure_logging", return_value=logger), patch(
+            "minimal_kanban.mcp.main.close_logger"
+        ), patch(
+            "minimal_kanban.mcp.main.SettingsStore"
+        ), patch(
+            "minimal_kanban.mcp.main.SettingsService"
+        ) as settings_service_cls, patch(
+            "minimal_kanban.mcp.main._reachable_board_api_url", return_value=None
+        ), patch(
+            "minimal_kanban.mcp.main.get_board_api_url", return_value=None
+        ), patch(
+            "minimal_kanban.mcp.main.discover_board_api", return_value=None
+        ), patch(
+            "minimal_kanban.mcp.main.JsonStore"
+        ), patch(
+            "minimal_kanban.mcp.main.CardService", return_value=card_service
+        ), patch(
+            "minimal_kanban.mcp.main.OperatorAuthService"
+        ), patch(
+            "minimal_kanban.mcp.main.ApiServer", return_value=api_server
+        ), patch(
+            "minimal_kanban.mcp.main.BoardApiClient"
+        ), patch(
+            "minimal_kanban.mcp.main.create_mcp_server", return_value=Mock()
+        ), patch(
+            "minimal_kanban.mcp.main.McpServerRuntime", return_value=runtime
+        ), patch(
+            "minimal_kanban.mcp.main.signal.signal", side_effect=fake_signal
+        ):
+            settings_service_cls.return_value.load.return_value = settings
+
+            from minimal_kanban.mcp.main import run
+
+            result = run()
+
+        self.assertEqual(result, 0)
+        card_service.ensure_demo_board.assert_called_once_with()
+        api_server.start.assert_called_once_with()
+        runtime.start.assert_called_once_with()
+        runtime.stop.assert_called_once_with()
+        api_server.stop.assert_called_once_with()

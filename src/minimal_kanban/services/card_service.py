@@ -2029,17 +2029,36 @@ class CardService:
 
     def _should_seed_demo(self, bundle: dict) -> bool:
         cards = bundle["cards"]
+        stickies = bundle["stickies"]
         events = bundle["events"]
         columns = bundle["columns"]
         active_cards = [card for card in cards if not card.archived]
         archived_cards = [card for card in cards if card.archived]
         default_signature = [(column.id, column.label) for column in default_columns()]
         current_signature = [(column.id, column.label) for column in columns]
-        if not cards and not events and current_signature == default_signature:
+        if not cards and not stickies and not events and current_signature == default_signature:
+            return True
+        default_pairs = set(default_signature)
+        setup_only_events = {
+            "column_created",
+            "column_deleted",
+            "column_renamed",
+            "board_scale_changed",
+        }
+        empty_generic_board = (
+            not cards
+            and not stickies
+            and 1 <= len(columns) <= len(default_signature)
+            and all((column.id, column.label) in default_pairs for column in columns)
+            and len(events) <= 8
+            and all(not event.card_id and event.action in setup_only_events for event in events)
+        )
+        if empty_generic_board:
             return True
         prototype_like_board = len(columns) > len(default_signature) or bool(archived_cards)
         if (
             prototype_like_board
+            and len(stickies) <= 1
             and len(active_cards) <= 1
             and len(cards) <= 3
             and len(events) <= 8
