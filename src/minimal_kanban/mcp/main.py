@@ -28,6 +28,22 @@ from .runtime import McpServerRuntime
 from .server import create_mcp_server
 
 
+def _env_list(name: str) -> tuple[str, ...]:
+    raw_value = (os.environ.get(name) or "").strip()
+    if not raw_value:
+        return ()
+    values: list[str] = []
+    seen: set[str] = set()
+    for chunk in raw_value.splitlines():
+        for item in chunk.split(","):
+            text = item.strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            values.append(text)
+    return tuple(values)
+
+
 def _reachable_board_api_url(
     configured_api_base_url: str | None,
     *,
@@ -140,6 +156,8 @@ def run() -> int:
         )
 
         board_api = BoardApiClient(api_base_url, bearer_token=api_bearer_token, logger=logger)
+        configured_allowed_hosts = tuple(settings.mcp.allowed_hosts) + _env_list("MINIMAL_KANBAN_MCP_ALLOWED_HOSTS")
+        configured_allowed_origins = tuple(settings.mcp.allowed_origins) + _env_list("MINIMAL_KANBAN_MCP_ALLOWED_ORIGINS")
         server = create_mcp_server(
             board_api,
             logger,
@@ -150,8 +168,8 @@ def run() -> int:
             public_base_url=mcp_public_base_url,
             tunnel_url=settings.mcp.tunnel_url or None,
             public_endpoint_url=mcp_public_endpoint_url,
-            allowed_hosts=settings.mcp.allowed_hosts,
-            allowed_origins=settings.mcp.allowed_origins,
+            allowed_hosts=configured_allowed_hosts,
+            allowed_origins=configured_allowed_origins,
         )
         mcp_runtime = McpServerRuntime(server, logger, auth_mode=resolved_auth_mode)
         try:
