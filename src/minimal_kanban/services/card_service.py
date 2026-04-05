@@ -65,6 +65,116 @@ from ..storage.json_store import JsonStore, default_columns
 
 _SEARCH_SEPARATOR_PATTERN = re.compile(r"[\W_]+", re.UNICODE)
 _LICENSE_PLATE_PATTERN = re.compile(r"\b[А-ЯA-Z]\d{3}[А-ЯA-Z]{2}\d{2,3}\b", re.IGNORECASE)
+_VIN_PATTERN = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b", re.IGNORECASE)
+_PHONE_PATTERN = re.compile(r"(?:\+7|8)\s*(?:\(\s*\d{3}\s*\)|\d{3})\s*[\- ]?\s*\d{3}\s*[\- ]?\s*\d{2}\s*[\- ]?\s*\d{2}")
+_CUSTOMER_NAME_PATTERN = re.compile(
+    r"(?:клиент|владелец|контакт(?:ное лицо)?)\s*[:\-]?\s*([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z.\-]+(?:\s+[А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z.\-]+){0,2})",
+    re.IGNORECASE,
+)
+_MILEAGE_PATTERN = re.compile(r"(?:пробег|mileage|одометр)\s*[:\-]?\s*([\d\s]{2,12})", re.IGNORECASE)
+_REPAIR_ITEM_SPLIT_PATTERN = re.compile(r"\s*(?:,|;|\n|•|\u2022)\s*")
+_REPAIR_REASON_PREFIX_PATTERN = re.compile(
+    r"^(?:жалоба|жалобы|причина обращения|причина|со слов клиента|симптом|неисправность)\s*[:\-]?\s*",
+    re.IGNORECASE,
+)
+_REPAIR_FINDING_PREFIX_PATTERN = re.compile(
+    r"^(?:обнаружено|обнаружили|выявлено|выявили|диагностика показала|по результатам диагностики|дефект|неисправность)\s*[:\-]?\s*",
+    re.IGNORECASE,
+)
+_REPAIR_RECOMMENDATION_PREFIX_PATTERN = re.compile(
+    r"^(?:рекомендовано|рекомендуется|дальше|далее|следующий этап|контроль|нужно в дальнейшем)\s*[:\-]?\s*",
+    re.IGNORECASE,
+)
+_REPAIR_WORK_SECTION_MARKERS = (
+    "работы",
+    "выполнить",
+    "выполнено",
+    "сделать",
+    "что сделали",
+)
+_REPAIR_MATERIAL_SECTION_MARKERS = (
+    "материалы",
+    "запчасти",
+    "расходники",
+    "что установили",
+)
+_REPAIR_WORK_KEYWORDS = (
+    "диагност",
+    "провер",
+    "осмотр",
+    "замен",
+    "ремонт",
+    "обслуж",
+    "то ",
+    "т.о",
+    "адаптац",
+    "калибр",
+    "чистк",
+    "промыв",
+    "снятие",
+    "установка",
+    "сборка",
+    "разборка",
+    "сброс",
+    "поиск",
+    "регулиров",
+    "прокач",
+)
+_REPAIR_MATERIAL_KEYWORDS = (
+    "масло",
+    "atf",
+    "жидк",
+    "антифриз",
+    "охлажда",
+    "фильтр",
+    "свеч",
+    "катуш",
+    "колод",
+    "диск",
+    "ремень",
+    "ролик",
+    "проклад",
+    "сальник",
+    "подшип",
+    "стойк",
+    "амортиз",
+    "рычаг",
+    "втулк",
+    "сайлент",
+    "шрус",
+    "смазк",
+    "очистител",
+)
+_REPAIR_FINDING_KEYWORDS = (
+    "обнаруж",
+    "выяв",
+    "ошибк",
+    "течь",
+    "подтек",
+    "запотев",
+    "износ",
+    "люфт",
+    "загряз",
+    "пинки",
+    "рывк",
+    "стук",
+    "шум",
+    "вибрац",
+)
+_REPAIR_RECOMMENDATION_KEYWORDS = (
+    "рекоменд",
+    "желательно",
+    "необходимо",
+    "следует",
+    "контроль",
+    "повторн",
+    "наблюд",
+    "через",
+)
+_REPAIR_QUANTITY_PATTERN = re.compile(
+    r"(?<!\d)(\d+(?:[.,]\d+)?)\s*(?:шт|штуки|штук|л|литр(?:а|ов)?|l|компл(?:ект)?|уп(?:ак)?|pcs?)\b",
+    re.IGNORECASE,
+)
 GPT_WALL_TEXT_LINE_LIMIT = 3000
 REPAIR_ORDER_SORT_FIELDS = {"number", "opened_at", "closed_at"}
 REPAIR_ORDER_SORT_DIRECTIONS = {"asc", "desc"}
@@ -691,7 +801,7 @@ class CardService:
             card = self._find_card(cards, payload.get("card_id"))
             actor_name, source = self._audit_identity(payload, default_source="api")
             overwrite = self._validated_optional_bool(payload, "overwrite", default=False)
-            next_order = self._autofill_repair_order(card, cards, overwrite=overwrite)
+            next_order, autofill_report = self._autofill_repair_order(card, cards, overwrite=overwrite)
             changed = card.repair_order.to_storage_dict() != next_order.to_storage_dict()
             if changed:
                 card.repair_order = next_order
@@ -720,6 +830,7 @@ class CardService:
                 "meta": {
                     "changed": changed or numbering_changed,
                     "overwrite": overwrite,
+                    "autofill_report": autofill_report,
                 },
             }
 
@@ -2365,7 +2476,7 @@ class CardService:
         )
         return True
 
-    def _autofill_repair_order(self, card: Card, cards: list[Card], *, overwrite: bool) -> RepairOrder:
+    def _autofill_repair_order(self, card: Card, cards: list[Card], *, overwrite: bool) -> tuple[RepairOrder, dict[str, object]]:
         order = self._prepared_repair_order(
             RepairOrder.from_dict(card.repair_order.to_storage_dict()),
             cards,
@@ -2373,10 +2484,25 @@ class CardService:
             exclude_card_id=card.id,
         )
         profile = card.vehicle_profile
+        related_cards = self._related_cards(card, cards)
+        suggested_client = profile.customer_name or self._extract_customer_name(card)
+        if not suggested_client:
+            suggested_client = self._first_related_value(
+                related_cards,
+                lambda related: related.repair_order.client,
+                lambda related: related.vehicle_profile.customer_name,
+            )
         if overwrite or not order.client:
-            order.client = profile.customer_name or order.client
+            order.client = suggested_client or order.client
+        suggested_phone = profile.customer_phone or self._extract_phone(card)
+        if not suggested_phone:
+            suggested_phone = self._first_related_value(
+                related_cards,
+                lambda related: related.repair_order.phone,
+                lambda related: related.vehicle_profile.customer_phone,
+            )
         if overwrite or not order.phone:
-            order.phone = profile.customer_phone or order.phone
+            order.phone = suggested_phone or order.phone
         if overwrite or not order.vehicle:
             order.vehicle = card.vehicle_display() or order.vehicle
         if overwrite or not order.opened_at:
@@ -2386,14 +2512,591 @@ class CardService:
         if overwrite or not order.mileage:
             order.mileage = self._extract_mileage(card, fallback=order.mileage)
         if overwrite or not order.reason:
-            order.reason = card.title or order.reason
-        if overwrite or not order.comment:
-            order.comment = card.description or order.comment
+            order.reason = self._build_repair_order_reason(card) or order.reason
         if overwrite or not order.license_plate:
             order.license_plate = self._extract_license_plate(card, fallback=order.license_plate)
-        if not order.works and card.title.strip():
-            order.works = [RepairOrderRow(name=card.title.strip(), quantity="1")]
-        return order
+        suggested_works = self._suggest_repair_order_rows(card, profile=profile, cards=cards, related_cards=related_cards, section="works")
+        suggested_materials = self._suggest_repair_order_rows(card, profile=profile, cards=cards, related_cards=related_cards, section="materials")
+        price_hits: list[dict[str, str]] = []
+        suggested_works, work_price_hits = self._apply_history_prices_to_rows(
+            suggested_works,
+            section="works",
+            cards=cards,
+            related_cards=related_cards,
+        )
+        suggested_materials, material_price_hits = self._apply_history_prices_to_rows(
+            suggested_materials,
+            section="materials",
+            cards=cards,
+            related_cards=related_cards,
+        )
+        price_hits.extend(work_price_hits)
+        price_hits.extend(material_price_hits)
+
+        if overwrite:
+            order.works = suggested_works or order.works
+            order.materials = suggested_materials or order.materials
+        else:
+            order.works = self._merge_repair_order_rows(order.works, suggested_works)
+            order.materials = self._merge_repair_order_rows(order.materials, suggested_materials)
+
+        if overwrite or not order.comment:
+            order.comment = self._build_client_description(card, order) or order.comment
+        if overwrite or not order.note:
+            order.note = self._build_internal_repair_note(card, order, price_hits=price_hits) or order.note
+
+        review_items: list[str] = []
+        if suggested_works or suggested_materials:
+            review_items.append("Проверьте перечень работ и материалов перед сохранением.")
+        if price_hits:
+            review_items.append("Цены подтянуты из истории доски: проверьте актуальность.")
+        autofill_report: dict[str, object] = {
+            "matched_history_cards": len(related_cards),
+            "works_suggested": len(suggested_works),
+            "materials_suggested": len(suggested_materials),
+            "prices_applied": price_hits,
+            "review_items": review_items,
+        }
+        return order, autofill_report
+
+    def _related_cards(self, card: Card, cards: list[Card]) -> list[Card]:
+        current_vin = self._extract_vin(card, fallback="")
+        current_license = self._extract_license_plate(card, fallback="")
+        current_phone = self._extract_phone(card)
+        current_vehicle = self._normalize_search_text(card.vehicle_display() or card.repair_order.vehicle)
+        current_customer = self._normalize_search_text(card.vehicle_profile.customer_name or card.repair_order.client)
+        ranked: list[tuple[int, str, Card]] = []
+        for candidate in cards:
+            if candidate.id == card.id:
+                continue
+            score = 0
+            if current_vin and current_vin == self._extract_vin(candidate, fallback=""):
+                score += 12
+            if current_license and current_license == self._extract_license_plate(candidate, fallback=""):
+                score += 10
+            if current_phone and current_phone == self._extract_phone(candidate):
+                score += 8
+            candidate_vehicle = self._normalize_search_text(candidate.vehicle_display() or candidate.repair_order.vehicle)
+            if current_vehicle and current_vehicle == candidate_vehicle:
+                score += 2
+            candidate_customer = self._normalize_search_text(candidate.vehicle_profile.customer_name or candidate.repair_order.client)
+            if current_customer and current_customer == candidate_customer:
+                score += 1
+            if score > 0:
+                ranked.append((score, str(candidate.created_at or ""), candidate))
+        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        return [candidate for _, _, candidate in ranked]
+
+    def _first_related_value(self, related_cards: list[Card], *getters) -> str:
+        for related in related_cards:
+            for getter in getters:
+                value = normalize_text(getter(related), default="", limit=160)
+                if value:
+                    return value
+        return ""
+
+    def _extract_phone(self, card: Card) -> str:
+        if card.vehicle_profile.customer_phone:
+            return normalize_text(card.vehicle_profile.customer_phone, default="", limit=32)
+        haystack = self._repair_analysis_text(card)
+        match = _PHONE_PATTERN.search(haystack)
+        if not match:
+            return ""
+        return self._format_phone(match.group(0))
+
+    def _format_phone(self, value: str) -> str:
+        digits = re.sub(r"\D+", "", str(value or ""))
+        if len(digits) == 11 and digits.startswith("8"):
+            digits = "7" + digits[1:]
+        if len(digits) == 11 and digits.startswith("7"):
+            return f"+7 {digits[1:4]} {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+        return normalize_text(value, default="", limit=32)
+
+    def _extract_customer_name(self, card: Card) -> str:
+        if card.vehicle_profile.customer_name:
+            return normalize_text(card.vehicle_profile.customer_name, default="", limit=80)
+        match = _CUSTOMER_NAME_PATTERN.search(self._repair_analysis_text(card))
+        if not match:
+            return ""
+        blocked_tokens = {"ТЕЛЕФОН", "PHONE", "VIN", "ГОСНОМЕР", "ПРОБЕГ", "MILEAGE"}
+        parts: list[str] = []
+        for part in str(match.group(1) or "").strip().split():
+            normalized = str(part or "").strip()
+            if not normalized:
+                continue
+            if normalized.upper().strip(":.,-") in blocked_tokens:
+                break
+            parts.append(normalized)
+        if not parts:
+            return ""
+        return " ".join(part[:1].upper() + part[1:].lower() for part in parts)[:80]
+
+    def _repair_analysis_text(self, card: Card) -> str:
+        return "\n".join(
+            part
+            for part in (
+                card.vehicle,
+                card.title,
+                card.description,
+                card.vehicle_profile.oem_notes,
+            )
+            if part
+        )
+
+    def _repair_text_lines(self, *parts: str) -> list[str]:
+        lines: list[str] = []
+        for part in parts:
+            raw_text = str(part or "").replace("\r", "\n")
+            for chunk in raw_text.split("\n"):
+                cleaned = self._clean_repair_text_fragment(chunk, limit=320)
+                if cleaned and cleaned not in lines:
+                    lines.append(cleaned)
+                if len(cleaned) > 80 and ":" not in cleaned:
+                    for sentence in re.split(r"(?<=[.!?;])\s+", cleaned):
+                        normalized = self._clean_repair_text_fragment(sentence, limit=220)
+                        if normalized and normalized not in lines:
+                            lines.append(normalized)
+        return lines
+
+    def _clean_repair_text_fragment(self, value: str, *, limit: int = 240) -> str:
+        text = normalize_text(value, default="", limit=limit)
+        text = re.sub(r"^[\-\*\u2022\d\.\)\s]+", "", text)
+        text = text.strip(" ,.;:-")
+        return text
+
+    def _build_repair_order_reason(self, card: Card) -> str:
+        complaint_lines: list[str] = []
+        description_lines = self._repair_text_lines(card.description)
+        for line in description_lines:
+            lowered = line.casefold()
+            cleaned = _REPAIR_REASON_PREFIX_PATTERN.sub("", line).strip(" .,:;-")
+            if not cleaned:
+                continue
+            if _REPAIR_REASON_PREFIX_PATTERN.match(line) or (
+                any(token in lowered for token in ("жалоб", "пинки", "рывк", "стук", "шум", "вибрац", "течь", "не завод", "горит"))
+                and not self._looks_like_work_item(cleaned)
+            ):
+                if cleaned not in complaint_lines:
+                    complaint_lines.append(cleaned)
+        if complaint_lines:
+            return normalize_text(" ".join(complaint_lines[:2]), default="", limit=400)
+        first_description = next((line for line in description_lines if not self._looks_like_work_item(line)), "")
+        if first_description:
+            return normalize_text(first_description, default="", limit=400)
+        return normalize_text(card.title, default="", limit=400)
+
+    def _extract_repair_findings(self, card: Card) -> list[str]:
+        findings: list[str] = []
+        for line in self._repair_text_lines(card.description, card.vehicle_profile.oem_notes):
+            lowered = line.casefold()
+            cleaned = _REPAIR_FINDING_PREFIX_PATTERN.sub("", line).strip(" .,:;-")
+            if not cleaned:
+                continue
+            if _REPAIR_FINDING_PREFIX_PATTERN.match(line) or any(keyword in lowered for keyword in _REPAIR_FINDING_KEYWORDS):
+                if cleaned not in findings:
+                    findings.append(cleaned)
+        return findings[:3]
+
+    def _extract_repair_recommendations(self, card: Card) -> list[str]:
+        recommendations: list[str] = []
+        for line in self._repair_text_lines(card.description, card.vehicle_profile.oem_notes):
+            lowered = line.casefold()
+            cleaned = _REPAIR_RECOMMENDATION_PREFIX_PATTERN.sub("", line).strip(" .,:;-")
+            if not cleaned:
+                continue
+            if _REPAIR_RECOMMENDATION_PREFIX_PATTERN.match(line) or any(keyword in lowered for keyword in _REPAIR_RECOMMENDATION_KEYWORDS):
+                if cleaned not in recommendations:
+                    recommendations.append(cleaned)
+        return recommendations[:3]
+
+    def _suggest_repair_order_rows(
+        self,
+        card: Card,
+        *,
+        profile: VehicleProfile,
+        cards: list[Card],
+        related_cards: list[Card],
+        section: str,
+    ) -> list[RepairOrderRow]:
+        _ = cards
+        _ = related_cards
+        suggested: list[RepairOrderRow] = []
+        title = normalize_text(card.title, default="", limit=240)
+        if section == "works" and title and self._looks_like_work_item(title):
+            self._append_repair_row(
+                suggested,
+                RepairOrderRow(name=self._normalize_work_name(title), quantity="1"),
+            )
+        for line in self._repair_text_lines(card.description, profile.oem_notes):
+            if self._line_declares_repair_section(line, section=section):
+                for item in self._split_repair_items(self._repair_section_payload(line)):
+                    row = self._repair_row_from_item(item, section=section, profile=profile, force_section=True)
+                    if row is not None:
+                        self._append_repair_row(suggested, row)
+                continue
+            for item in self._split_repair_items(line):
+                row = self._repair_row_from_item(item, section=section, profile=profile, force_section=False)
+                if row is not None:
+                    self._append_repair_row(suggested, row)
+        for row in self._template_repair_rows(card, profile=profile, section=section):
+            self._append_repair_row(suggested, row)
+        return suggested
+
+    def _line_declares_repair_section(self, line: str, *, section: str) -> bool:
+        lowered = line.casefold()
+        markers = _REPAIR_WORK_SECTION_MARKERS if section == "works" else _REPAIR_MATERIAL_SECTION_MARKERS
+        return any(lowered.startswith(f"{marker}:") or lowered.startswith(f"{marker} -") for marker in markers)
+
+    def _repair_section_payload(self, line: str) -> str:
+        if ":" in line:
+            return line.split(":", 1)[1]
+        if " - " in line:
+            return line.split(" - ", 1)[1]
+        return line
+
+    def _split_repair_items(self, text: str) -> list[str]:
+        items: list[str] = []
+        for raw_item in _REPAIR_ITEM_SPLIT_PATTERN.split(str(text or "")):
+            item = self._clean_repair_text_fragment(raw_item, limit=240)
+            if item and item not in items:
+                items.append(item)
+        return items
+
+    def _repair_row_from_item(
+        self,
+        item: str,
+        *,
+        section: str,
+        profile: VehicleProfile,
+        force_section: bool,
+    ) -> RepairOrderRow | None:
+        cleaned = self._clean_repair_text_fragment(item, limit=240)
+        if not cleaned:
+            return None
+        if section == "works":
+            normalized_name = self._normalize_work_name(cleaned)
+            if not normalized_name:
+                return None
+            if not force_section and not self._looks_like_work_item(normalized_name):
+                return None
+            quantity = self._extract_row_quantity(cleaned, default="1")
+            return RepairOrderRow(name=normalized_name, quantity=quantity or "1")
+        normalized_name = self._normalize_material_name(cleaned)
+        if not normalized_name:
+            return None
+        if not force_section and not self._looks_like_material_item(cleaned):
+            return None
+        quantity = self._extract_material_quantity(cleaned, profile=profile)
+        return RepairOrderRow(name=normalized_name, quantity=quantity)
+
+    def _extract_row_quantity(self, text: str, *, default: str = "") -> str:
+        quantity_match = _REPAIR_QUANTITY_PATTERN.search(text)
+        if quantity_match:
+            return quantity_match.group(1).replace(",", ".")
+        multiplier_match = re.search(r"[xх*]\s*(\d+(?:[.,]\d+)?)\b", text, re.IGNORECASE)
+        if multiplier_match:
+            return multiplier_match.group(1).replace(",", ".")
+        return default
+
+    def _looks_like_work_item(self, text: str) -> bool:
+        lowered = text.casefold()
+        if any(keyword in lowered for keyword in _REPAIR_WORK_KEYWORDS):
+            return True
+        return bool(re.search(r"\bто\b", lowered))
+
+    def _looks_like_material_item(self, text: str) -> bool:
+        lowered = text.casefold()
+        if any(keyword in lowered for keyword in _REPAIR_FINDING_KEYWORDS):
+            return False
+        if any(keyword in lowered for keyword in ("уровень", "давление", "ошибка", "диагност")):
+            return False
+        if any(keyword in lowered for keyword in _REPAIR_WORK_KEYWORDS) and not any(
+            keyword in lowered for keyword in ("фильтр", "atf", "антифриз", "масло")
+        ):
+            return False
+        if any(keyword in lowered for keyword in _REPAIR_MATERIAL_KEYWORDS):
+            return True
+        return bool(_REPAIR_QUANTITY_PATTERN.search(text) and len(text.split()) <= 6)
+
+    def _normalize_work_name(self, text: str) -> str:
+        cleaned = self._clean_repair_text_fragment(text, limit=240)
+        cleaned = re.sub(
+            r"^(?:нужно|требуется|необходимо|выполнить|выполнено|выполнили|сделать|сделали|провести|провели|произвести|проверить|проверили|заменить|заменили)\s*[:\-]?\s+",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(
+            r"\b\d+(?:[.,]\d+)?\s*(?:шт|штуки|штук|л|литр(?:а|ов)?|l|компл(?:ект)?|up|pcs?)\b",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = cleaned.strip(" ,.;:-")
+        if not cleaned:
+            return ""
+        return cleaned[:1].upper() + cleaned[1:]
+
+    def _normalize_material_name(self, text: str) -> str:
+        lowered = text.casefold()
+        cleaned = re.sub(
+            r"\b\d+(?:[.,]\d+)?\s*(?:шт|штуки|штук|л|литр(?:а|ов)?|l|компл(?:ект)?|pcs?)\b",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"[xх*]\s*\d+(?:[.,]\d+)?\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = self._clean_repair_text_fragment(cleaned, limit=240)
+        if not cleaned:
+            return ""
+        if "atf" in lowered or ("масло" in lowered and any(token in lowered for token in ("акпп", "dsg", "вариатор", "cvt", "короб"))):
+            return "ATF"
+        if "антифриз" in lowered or "охлажда" in lowered:
+            return "Антифриз"
+        if "масля" in lowered and "фильтр" in lowered:
+            return "Масляный фильтр"
+        if "фильтр" in lowered and any(token in lowered for token in ("акпп", "dsg", "вариатор", "cvt", "короб")):
+            return "Фильтр АКПП"
+        if "масло" in lowered and any(token in lowered for token in ("двиг", "мотор", "5w", "0w", "10w", "15w")):
+            return "Моторное масло"
+        return cleaned[:1].upper() + cleaned[1:]
+
+    def _extract_material_quantity(self, text: str, *, profile: VehicleProfile) -> str:
+        explicit_quantity = self._extract_row_quantity(text, default="")
+        if explicit_quantity:
+            return explicit_quantity
+        lowered = text.casefold()
+        if "atf" in lowered or ("масло" in lowered and any(token in lowered for token in ("акпп", "dsg", "вариатор", "cvt", "короб"))):
+            return self._format_quantity_value(profile.oil_gearbox_capacity_l)
+        if "антифриз" in lowered or "охлажда" in lowered:
+            return self._format_quantity_value(profile.coolant_capacity_l)
+        if "масло" in lowered and any(token in lowered for token in ("двиг", "мотор", "5w", "0w", "10w", "15w")):
+            return self._format_quantity_value(profile.oil_engine_capacity_l)
+        if "фильтр" in lowered or "проклад" in lowered:
+            return "1"
+        return ""
+
+    def _template_repair_rows(self, card: Card, *, profile: VehicleProfile, section: str) -> list[RepairOrderRow]:
+        combined_text = self._repair_analysis_text(card)
+        lowered = combined_text.casefold()
+        rows: list[RepairOrderRow] = []
+        has_engine_oil_service = self._is_engine_oil_service(lowered)
+        has_transmission_service = self._is_transmission_service(lowered)
+        has_coolant_service = self._is_coolant_service(lowered)
+        if section == "works":
+            if "диагност" in lowered:
+                diagnostic_name = "Диагностика DSG/АКПП" if has_transmission_service else "Диагностика"
+                self._append_repair_row(rows, RepairOrderRow(name=diagnostic_name, quantity="1"))
+            if has_engine_oil_service:
+                self._append_repair_row(rows, RepairOrderRow(name="Замена масла двигателя", quantity="1"))
+            if has_transmission_service:
+                transmission_name = "ТО DSG/АКПП" if any(token in lowered for token in ("dsg", "акпп")) else "Обслуживание трансмиссии"
+                self._append_repair_row(rows, RepairOrderRow(name=transmission_name, quantity="1"))
+            if has_coolant_service:
+                self._append_repair_row(rows, RepairOrderRow(name="Замена охлаждающей жидкости", quantity="1"))
+            return rows
+        if has_engine_oil_service:
+            self._append_repair_row(
+                rows,
+                RepairOrderRow(
+                    name="Моторное масло",
+                    quantity=self._extract_specific_quantity(combined_text, "масло", "двиг", "мотор")
+                    or self._format_quantity_value(profile.oil_engine_capacity_l),
+                ),
+            )
+            if "фильтр" in lowered or re.search(r"\bто\b", lowered):
+                self._append_repair_row(rows, RepairOrderRow(name="Масляный фильтр", quantity="1"))
+        if has_transmission_service:
+            self._append_repair_row(
+                rows,
+                RepairOrderRow(
+                    name="ATF",
+                    quantity=self._extract_specific_quantity(combined_text, "atf", "акпп", "dsg", "вариатор", "cvt", "короб")
+                    or self._format_quantity_value(profile.oil_gearbox_capacity_l),
+                ),
+            )
+            if "фильтр" in lowered and any(token in lowered for token in ("акпп", "dsg", "вариатор", "cvt", "короб")):
+                self._append_repair_row(rows, RepairOrderRow(name="Фильтр АКПП", quantity="1"))
+            if "проклад" in lowered and "поддон" in lowered:
+                self._append_repair_row(rows, RepairOrderRow(name="Прокладка поддона", quantity="1"))
+        if has_coolant_service:
+            self._append_repair_row(
+                rows,
+                RepairOrderRow(
+                    name="Антифриз",
+                    quantity=self._extract_specific_quantity(combined_text, "антифриз", "охлажда")
+                    or self._format_quantity_value(profile.coolant_capacity_l),
+                ),
+            )
+        return rows
+
+    def _is_engine_oil_service(self, lowered_text: str) -> bool:
+        has_oil = "масло" in lowered_text and any(token in lowered_text for token in ("двиг", "мотор", "5w", "0w", "10w", "15w"))
+        has_service = any(token in lowered_text for token in ("замен", "обслуж")) or bool(re.search(r"\bто\b", lowered_text))
+        return has_oil and has_service and not self._is_transmission_service(lowered_text)
+
+    def _is_transmission_service(self, lowered_text: str) -> bool:
+        has_transmission = any(token in lowered_text for token in ("акпп", "dsg", "вариатор", "cvt", "короб", "трансмис"))
+        has_service = any(token in lowered_text for token in ("замен", "обслуж", "atf")) or bool(re.search(r"\bто\b", lowered_text))
+        return has_transmission and has_service
+
+    def _is_coolant_service(self, lowered_text: str) -> bool:
+        return any(token in lowered_text for token in ("антифриз", "охлажда")) and any(
+            token in lowered_text for token in ("замен", "долив", "обслуж")
+        )
+
+    def _extract_specific_quantity(self, text: str, *keywords: str) -> str:
+        for line in self._repair_text_lines(text):
+            lowered = line.casefold()
+            if not any(keyword in lowered for keyword in keywords):
+                continue
+            quantity = self._extract_row_quantity(line, default="")
+            if quantity:
+                return quantity
+        return ""
+
+    def _format_quantity_value(self, value: float | int | None) -> str:
+        if value in (None, ""):
+            return ""
+        raw = str(value)
+        return raw.rstrip("0").rstrip(".") if "." in raw else raw
+
+    def _append_repair_row(self, rows: list[RepairOrderRow], row: RepairOrderRow) -> None:
+        row_key = self._repair_row_key(row.name)
+        if not row_key:
+            return
+        for index, existing in enumerate(rows):
+            if self._repair_row_key(existing.name) != row_key:
+                continue
+            rows[index] = RepairOrderRow(
+                name=existing.name or row.name,
+                quantity=existing.quantity or row.quantity,
+                price=existing.price or row.price,
+                total=existing.total or row.total,
+            )
+            return
+        rows.append(row)
+
+    def _repair_row_key(self, name: str) -> str:
+        normalized = self._normalize_search_text(name)
+        return normalized
+
+    def _apply_history_prices_to_rows(
+        self,
+        rows: list[RepairOrderRow],
+        *,
+        section: str,
+        cards: list[Card],
+        related_cards: list[Card],
+    ) -> tuple[list[RepairOrderRow], list[dict[str, str]]]:
+        updated_rows: list[RepairOrderRow] = []
+        hits: list[dict[str, str]] = []
+        for row in rows:
+            if row.price:
+                updated_rows.append(row)
+                continue
+            price, source = self._history_price_for_row(
+                row.name,
+                section=section,
+                cards=cards,
+                related_cards=related_cards,
+            )
+            if price:
+                updated_rows.append(RepairOrderRow(name=row.name, quantity=row.quantity, price=price, total=""))
+                hits.append({"section": section, "name": row.name, "price": price, "source": source})
+                continue
+            updated_rows.append(row)
+        return updated_rows, hits
+
+    def _history_price_for_row(
+        self,
+        row_name: str,
+        *,
+        section: str,
+        cards: list[Card],
+        related_cards: list[Card],
+    ) -> tuple[str, str]:
+        row_key = self._repair_row_key(row_name)
+        if not row_key:
+            return "", ""
+
+        def collect_prices(candidates: list[Card]) -> list[str]:
+            prices: list[str] = []
+            for candidate in candidates:
+                rows = candidate.repair_order.works if section == "works" else candidate.repair_order.materials
+                for item in rows:
+                    if self._repair_row_key(item.name) != row_key:
+                        continue
+                    price = normalize_text(item.price, default="", limit=40)
+                    if price:
+                        prices.append(price)
+            return prices
+
+        related_prices = collect_prices(related_cards)
+        if related_prices and len(set(related_prices)) == 1:
+            return related_prices[0], "related_history"
+
+        global_candidates = [candidate for candidate in cards if self._card_has_repair_order(candidate)]
+        global_prices = collect_prices(global_candidates)
+        if len(global_prices) >= 2 and len(set(global_prices)) == 1:
+            return global_prices[0], "board_history"
+        return "", ""
+
+    def _merge_repair_order_rows(self, existing: list[RepairOrderRow], suggested: list[RepairOrderRow]) -> list[RepairOrderRow]:
+        if not suggested:
+            return list(existing)
+        merged = [RepairOrderRow.from_dict(row.to_dict()) for row in existing]
+        for row in suggested:
+            self._append_repair_row(merged, row)
+        return normalize_repair_order_rows([row.to_dict() for row in merged])
+
+    def _build_client_description(self, card: Card, order: RepairOrder) -> str:
+        parts: list[str] = []
+        reason = normalize_text(order.reason or self._build_repair_order_reason(card), default="", limit=320)
+        findings = self._extract_repair_findings(card)
+        recommendations = self._extract_repair_recommendations(card)
+        work_names = [row.name for row in order.works if row.name][:4]
+        material_names = [self._format_client_material(row) for row in order.materials if row.name][:5]
+        if reason:
+            parts.append(f"Клиент обратился с запросом: {reason.rstrip('.')} .".replace(" .", "."))
+        if findings:
+            parts.append(f"В ходе проверки выявлено: {'; '.join(findings[:2]).rstrip('.')} .".replace(" .", "."))
+        if work_names:
+            parts.append(f"Выполнены работы: {', '.join(work_names)}.")
+        if material_names:
+            parts.append(f"Использованы материалы и запчасти: {', '.join(material_names)}.")
+        if recommendations:
+            parts.append(f"Рекомендовано далее: {'; '.join(recommendations[:2]).rstrip('.')} .".replace(" .", "."))
+        if not parts:
+            fallback = self._clean_repair_text_fragment(card.description, limit=320)
+            if fallback:
+                parts.append(fallback)
+        return normalize_text(" ".join(parts), default="", limit=1200)
+
+    def _format_client_material(self, row: RepairOrderRow) -> str:
+        quantity = normalize_text(row.quantity, default="", limit=40)
+        if quantity:
+            return f"{row.name} x {quantity}"
+        return row.name
+
+    def _build_internal_repair_note(
+        self,
+        card: Card,
+        order: RepairOrder,
+        *,
+        price_hits: list[dict[str, str]],
+    ) -> str:
+        parts: list[str] = []
+        findings = self._extract_repair_findings(card)
+        recommendations = self._extract_repair_recommendations(card)
+        if findings:
+            parts.append(f"Технические замечания: {'; '.join(findings[:3])}.")
+        if price_hits:
+            labels = ", ".join(f"{item['name']} = {item['price']}" for item in price_hits[:3])
+            parts.append(f"Цены подтянуты из истории: {labels}.")
+        if recommendations:
+            parts.append(f"Контроль / следующий шаг: {'; '.join(recommendations[:2])}.")
+        return normalize_text(" ".join(parts), default="", limit=1200)
 
     def _validated_repair_order(self, value) -> RepairOrder:
         if value is None:
@@ -2880,7 +3583,7 @@ class CardService:
             )
             if part
         ).upper()
-        match = re.search(r"\b[A-HJ-NPR-Z0-9]{17}\b", haystack)
+        match = _VIN_PATTERN.search(haystack)
         if match:
             return match.group(0)
         return fallback
@@ -2895,7 +3598,7 @@ class CardService:
             )
             if part
         )
-        match = re.search(r"(?:пробег|mileage)\s*[:\-]?\s*([\d\s]{2,12})", haystack, re.IGNORECASE)
+        match = _MILEAGE_PATTERN.search(haystack)
         if not match:
             return fallback
         return " ".join(match.group(1).split())

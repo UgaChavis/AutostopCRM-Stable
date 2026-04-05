@@ -77,6 +77,20 @@ _YEAR_PATTERN = re.compile(r"\b(19\d{2}|20\d{2}|21\d{2})\b")
 _ENGINE_LABEL_PATTERN = re.compile(r"(?:ENGINE(?:\s+MODEL)?|ДВИГАТЕЛЬ|МОТОР)\s*[:\-]?\s*([A-Z0-9\-/. ]{3,32})", re.IGNORECASE)
 _ENGINE_CODE_PATTERN = re.compile(r"(?:ENGINE\s+CODE|КОД\s+ДВИГАТЕЛЯ|ENGINE NO|ДВИГАТЕЛЬ №)\s*[:\-]?\s*([A-Z0-9\-]{3,24})", re.IGNORECASE)
 _GEARBOX_LABEL_PATTERN = re.compile(r"(?:GEARBOX|TRANSMISSION|КОРОБКА|ТРАНСМИССИЯ)\s*[:\-]?\s*([A-Z0-9\-/. ]{2,32})", re.IGNORECASE)
+_PHONE_PATTERN = re.compile(r"(?:\+7|8)\s*(?:\(\s*\d{3}\s*\)|\d{3})\s*[\- ]?\s*\d{3}\s*[\- ]?\s*\d{2}\s*[\- ]?\s*\d{2}")
+_CUSTOMER_NAME_PATTERN = re.compile(
+    r"(?:КЛИЕНТ|ВЛАДЕЛЕЦ|КОНТАКТ(?:НОЕ ЛИЦО)?|CUSTOMER)\s*[:\-]?\s*([A-ZА-ЯЁ][A-ZА-ЯЁA-Zа-яё.\-]+(?:\s+[A-ZА-ЯЁ][A-ZА-ЯЁA-Zа-яё.\-]+){0,2})",
+    re.IGNORECASE,
+)
+_GENERATION_LABEL_PATTERN = re.compile(
+    r"(?:ПОКОЛЕНИЕ|КУЗОВ|ПЛАТФОРМА|PLATFORM|GENERATION|BODY)\s*[:\-]?\s*([A-ZА-Я0-9\-/. ]{1,32})",
+    re.IGNORECASE,
+)
+_PLATFORM_TOKEN_PATTERN = re.compile(r"\b([A-Z]{1,4}\d{1,4}[A-Z]?|[IVX]{1,5})\b", re.IGNORECASE)
+_GEARBOX_MODEL_FALLBACK_PATTERN = re.compile(
+    r"\b(?:DQ\d{3,4}|DL\d{3,4}|JF\d{3,4}[A-Z]?|RE\d{2}[A-Z]\d{2}[A-Z]?|TF-\d{2,3}[A-Z]*|A6GF1|UA80E|8HP\d{2}|6T\d{2}|09G|01M|AISIN)\b",
+    re.IGNORECASE,
+)
 _BOLT_PATTERN = re.compile(r"\b([45]x1\d{2}(?:[.,]\d)?)\b", re.IGNORECASE)
 _MAKE_MODEL_SPLIT_PATTERN = re.compile(r"[^A-ZА-Я0-9]+", re.IGNORECASE)
 _PROBLEM_MARKER_PATTERN = re.compile(
@@ -570,6 +584,14 @@ class VehicleProfileService:
         if year_match:
             profile.production_year = normalize_vehicle_int(year_match.group(1))
 
+        phone_match = _PHONE_PATTERN.search(combined_text)
+        if phone_match:
+            profile.customer_phone = self._format_phone(phone_match.group(0))
+
+        customer_name = self._extract_customer_name(combined_text)
+        if customer_name:
+            profile.customer_name = customer_name
+
         detected_make = ""
         for canonical_make, aliases in _MAKE_ALIASES.items():
             if any(re.search(rf"\b{re.escape(alias)}\b", upper_text, re.IGNORECASE) for alias in aliases):
@@ -581,6 +603,9 @@ class VehicleProfileService:
         model_match = self._detect_model(combined_text, detected_make)
         if model_match:
             profile.model_display = model_match
+            generation_or_platform = self._extract_generation_or_platform(combined_text, model_match)
+            if generation_or_platform:
+                profile.generation_or_platform = generation_or_platform
 
         engine_code_match = _ENGINE_CODE_PATTERN.search(upper_text)
         if engine_code_match:
@@ -609,6 +634,10 @@ class VehicleProfileService:
             candidate = normalize_vehicle_text(gearbox_label_match.group(1), limit=40)
             if candidate:
                 profile.gearbox_model = candidate
+        elif not profile.gearbox_model:
+            gearbox_model_hint = self._extract_gearbox_model_hint(combined_text)
+            if gearbox_model_hint:
+                profile.gearbox_model = gearbox_model_hint
 
         for drivetrain, pattern in _DRIVETRAIN_PATTERNS:
             if re.search(pattern, upper_text, re.IGNORECASE):
@@ -968,8 +997,75 @@ $payload | ConvertTo-Json -Compress -Depth 6
                         if len(model_tokens) >= 3:
                             break
                     if model_tokens:
-                        return " ".join(model_tokens).title()
+                        return self._compose_model_tokens(model_tokens)
         return ""
+
+    def _compose_model_tokens(self, tokens: list[str]) -> str:
+        normalized_tokens: list[str] = []
+        for raw_token in tokens:
+            token = normalize_vehicle_text(raw_token, limit=24)
+            if not token:
+                continue
+            if re.fullmatch(r"[IVX]{1,5}", token, re.IGNORECASE):
+                normalized_tokens.append(token.upper())
+                continue
+            if re.fullmatch(r"[A-Z]{1,4}\d{1,4}[A-Z]?", token, re.IGNORECASE):
+                normalized_tokens.append(token.upper())
+                continue
+            normalized_tokens.append(token.title())
+        return " ".join(normalized_tokens)
+
+    def _extract_customer_name(self, text: str) -> str:
+        match = _CUSTOMER_NAME_PATTERN.search(text)
+        if not match:
+            return ""
+        blocked_tokens = {"ТЕЛЕФОН", "PHONE", "VIN", "ГОСНОМЕР", "ПРОБЕГ", "MILEAGE"}
+        parts: list[str] = []
+        for part in str(match.group(1) or "").strip().split():
+            normalized = str(part or "").strip()
+            if not normalized:
+                continue
+            if normalized.upper().strip(":.,-") in blocked_tokens:
+                break
+            parts.append(normalized)
+        if not parts:
+            return ""
+        return " ".join(part[:1].upper() + part[1:].lower() for part in parts)[:80]
+
+    def _format_phone(self, value: str) -> str:
+        digits = re.sub(r"\D+", "", str(value or ""))
+        if len(digits) == 11 and digits.startswith("8"):
+            digits = "7" + digits[1:]
+        if len(digits) == 11 and digits.startswith("7"):
+            return f"+7 {digits[1:4]} {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+        return normalize_vehicle_text(value, limit=32)
+
+    def _extract_generation_or_platform(self, text: str, model_display: str) -> str:
+        labelled = _GENERATION_LABEL_PATTERN.search(text)
+        if labelled:
+            candidate = normalize_vehicle_text(labelled.group(1), limit=40)
+            if candidate:
+                return candidate.upper() if re.fullmatch(r"[A-Z0-9\-/. ]+", candidate, re.IGNORECASE) else candidate
+        model_tokens = [token for token in re.split(r"[\s\-]+", model_display.upper()) if token]
+        if model_tokens:
+            joined = r"[\s\-]+".join(re.escape(token) for token in model_tokens)
+            near_model = re.search(rf"{joined}\s+([A-Z]{{1,4}}\d{{1,4}}[A-Z]?|[IVX]{{1,5}})\b", text.upper(), re.IGNORECASE)
+            if near_model:
+                return near_model.group(1).upper()
+        platform_tokens = [match.group(1).upper() for match in _PLATFORM_TOKEN_PATTERN.finditer(text.upper())]
+        filtered = [
+            token
+            for token in platform_tokens
+            if not _YEAR_PATTERN.fullmatch(token)
+            and token not in {"VIN", "AT", "MT", "CVT", "DSG", "FWD", "AWD", "RWD"}
+        ]
+        return filtered[0] if filtered else ""
+
+    def _extract_gearbox_model_hint(self, text: str) -> str:
+        match = _GEARBOX_MODEL_FALLBACK_PATTERN.search(text.upper())
+        if not match:
+            return ""
+        return normalize_vehicle_text(match.group(0), limit=40).upper()
 
     def _build_issue_title(self, text: str) -> str:
         candidate = ""

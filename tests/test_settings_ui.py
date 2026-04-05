@@ -307,10 +307,12 @@ class SettingsWindowIntegrationTests(unittest.TestCase):
 
         self.assertIn("MCP сервер запущен", dialog.runtime_mcp_status_input.text())
         self.assertEqual(dialog.mcp_public_endpoint_input.text(), "https://public.example/mcp")
+        self.assertEqual(dialog.mcp_tunnel_endpoint_input.text(), "https://demo.ngrok-free.app/mcp")
         dialog.copy_connection_card_button.click()
         clipboard = QGuiApplication.clipboard().text()
         self.assertIn("AUTOSTOP CRM — КАРТОЧКА ПОДКЛЮЧЕНИЯ GPT / MCP", clipboard)
-        self.assertIn("effective_mcp_url = https://demo.ngrok-free.app/mcp", clipboard)
+        self.assertIn("effective_mcp_url = https://public.example/mcp", clipboard)
+        self.assertIn("derived_tunnel_mcp_url = https://demo.ngrok-free.app/mcp", clipboard)
 
         dialog.stop_mcp_button.click()
         self.assertIn("остановлен", dialog.runtime_mcp_status_input.text())

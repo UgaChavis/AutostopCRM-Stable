@@ -39,6 +39,7 @@ class SettingsServiceTests(unittest.TestCase):
         self.assertTrue(self.settings_file.exists())
         self.assertTrue(settings.general.integration_enabled)
         self.assertTrue(settings.general.use_local_api)
+        self.assertTrue(settings.general.auto_connect_on_startup)
         self.assertEqual(settings.local_api.local_api_host, "127.0.0.1")
         self.assertEqual(settings.local_api.local_api_port, 41731)
         self.assertEqual(settings.local_api.runtime_local_api_url, "http://127.0.0.1:41731")
@@ -53,6 +54,13 @@ class SettingsServiceTests(unittest.TestCase):
         self.assertEqual(settings.openai.model, "gpt-5.4-mini")
         self.assertEqual(settings.openai.base_url, "https://api.openai.com/v1")
         self.assertEqual(settings.openai.timeout_seconds, 30)
+
+    def test_missing_auto_connect_setting_defaults_to_true(self) -> None:
+        self.settings_file.write_text("{}", encoding="utf-8")
+
+        loaded = self.service.load()
+
+        self.assertTrue(loaded.general.auto_connect_on_startup)
 
     def test_derived_allowed_hosts_and_origins_accept_tuple_inputs(self) -> None:
         hosts = derive_allowed_hosts(

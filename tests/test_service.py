@@ -1397,6 +1397,106 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(order["works"][0]["quantity"], "1")
         self.assertEqual(order["materials"][0]["name"], "ATF")
 
+    def test_autofill_repair_order_extracts_structured_rows_and_client_summary_from_text(self) -> None:
+        created = self.service.create_card(
+            {
+                "vehicle": "Volkswagen Tiguan II",
+                "title": "Пинки АКПП на 2-3 передаче",
+                "description": (
+                    "Клиент: Иван Иванов\n"
+                    "Телефон: +7 900 123-45-67\n"
+                    "Госномер А123АА124\n"
+                    "VIN WVWZZZ1KZBP123456\n"
+                    "Пробег: 145000\n"
+                    "Жалоба: пинки DSG на 2-3 передаче, течь поддона.\n"
+                    "Обнаружили: загрязнение масла и запотевание поддона.\n"
+                    "Работы: диагностика DSG, адаптация DSG, замена масла АКПП\n"
+                    "Материалы: ATF 6 л, фильтр АКПП 1 шт, прокладка поддона 1 шт\n"
+                    "Рекомендовано: контрольный осмотр через 1000 км."
+                ),
+                "deadline": {"hours": 6},
+                "vehicle_profile": {
+                    "make_display": "Volkswagen",
+                    "model_display": "Tiguan II",
+                    "production_year": 2019,
+                },
+            }
+        )
+
+        autofilled = self.service.autofill_repair_order({"card_id": created["card"]["id"]})
+
+        order = autofilled["repair_order"]
+        self.assertEqual(order["client"], "Иван Иванов")
+        self.assertEqual(order["phone"], "+7 900 123-45-67")
+        self.assertEqual(order["license_plate"], "А123АА124")
+        self.assertEqual(order["vin"], "WVWZZZ1KZBP123456")
+        self.assertEqual(order["mileage"], "145000")
+        self.assertIn("пинки dsg", order["reason"].lower())
+        self.assertEqual([row["name"] for row in order["works"][:3]], ["Диагностика DSG", "Адаптация DSG", "Замена масла АКПП"])
+        self.assertEqual([row["name"] for row in order["materials"][:3]], ["ATF", "Фильтр АКПП", "Прокладка поддона"])
+        self.assertEqual(order["materials"][0]["quantity"], "6")
+        self.assertEqual(order["materials"][1]["quantity"], "1")
+        self.assertIn("Клиент обратился с запросом", order["client_information"])
+        self.assertIn("Выполнены работы", order["client_information"])
+        self.assertIn("Рекомендовано далее", order["client_information"])
+        self.assertIn("Технические замечания", order["note"])
+
+    def test_autofill_repair_order_uses_history_prices_and_merges_existing_rows(self) -> None:
+        vin = "WVWZZZ1KZBP123456"
+        for index in range(2):
+            created = self.service.create_card(
+                {
+                    "vehicle": "Volkswagen Tiguan II",
+                    "title": f"История DSG {index}",
+                    "description": "Ранее выполненные работы",
+                    "deadline": {"hours": 4},
+                    "vehicle_profile": {"vin": vin},
+                }
+            )
+            self.service.update_card(
+                {
+                    "card_id": created["card"]["id"],
+                    "repair_order": {
+                        "client": "Иван Иванов",
+                        "works": [{"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}],
+                        "materials": [{"name": "ATF", "quantity": "6", "price": "950", "total": ""}],
+                    },
+                }
+            )
+
+        current = self.service.create_card(
+            {
+                "vehicle": "Volkswagen Tiguan II",
+                "title": "Жалоба DSG",
+                "description": "VIN WVWZZZ1KZBP123456\nЖалоба: пинки DSG.\nРаботы: Диагностика DSG\nМатериалы: ATF 6 л",
+                "deadline": {"hours": 4},
+                "vehicle_profile": {"vin": vin},
+            }
+        )
+        card_id = current["card"]["id"]
+        self.service.update_card(
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "materials": [{"name": "ATF", "quantity": "", "price": "", "total": ""}],
+                },
+            }
+        )
+
+        autofilled = self.service.autofill_repair_order({"card_id": card_id})
+
+        order = autofilled["repair_order"]
+        self.assertEqual(order["works"][0]["name"], "Диагностика DSG")
+        self.assertEqual(order["works"][0]["price"], "2500")
+        self.assertEqual(order["works"][0]["total"], "2500")
+        self.assertEqual(len(order["materials"]), 1)
+        self.assertEqual(order["materials"][0]["name"], "ATF")
+        self.assertEqual(order["materials"][0]["quantity"], "6")
+        self.assertEqual(order["materials"][0]["price"], "950")
+        self.assertEqual(order["materials"][0]["total"], "5700")
+        self.assertEqual(order["grand_total"], "8200")
+        self.assertEqual(len(autofilled["meta"]["autofill_report"]["prices_applied"]), 2)
+
     def test_search_cards_matches_vehicle_profile_fields(self) -> None:
         created = self.service.create_card(
             {
@@ -1465,6 +1565,33 @@ class CardServiceTests(unittest.TestCase):
         self.assertNotIn("engine_code", profile["autofilled_fields"])
         self.assertIn("gearbox_model", profile["autofilled_fields"])
         self.assertEqual(autofilled["card_draft"]["vehicle"], "Suzuki Swift 2014")
+
+    def test_autofill_vehicle_data_extracts_contact_platform_and_transmission_details(self) -> None:
+        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None):
+            autofilled = self.service.autofill_vehicle_data(
+                {
+                    "raw_text": (
+                        "Toyota Camry XV70 2019\n"
+                        "Клиент: Иван Петров\n"
+                        "Телефон: +7 (900) 123-45-67\n"
+                        "VIN JTNB11HK103456789\n"
+                        "Двигатель: A25A-FKS\n"
+                        "АКПП UA80E\n"
+                        "Передний привод, бензин"
+                    ),
+                }
+            )
+
+        profile = autofilled["vehicle_profile"]
+        self.assertEqual(profile["make_display"], "Toyota")
+        self.assertEqual(profile["model_display"], "Camry")
+        self.assertEqual(profile["generation_or_platform"], "XV70")
+        self.assertEqual(profile["customer_name"], "Иван Петров")
+        self.assertEqual(profile["customer_phone"], "+7 900 123-45-67")
+        self.assertEqual(profile["gearbox_model"], "UA80E")
+        self.assertEqual(profile["gearbox_type"], "automatic")
+        self.assertEqual(profile["drivetrain"], "FWD")
+        self.assertEqual(profile["fuel_type"], "gasoline")
 
     def test_autofill_vehicle_data_handles_bad_image_payload_without_crash(self) -> None:
         autofilled = self.service.autofill_vehicle_data(

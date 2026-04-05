@@ -233,7 +233,7 @@ class GeneralSettings:
             use_local_api=normalize_bool(payload.get("use_local_api", legacy_general.get("use_local_api")), default=True),
             auto_connect_on_startup=normalize_bool(
                 payload.get("auto_connect_on_startup", legacy_general.get("auto_connect_on_startup")),
-                default=False,
+                default=True,
             ),
             test_mode=normalize_bool(payload.get("test_mode", legacy_general.get("test_mode")), default=True),
         )

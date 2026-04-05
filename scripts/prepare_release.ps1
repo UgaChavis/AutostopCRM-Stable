@@ -59,7 +59,7 @@ foreach ($docName in $optionalDocs) {
 
 $guidePath = Join-Path $stagingRoot "HOW_TO_START.txt"
 $guideText = @"
-Minimal Kanban Board
+AutoStop CRM
 
 This build runs without installation.
 

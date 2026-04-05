@@ -174,6 +174,45 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(created["data"]["column"]["label"], "Protected")
 
+    def test_proxied_write_routes_require_operator_session(self) -> None:
+        proxy_headers = {"X-Forwarded-For": "203.0.113.10"}
+
+        status, blocked = self.request(
+            "/api/create_sticky",
+            {"text": "Proxy write", "x": 1, "y": 1, "deadline": {"hours": 1}},
+            headers=proxy_headers,
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(blocked["error"]["details"]["auth_type"], "operator_session")
+
+        status, blocked_autofill = self.request(
+            "/api/autofill_vehicle_data",
+            {"raw_text": "VIN WBANV9C57AC136084", "actor_name": "AUDIT"},
+            headers=proxy_headers,
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(blocked_autofill["error"]["details"]["auth_type"], "operator_session")
+
+        status, logged_in = self.request(
+            "/api/login_operator",
+            {"username": "admin", "password": "admin"},
+        )
+        self.assertEqual(status, 200)
+        token = logged_in["data"]["session"]["token"]
+
+        status, created = self.request(
+            "/api/create_sticky",
+            {"text": "Proxy write", "x": 1, "y": 1, "deadline": {"hours": 1}},
+            headers={**proxy_headers, "X-Operator-Session": token},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(created["data"]["sticky"]["text"], "Proxy write")
+
+    def test_update_board_settings_route_is_not_exposed_via_get(self) -> None:
+        status, response = self.request("/api/update_board_settings?board_scale=1.25", method="GET")
+        self.assertEqual(status, 404)
+        self.assertEqual(response["error"]["code"], "not_found")
+
     def test_open_card_updates_operator_opened_counter(self) -> None:
         status, created = self.request(
             "/api/create_card",
@@ -785,6 +824,55 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(autofilled["data"]["repair_order"]["phone"], "+7 999 000-11-22")
         self.assertEqual(autofilled["data"]["repair_order"]["license_plate"], "А123АА124")
         self.assertEqual(autofilled["data"]["repair_order"]["works"][0]["name"], "ТО DSG/АКПП")
+        self.assertIn("autofill_report", autofilled["data"]["meta"])
+
+    def test_autofill_repair_order_route_returns_structured_rows_and_history_prices(self) -> None:
+        vin = "WVWZZZ1KZBP123456"
+        for index in range(2):
+            status, created = self.request(
+                "/api/create_card",
+                {
+                    "vehicle": "Volkswagen Tiguan II",
+                    "title": f"История DSG {index}",
+                    "description": "Ранее выполненные работы",
+                    "deadline": {"hours": 4},
+                    "vehicle_profile": {"vin": vin},
+                },
+            )
+            self.assertEqual(status, 200)
+            history_id = created["data"]["card"]["id"]
+            status, _ = self.request(
+                "/api/update_repair_order",
+                {
+                    "card_id": history_id,
+                    "repair_order": {
+                        "works": [{"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}],
+                        "materials": [{"name": "ATF", "quantity": "6", "price": "950", "total": ""}],
+                    },
+                },
+            )
+            self.assertEqual(status, 200)
+
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "vehicle": "Volkswagen Tiguan II",
+                "title": "Жалоба DSG",
+                "description": "VIN WVWZZZ1KZBP123456\nЖалоба: пинки DSG.\nРаботы: Диагностика DSG\nМатериалы: ATF 6 л",
+                "deadline": {"hours": 4},
+                "vehicle_profile": {"vin": vin},
+            },
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, autofilled = self.request("/api/autofill_repair_order", {"card_id": card_id})
+        self.assertEqual(status, 200)
+        self.assertEqual(autofilled["data"]["repair_order"]["works"][0]["price"], "2500")
+        self.assertEqual(autofilled["data"]["repair_order"]["materials"][0]["name"], "ATF")
+        self.assertEqual(autofilled["data"]["repair_order"]["materials"][0]["price"], "950")
+        self.assertIn("Выполнены работы", autofilled["data"]["repair_order"]["client_information"])
+        self.assertEqual(len(autofilled["data"]["meta"]["autofill_report"]["prices_applied"]), 2)
 
     def test_repair_order_status_route_moves_order_between_active_list_and_archive(self) -> None:
         status, created = self.request(

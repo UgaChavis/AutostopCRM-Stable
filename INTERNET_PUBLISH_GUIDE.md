@@ -59,7 +59,10 @@
 
 Иными словами, внешний адрес должен смотреть на тот же экземпляр приложения, который держит доску на твоём ПК.
 
-Для серверного сценария AutoStop CRM готовый пример nginx лежит в `scripts/nginx.autostopcrm.conf.example`.
+Для серверного сценария AutoStop CRM есть два nginx-шаблона:
+
+- `scripts/nginx.autostopcrm.http-bootstrap.conf.example` для первого certbot-прогона на чистом сервере без готового сертификата;
+- `scripts/nginx.autostopcrm.conf.example` для финального steady-state HTTPS с редиректом `80 -> 443`.
 
 ## Быстрый сценарий
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from datetime import datetime, timezone
 import json
 import sys
 import urllib.error
@@ -196,6 +197,7 @@ def check_api_surface(base_url: str, *, bearer_token: str | None = None) -> dict
         "checked": bool(base_url),
         "ok": False,
         "base_url": base_url,
+        "surface_kind": "unknown",
         "health": None,
         "board_context": None,
         "board_snapshot": None,
@@ -205,7 +207,7 @@ def check_api_surface(base_url: str, *, bearer_token: str | None = None) -> dict
         "error": None,
     }
     if not base_url:
-        result["error"] = "local_api_not_found"
+        result["error"] = "api_base_url_not_found"
         return result
 
     try:
@@ -265,12 +267,15 @@ def check_operator_auth(
     result: dict[str, Any] = {
         "checked": bool(base_url and username and password),
         "ok": False,
+        "base_url": base_url,
+        "surface_kind": "unknown",
         "username": str(username or "").strip(),
         "expect_admin": bool(expect_admin),
         "login": None,
         "profile": None,
         "users": None,
         "is_admin": False,
+        "has_security_payload": False,
         "using_default_admin_credentials": False,
         "warning": "",
         "error": None,
@@ -310,7 +315,12 @@ def check_operator_auth(
             return result
 
         user_payload = ((profile_payload or {}).get("data") or {}).get("user") or {}
-        security_payload = ((profile_payload or {}).get("data") or {}).get("security") or {}
+        security_payload = ((profile_payload or {}).get("data") or {}).get("security")
+        result["has_security_payload"] = isinstance(security_payload, dict)
+        if not result["has_security_payload"]:
+            result["error"] = "operator_security_payload_missing"
+            return result
+        security_payload = security_payload or {}
         result["is_admin"] = bool(user_payload.get("is_admin"))
         result["using_default_admin_credentials"] = bool(security_payload.get("using_default_admin_credentials"))
         result["warning"] = str(security_payload.get("warning") or "")
@@ -336,6 +346,58 @@ def check_operator_auth(
     except Exception as exc:  # pragma: no cover
         result["error"] = str(exc)
         return result
+
+
+def check_public_write_protection(site_url: str) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "checked": bool(site_url),
+        "ok": False,
+        "site_url": site_url,
+        "status_code": 0,
+        "error_code": "",
+        "error_message": "",
+        "unexpected_write_succeeded": False,
+        "cleanup_ok": False,
+        "error": None,
+    }
+    if not site_url:
+        result["error"] = "site_url_not_configured"
+        return result
+
+    marker = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    create_status, create_payload = _api_request(
+        _clean_url(site_url),
+        "/api/create_sticky",
+        method="POST",
+        payload={
+            "text": f"AUDIT TEMP {marker}",
+            "x": 1,
+            "y": 1,
+            "deadline": {"days": 0, "hours": 1},
+        },
+    )
+    result["status_code"] = create_status
+    error_payload = ((create_payload or {}).get("error") or {}) if isinstance(create_payload, dict) else {}
+    result["error_code"] = str(error_payload.get("code") or "")
+    result["error_message"] = str(error_payload.get("message") or "")
+
+    if create_status in {401, 403} and result["error_code"] in {"unauthorized", "forbidden"}:
+        result["ok"] = True
+        return result
+
+    sticky_payload = ((create_payload or {}).get("data") or {}).get("sticky") or {}
+    sticky_id = str(sticky_payload.get("id") or "").strip()
+    if sticky_id:
+        result["unexpected_write_succeeded"] = True
+        delete_status, delete_payload = _api_request(
+            _clean_url(site_url),
+            "/api/delete_sticky",
+            method="POST",
+            payload={"sticky_id": sticky_id},
+        )
+        result["cleanup_ok"] = bool(delete_status == 200 and _envelope_ok(delete_payload))
+    result["error"] = "anonymous_public_write_not_blocked"
+    return result
 
 
 async def check_mcp(mcp_url: str, *, bearer_token: str | None = None) -> dict[str, Any]:
@@ -430,8 +492,9 @@ async def check_mcp(mcp_url: str, *, bearer_token: str | None = None) -> dict[st
 
 
 def _print_api_surface(report: dict[str, Any]) -> None:
-    print_section("LOCAL API")
+    print_section("API SURFACE")
     print(f"base_url: {report.get('base_url') or '<not found>'}")
+    print(f"surface_kind: {report.get('surface_kind') or '<unknown>'}")
     if report.get("ok"):
         summary = report.get("summary") or {}
         print("status: ok")
@@ -472,10 +535,13 @@ def _print_operator_auth(report: dict[str, Any]) -> None:
         print("status: skipped")
         print("reason: operator credentials were not provided")
         return
+    print(f"base_url: {report.get('base_url') or '<not found>'}")
+    print(f"surface_kind: {report.get('surface_kind') or '<unknown>'}")
     print(f"username: {report.get('username') or '<empty>'}")
     if report.get("ok"):
         print("status: ok")
         print(f"is_admin: {report.get('is_admin')}")
+        print(f"has_security_payload: {report.get('has_security_payload')}")
         print(f"using_default_admin_credentials: {report.get('using_default_admin_credentials')}")
         if report.get("warning"):
             print(f"warning: {report.get('warning')}")
@@ -484,6 +550,30 @@ def _print_operator_auth(report: dict[str, Any]) -> None:
     else:
         print("status: failed")
         print(f"error: {report.get('error')}")
+
+
+def _print_public_write_protection(report: dict[str, Any]) -> None:
+    print_section("PUBLIC WRITE PROTECTION")
+    print(f"site_url: {report.get('site_url') or '<not configured>'}")
+    if not report.get("checked"):
+        print("status: skipped")
+        print("reason: site url was not provided")
+        return
+    if report.get("ok"):
+        print("status: ok")
+        print("anonymous writes: blocked")
+        print(f"status_code: {report.get('status_code')}")
+        if report.get("error_code"):
+            print(f"error_code: {report.get('error_code')}")
+    else:
+        print("status: failed")
+        print(f"error: {report.get('error')}")
+        print(f"status_code: {report.get('status_code')}")
+        if report.get("error_code"):
+            print(f"error_code: {report.get('error_code')}")
+        if report.get("unexpected_write_succeeded"):
+            print("unexpected_write_succeeded: True")
+            print(f"cleanup_ok: {report.get('cleanup_ok')}")
 
 
 def _print_mcp(report: dict[str, Any]) -> None:
@@ -537,16 +627,21 @@ def main() -> int:
     local_api_url = _resolve_local_api_url(settings, args.local_api_url, local_api_token)
     mcp_url = _resolve_mcp_url(settings, args.mcp_url)
     mcp_token = _resolve_mcp_token(settings, args.mcp_token)
+    api_probe_url = local_api_url or site_url
+    api_probe_kind = "local" if local_api_url else ("public" if site_url else "unknown")
 
     site_surface = check_site(site_url, expect_https=args.expect_https)
-    api_surface = check_api_surface(local_api_url, bearer_token=local_api_token or None)
+    api_surface = check_api_surface(api_probe_url, bearer_token=local_api_token or None)
+    api_surface["surface_kind"] = api_probe_kind
     operator_auth = check_operator_auth(
-        local_api_url,
+        api_probe_url,
         username=args.operator_username,
         password=args.operator_password,
         bearer_token=local_api_token or None,
         expect_admin=args.expect_admin,
     )
+    operator_auth["surface_kind"] = api_probe_kind
+    public_write_protection = check_public_write_protection(site_url)
     mcp_surface = asyncio.run(check_mcp(mcp_url, bearer_token=mcp_token or None))
 
     report = {
@@ -554,6 +649,7 @@ def main() -> int:
         "site_surface": site_surface,
         "api_surface": api_surface,
         "operator_auth": operator_auth,
+        "public_write_protection": public_write_protection,
         "mcp_surface": mcp_surface,
     }
 
@@ -565,6 +661,7 @@ def main() -> int:
         _print_site(site_surface)
         _print_api_surface(api_surface)
         _print_operator_auth(operator_auth)
+        _print_public_write_protection(public_write_protection)
         _print_mcp(mcp_surface)
 
     if not args.strict:
@@ -574,6 +671,7 @@ def main() -> int:
         ("site_surface", site_surface.get("checked"), site_surface.get("ok")),
         ("api_surface", api_surface.get("checked"), api_surface.get("ok")),
         ("operator_auth", operator_auth.get("checked"), operator_auth.get("ok")),
+        ("public_write_protection", public_write_protection.get("checked"), public_write_protection.get("ok")),
         ("mcp_surface", mcp_surface.get("checked"), mcp_surface.get("ok")),
     ]
     failed = [name for name, checked, ok in checked_sections if checked and not ok]

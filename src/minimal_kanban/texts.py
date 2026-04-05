@@ -19,6 +19,9 @@ BOARD_LOAD_ERROR_MESSAGE = (
     "Не удалось прочитать состояние доски. Подробности сохранены в журнале программы."
 )
 
+# Override the legacy desktop title while keeping the existing data paths unchanged.
+APP_DISPLAY_NAME = "AutoStop CRM"
+
 COLUMN_LABELS_RU = {
     "inbox": "Входящие",
     "in_progress": "В работе",

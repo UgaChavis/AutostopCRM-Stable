@@ -8,6 +8,9 @@ SMOKE_DELAY_SECONDS="${AUTOSTOP_SMOKE_DELAY_SECONDS:-3}"
 SMOKE_OPERATOR_USERNAME="${AUTOSTOP_SMOKE_OPERATOR_USERNAME:-${MINIMAL_KANBAN_DEFAULT_ADMIN_USERNAME:-admin}}"
 SMOKE_OPERATOR_PASSWORD="${AUTOSTOP_SMOKE_OPERATOR_PASSWORD:-${MINIMAL_KANBAN_DEFAULT_ADMIN_PASSWORD:-admin}}"
 DESKTOP_INSTRUCTION_PATH="${AUTOSTOP_DESKTOP_INSTRUCTION_PATH:-/root/Desktop/AUTOSTOPCRM_FULL_INSTRUCTION.txt}"
+PUBLIC_SITE_URL="${AUTOSTOP_PUBLIC_SITE_URL:-}"
+PUBLIC_MCP_URL="${AUTOSTOP_PUBLIC_MCP_URL:-}"
+VERIFY_PUBLIC_HTTPS="${AUTOSTOP_VERIFY_PUBLIC_HTTPS:-0}"
 
 cd "$ROOT_DIR"
 
@@ -52,6 +55,20 @@ if [[ "$smoke_ok" -ne 1 ]]; then
   echo "ERROR: deploy smoke-check failed." >&2
   docker compose logs --tail=200 "$SERVICE_NAME" >&2 || true
   exit 1
+fi
+
+if [[ "$VERIFY_PUBLIC_HTTPS" == "1" ]]; then
+  public_site_url="${PUBLIC_SITE_URL:-https://crm.autostopcrm.ru}"
+  public_mcp_url="${PUBLIC_MCP_URL:-https://crm.autostopcrm.ru/mcp}"
+  docker compose exec -T "$SERVICE_NAME" python scripts/check_live_connector.py \
+    --strict \
+    --site-url "$public_site_url" \
+    --expect-https \
+    --local-api-url http://127.0.0.1:41731 \
+    --mcp-url "$public_mcp_url" \
+    --operator-username "$SMOKE_OPERATOR_USERNAME" \
+    --operator-password "$SMOKE_OPERATOR_PASSWORD" \
+    --expect-admin
 fi
 
 if [[ -n "$DESKTOP_INSTRUCTION_PATH" ]]; then

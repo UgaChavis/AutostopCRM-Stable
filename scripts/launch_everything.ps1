@@ -1,6 +1,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "python_bootstrap.ps1")
 $launchMutex = [System.Threading.Mutex]::new($false, "Local\MinimalKanbanLaunchEverything")
 if (-not $launchMutex.WaitOne(0)) {
     exit 0
@@ -209,11 +210,11 @@ function Write-ConnectorFiles {
 
     $connectionCardPath = Join-Path $desktopPath "GPT_MCP_CONNECTION_CARD.txt"
     $connectorJsonPath = Join-Path $desktopPath "chatgpt-connector.json"
-    $authNotePath = Join-Path $desktopPath "Minimal Kanban Auth Note.txt"
-    $urlPath = Join-Path $desktopPath "Minimal Kanban URL.txt"
+    $authNotePath = Join-Path $desktopPath "AutoStop CRM Auth Note.txt"
+    $urlPath = Join-Path $desktopPath "AutoStop CRM URL.txt"
 
     $connectionCard = @"
-Minimal Kanban / This Board Only ($hostLabel) -> ChatGPT / MCP
+AutoStop CRM / This Board Only ($hostLabel) -> ChatGPT / MCP
 
 [KEY VALUES]
 connector_auth_mode = $AuthMode
@@ -231,8 +232,8 @@ Connection flow:
 
     $connectorJson = @"
 {
-  "name": "Minimal Kanban / This Board Only ($hostLabel)",
-  "description": "Single-board connector for the current Minimal Kanban board only.",
+  "name": "AutoStop CRM / This Board Only ($hostLabel)",
+  "description": "Single-board connector for the current AutoStop CRM board only.",
   "connector_url": "$McpUrl",
   "auth_mode": "$AuthMode",
   "notes": [
@@ -279,7 +280,7 @@ function Write-PendingConnectorFiles {
     $desktopPath = [Environment]::GetFolderPath("Desktop")
     $authLabel = Get-ConnectorAuthLabel -AuthMode $AuthMode
     $connectionCard = @"
-Minimal Kanban / This Board Only (current-connector) -> ChatGPT / MCP
+AutoStop CRM / This Board Only (current-connector) -> ChatGPT / MCP
 
 [KEY VALUES]
 connector_auth_mode = $AuthMode
@@ -297,8 +298,8 @@ Connection flow:
 
     $connectorJson = @"
 {
-  "name": "Minimal Kanban / This Board Only (current-connector)",
-  "description": "Single-board connector for the current Minimal Kanban board only.",
+  "name": "AutoStop CRM / This Board Only (current-connector)",
+  "description": "Single-board connector for the current AutoStop CRM board only.",
   "connector_url": "",
   "auth_mode": "$AuthMode",
   "notes": [
@@ -326,8 +327,8 @@ First checks:
 
     Write-Utf8TextNoBom -Path (Join-Path $desktopPath "GPT_MCP_CONNECTION_CARD.txt") -Value $connectionCard
     Write-Utf8TextNoBom -Path (Join-Path $desktopPath "chatgpt-connector.json") -Value $connectorJson
-    Write-Utf8TextNoBom -Path (Join-Path $desktopPath "Minimal Kanban Auth Note.txt") -Value $authNote
-    Write-Utf8TextNoBom -Path (Join-Path $desktopPath "Minimal Kanban URL.txt") -Value ""
+    Write-Utf8TextNoBom -Path (Join-Path $desktopPath "AutoStop CRM Auth Note.txt") -Value $authNote
+    Write-Utf8TextNoBom -Path (Join-Path $desktopPath "AutoStop CRM URL.txt") -Value ""
 }
 
 function Write-Utf8TextNoBom {
@@ -505,7 +506,7 @@ settings_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encodin
         return
     }
 
-    $script | py -3.13 -
+    Invoke-PreferredPythonStdinScript -ScriptText $script
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -567,7 +568,7 @@ $settingsPath = Join-Path $settingsDirectory "settings.json"
 New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
 
 $desktopPath = [Environment]::GetFolderPath("Desktop")
-$urlPath = Join-Path $desktopPath "Minimal Kanban URL.txt"
+$urlPath = Join-Path $desktopPath "AutoStop CRM URL.txt"
 if ($shouldLaunchApp -and $null -eq $persistedTunnelPid) {
     Write-PendingConnectorFiles `
         -AuthMode (Get-ConnectorAuthMode -SettingsPath $settingsPath) `
@@ -629,7 +630,7 @@ if (Test-Path $repoPython) {
     $pythonScript | & $repoPython -
 }
 else {
-    $pythonScript | py -3.13 -
+    Invoke-PreferredPythonStdinScript -ScriptText $pythonScript
 }
 
 if ($shouldLaunchApp) {

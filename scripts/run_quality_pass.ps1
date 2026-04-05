@@ -1,6 +1,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "python_bootstrap.ps1")
 
 function Assert-LastExitCode {
     param(
@@ -18,7 +19,7 @@ $venvPath = Join-Path $projectRoot ".venv"
 $pythonExe = Join-Path $projectRoot ".venv\\Scripts\\python.exe"
 
 if (-not (Test-Path $pythonExe)) {
-    py -3.13 -m venv $venvPath
+    New-ProjectVirtualEnvironment -VenvPath $venvPath | Out-Null
     Assert-LastExitCode "Create virtual environment"
 }
 

@@ -1378,8 +1378,8 @@ BOARD_WEB_APP_HTML = "".join(
       letter-spacing: 0.03em;
     }
     .dialog--repair-order {
-      width: min(1280px, 96vw);
-      max-height: min(94vh, 1040px);
+      width: min(1380px, calc(100% - 18px));
+      max-height: min(94vh, 980px);
       padding: 0;
       gap: 0;
       overflow: hidden;
@@ -1389,15 +1389,15 @@ BOARD_WEB_APP_HTML = "".join(
         var(--bg-panel);
     }
     .dialog--repair-order .dialog__head {
-      padding: 18px 20px 14px;
+      padding: 15px 16px 11px;
       margin: 0;
       border-bottom: 1px solid rgba(115, 126, 105, 0.2);
       background: rgba(0, 0, 0, 0.08);
     }
     .repair-order-shell {
       display: grid;
-      gap: 16px;
-      padding: 18px 20px 20px;
+      gap: 12px;
+      padding: 14px 16px 16px;
       overflow: auto;
       min-height: 0;
       align-content: start;
@@ -1406,19 +1406,20 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
     }
     .repair-order-groups {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(236px, 0.82fr) minmax(332px, 1.04fr) minmax(544px, 1.72fr);
       gap: 12px;
+      align-items: start;
     }
     .repair-order-card,
     .repair-order-table-card {
       display: grid;
-      gap: 12px;
-      padding: 14px;
+      gap: 9px;
+      padding: 11px;
       border: 1px solid rgba(116, 126, 106, 0.18);
       background:
         linear-gradient(180deg, rgba(255,255,255,0.02), transparent 24%),
@@ -1427,26 +1428,65 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      gap: 8px;
+    }
+    .repair-order-card__grid--document {
+      grid-template-columns: 56px repeat(3, minmax(0, 1fr));
+      align-items: end;
+    }
+    .repair-order-card__grid--client {
+      grid-template-columns: minmax(0, 1.82fr) minmax(162px, 0.66fr);
+      align-items: end;
+    }
+    .repair-order-card__grid--vehicle {
+      grid-template-columns: minmax(0, 1.46fr) minmax(124px, 0.54fr) minmax(0, 1.58fr) minmax(108px, 0.46fr);
+      align-items: end;
+    }
+    .repair-order-card__grid--document .field--compact input[type="text"],
+    .repair-order-card__grid--client .field--compact input[type="text"],
+    .repair-order-card__grid--vehicle .field--compact input[type="text"] {
+      min-height: 32px;
+      padding: 5px 8px;
+      font-size: 12.5px;
+    }
+    .repair-order-field--number input[type="text"],
+    .repair-order-field--vin input[type="text"] {
+      font-family: var(--mono);
+      letter-spacing: 0.02em;
+    }
+    .repair-order-field--number input[type="text"] {
+      text-align: center;
+    }
+    .repair-order-field--client input[type="text"],
+    .repair-order-field--vehicle input[type="text"] {
+      font-size: 13.5px;
+    }
+    .repair-order-card__grid--document .field--compact label,
+    .repair-order-card__grid--vehicle .field--compact label,
+    .repair-order-card__grid--client .field--compact label {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
     }
     .repair-order-client-info textarea {
-      min-height: 172px;
-      height: 172px;
-      max-height: 248px;
-      line-height: 1.5;
+      min-height: 156px;
+      height: 156px;
+      max-height: 228px;
+      line-height: 1.48;
       padding: 10px 12px;
+      font-size: 13px;
     }
     .repair-order-status {
       display: inline-flex;
       align-items: center;
       justify-self: start;
-      min-height: 28px;
-      padding: 6px 10px;
+      min-height: 26px;
+      padding: 5px 9px;
       border: 1px solid rgba(116, 126, 106, 0.24);
       background: rgba(255, 255, 255, 0.02);
       color: var(--text);
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
@@ -1473,10 +1513,10 @@ BOARD_WEB_APP_HTML = "".join(
       table-layout: fixed;
     }
     .repair-order-table th {
-      padding: 10px 12px;
+      padding: 8px 10px;
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -1485,7 +1525,7 @@ BOARD_WEB_APP_HTML = "".join(
       background: rgba(255, 255, 255, 0.02);
     }
     .repair-order-table td {
-      padding: 4px 8px;
+      padding: 3px 6px;
       vertical-align: middle;
       border-bottom: 1px solid rgba(116, 126, 106, 0.12);
     }
@@ -1506,10 +1546,10 @@ BOARD_WEB_APP_HTML = "".join(
       border-bottom-color: rgba(116, 126, 106, 0.16);
       background: transparent;
       color: var(--text);
-      padding: 8px 10px;
-      min-height: 36px;
+      padding: 7px 8px;
+      min-height: 34px;
       outline: none;
-      font-size: 14px;
+      font-size: 13px;
     }
     .repair-order-table__input:focus {
       border-bottom-color: var(--accent);
@@ -1521,25 +1561,25 @@ BOARD_WEB_APP_HTML = "".join(
       font-family: var(--mono);
     }
     .repair-order-cell-total {
-      min-height: 36px;
+      min-height: 34px;
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      padding: 0 10px;
+      padding: 0 9px;
       color: var(--text);
       font-family: var(--mono);
-      font-size: 13px;
+      font-size: 12.5px;
       font-variant-numeric: tabular-nums;
     }
     .repair-order-cell-total[data-empty="true"] {
       color: rgba(200, 198, 187, 0.56);
     }
     .repair-order-row-remove {
-      width: 32px;
-      min-width: 32px;
-      height: 32px;
+      width: 30px;
+      min-width: 30px;
+      height: 30px;
       padding: 0;
-      font-size: 18px;
+      font-size: 16px;
       line-height: 1;
     }
     .repair-order-subtotal {
@@ -1562,7 +1602,7 @@ BOARD_WEB_APP_HTML = "".join(
       font-variant-numeric: tabular-nums;
     }
     .repair-order-footer {
-      padding: 14px 20px 16px;
+      padding: 12px 16px 14px;
       margin: 0;
       border-top: 1px solid rgba(115, 126, 105, 0.18);
       background:
@@ -2540,33 +2580,33 @@ BOARD_WEB_APP_HTML = "".join(
         <div class="repair-order-groups">
           <section class="repair-order-card" data-repair-order-section="document">
             <div class="panel-title">ДОКУМЕНТ</div>
-            <div class="repair-order-card__grid">
-              <div class="field field--compact">
+            <div class="repair-order-card__grid repair-order-card__grid--document">
+              <div class="field field--compact repair-order-field repair-order-field--number">
                 <label for="repairOrderNumber">НОМЕР</label>
                 <input id="repairOrderNumber" data-repair-order-field="number" type="text" maxlength="32" placeholder="1">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--date">
                 <label for="repairOrderDate">ДАТА</label>
-                <input id="repairOrderDate" data-repair-order-field="date" type="text" maxlength="32" placeholder="04.04.2026 14:30">
+                <input id="repairOrderDate" data-repair-order-field="date" type="text" maxlength="32" placeholder="04.04.26 14:30">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--date">
                 <label for="repairOrderOpenedAt">ОТКРЫТА</label>
-                <input id="repairOrderOpenedAt" data-repair-order-field="opened_at" type="text" maxlength="32" placeholder="05.04.2026 10:30">
+                <input id="repairOrderOpenedAt" data-repair-order-field="opened_at" type="text" maxlength="32" placeholder="05.04.26 10:30">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--date">
                 <label for="repairOrderClosedAt">ЗАКРЫТА</label>
-                <input id="repairOrderClosedAt" data-repair-order-field="closed_at" type="text" maxlength="32" placeholder="05.04.2026 18:20">
+                <input id="repairOrderClosedAt" data-repair-order-field="closed_at" type="text" maxlength="32" placeholder="05.04.26 18:20">
               </div>
             </div>
             <div class="repair-order-status" id="repairOrderStatus">Открыт</div>
           </section>
           <section class="repair-order-card" data-repair-order-section="client">
             <div class="panel-title">КЛИЕНТ</div>
-            <div class="repair-order-card__grid">
-              <div class="field field--compact">
-                <input id="repairOrderClient" data-repair-order-field="client" aria-label="Клиент" type="text" maxlength="120" placeholder="Иван Иванов">
+            <div class="repair-order-card__grid repair-order-card__grid--client">
+              <div class="field field--compact repair-order-field repair-order-field--client">
+                <input id="repairOrderClient" data-repair-order-field="client" aria-label="Клиент" type="text" maxlength="120" placeholder="Имя и фамилия">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--phone">
                 <label for="repairOrderPhone">ТЕЛЕФОН</label>
                 <input id="repairOrderPhone" data-repair-order-field="phone" type="text" maxlength="60" placeholder="+7 900 123-45-67">
               </div>
@@ -2574,26 +2614,26 @@ BOARD_WEB_APP_HTML = "".join(
           </section>
           <section class="repair-order-card" data-repair-order-section="vehicle">
             <div class="panel-title">АВТОМОБИЛЬ</div>
-            <div class="repair-order-card__grid">
-              <div class="field field--compact">
+            <div class="repair-order-card__grid repair-order-card__grid--vehicle">
+              <div class="field field--compact repair-order-field repair-order-field--vehicle">
                 <input id="repairOrderVehicle" data-repair-order-field="vehicle" aria-label="Автомобиль" type="text" maxlength="120" placeholder="Volkswagen Tiguan">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--plate">
                 <label for="repairOrderLicensePlate">ГОСНОМЕР</label>
                 <input id="repairOrderLicensePlate" data-repair-order-field="license_plate" type="text" maxlength="20" placeholder="А123АА124">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--vin">
                 <label for="repairOrderVin">VIN</label>
                 <input id="repairOrderVin" data-repair-order-field="vin" type="text" maxlength="32" placeholder="WAUZZZ...">
               </div>
-              <div class="field field--compact">
+              <div class="field field--compact repair-order-field repair-order-field--mileage">
                 <label for="repairOrderMileage">ПРОБЕГ</label>
                 <input id="repairOrderMileage" data-repair-order-field="mileage" type="text" maxlength="32" placeholder="215 000">
               </div>
             </div>
           </section>
         </div>
-        <section class="repair-order-card repair-order-card--wide" data-repair-order-section="reason">
+        <section class="repair-order-card repair-order-card--wide hidden" data-repair-order-section="reason" aria-hidden="true">
           <div class="panel-title">ПРИЧИНА ОБРАЩЕНИЯ</div>
           <div class="field field--compact repair-order-client-info">
             <textarea id="repairOrderReason" data-repair-order-field="reason" aria-label="Причина обращения" maxlength="4000" placeholder="Кратко зафиксируйте суть обращения клиента."></textarea>
@@ -2605,13 +2645,13 @@ BOARD_WEB_APP_HTML = "".join(
             <textarea id="repairOrderComment" data-repair-order-field="client_information" aria-label="Информация для клиента" maxlength="4000" placeholder="Краткая история ремонта для клиента: что проверили, что нашли, что сделали и что рекомендовано дальше."></textarea>
           </div>
         </section>
-        <section class="repair-order-card repair-order-card--wide" data-repair-order-section="note">
+        <section class="repair-order-card repair-order-card--wide hidden" data-repair-order-section="note" aria-hidden="true">
           <div class="panel-title">ПРИМЕЧАНИЕ</div>
           <div class="field field--compact repair-order-client-info">
             <textarea id="repairOrderNote" data-repair-order-field="note" aria-label="Примечание мастера" maxlength="4000" placeholder="Внутренний комментарий мастера или примечание по заказ-наряду."></textarea>
           </div>
         </section>
-        <section class="repair-order-card repair-order-card--wide repair-order-tags-card" data-repair-order-section="tags">
+        <section class="repair-order-card repair-order-card--wide repair-order-tags-card hidden" data-repair-order-section="tags" aria-hidden="true">
           <div class="repair-order-section-bar">
             <div class="panel-title">ВНУТРЕННИЕ МЕТКИ</div>
             <div class="tag-limit" id="repairOrderTagMeta">0 / 5</div>
@@ -4425,33 +4465,57 @@ BOARD_WEB_APP_HTML = "".join(
       return section === 'materials' ? els.repairOrderMaterialsBody : els.repairOrderWorksBody;
     }
 
-    function currentRepairOrderDateTime() {
-      const now = new Date();
-      const pad = (value) => String(value).padStart(2, '0');
-      return [
-        pad(now.getDate()),
-        pad(now.getMonth() + 1),
-        now.getFullYear(),
-      ].join('.') + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    function repairOrderPadDatePart(value) {
+      return String(value).padStart(2, '0');
     }
 
-    function repairOrderDateDisplayValue(value) {
+    function repairOrderCanonicalDateValue(value) {
       const normalized = String(value ?? '').trim();
       if (!normalized) return '';
-      const parsed = new Date(normalized);
-      return Number.isNaN(parsed.getTime()) ? normalized : parsed.toLocaleString('ru-RU');
-    }
-
-    function repairOrderListDateDisplayValue(value) {
-      const normalized = String(value ?? '').trim();
-      if (!normalized) return '';
+      const inlineMatch = normalized.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})(?:[,\s]+(\d{2}):(\d{2})(?::\d{2})?)?$/);
+      if (inlineMatch) {
+        const yearValue = Number(inlineMatch[3]);
+        const resolvedYear = inlineMatch[3].length === 2
+          ? (yearValue >= 70 ? 1900 + yearValue : 2000 + yearValue)
+          : yearValue;
+        const hour = inlineMatch[4] || '00';
+        const minute = inlineMatch[5] || '00';
+        return [
+          inlineMatch[1],
+          inlineMatch[2],
+          String(resolvedYear).padStart(4, '0'),
+        ].join('.') + ' ' + hour + ':' + minute;
+      }
       const parsed = new Date(normalized);
       if (Number.isNaN(parsed.getTime())) return normalized;
       return [
-        pad(parsed.getDate()),
-        pad(parsed.getMonth() + 1),
+        repairOrderPadDatePart(parsed.getDate()),
+        repairOrderPadDatePart(parsed.getMonth() + 1),
         parsed.getFullYear(),
-      ].join('.') + ' ' + pad(parsed.getHours()) + ':' + pad(parsed.getMinutes());
+      ].join('.') + ' ' + repairOrderPadDatePart(parsed.getHours()) + ':' + repairOrderPadDatePart(parsed.getMinutes());
+    }
+
+    function repairOrderFormDateDisplayValue(value) {
+      const canonical = repairOrderCanonicalDateValue(value);
+      if (!canonical) return '';
+      return canonical.replace(/^(\d{2}\.\d{2}\.)\d{2}(\d{2}\s+\d{2}:\d{2})$/, '$1$2');
+    }
+
+    function currentRepairOrderDateTime() {
+      const now = new Date();
+      return [
+        repairOrderPadDatePart(now.getDate()),
+        repairOrderPadDatePart(now.getMonth() + 1),
+        now.getFullYear(),
+      ].join('.') + ' ' + repairOrderPadDatePart(now.getHours()) + ':' + repairOrderPadDatePart(now.getMinutes());
+    }
+
+    function repairOrderDateDisplayValue(value) {
+      return repairOrderCanonicalDateValue(value);
+    }
+
+    function repairOrderListDateDisplayValue(value) {
+      return repairOrderCanonicalDateValue(value);
     }
 
     function repairOrderStatusLabel(status) {
@@ -4648,9 +4712,9 @@ BOARD_WEB_APP_HTML = "".join(
     function applyRepairOrderToForm(order) {
       const normalized = repairOrderCardDraft(state.activeCard, order);
       els.repairOrderNumber.value = normalized.number;
-      els.repairOrderDate.value = normalized.date || currentRepairOrderDateTime();
-      els.repairOrderOpenedAt.value = normalized.opened_at || normalized.date || currentRepairOrderDateTime();
-      els.repairOrderClosedAt.value = normalized.closed_at;
+      els.repairOrderDate.value = repairOrderFormDateDisplayValue(normalized.date || currentRepairOrderDateTime());
+      els.repairOrderOpenedAt.value = repairOrderFormDateDisplayValue(normalized.opened_at || normalized.date || currentRepairOrderDateTime());
+      els.repairOrderClosedAt.value = repairOrderFormDateDisplayValue(normalized.closed_at);
       els.repairOrderClient.value = normalized.client;
       els.repairOrderPhone.value = normalized.phone;
       els.repairOrderVehicle.value = normalized.vehicle;
@@ -4675,10 +4739,10 @@ BOARD_WEB_APP_HTML = "".join(
     function readRepairOrderFromForm() {
       return normalizeRepairOrder({
         number: els.repairOrderNumber.value,
-        date: els.repairOrderDate.value,
+        date: repairOrderCanonicalDateValue(els.repairOrderDate.value),
         status: els.repairOrderStatus.dataset.status || 'open',
-        opened_at: els.repairOrderOpenedAt.value,
-        closed_at: els.repairOrderClosedAt.value,
+        opened_at: repairOrderCanonicalDateValue(els.repairOrderOpenedAt.value),
+        closed_at: repairOrderCanonicalDateValue(els.repairOrderClosedAt.value),
         client: els.repairOrderClient.value,
         phone: els.repairOrderPhone.value,
         vehicle: els.repairOrderVehicle.value,
@@ -4879,12 +4943,27 @@ BOARD_WEB_APP_HTML = "".join(
         });
         const updatedCard = repairOrderResponseCard(data);
         applyRepairOrderCardUpdate(updatedCard, data?.repair_order || {});
-        setStatus(data?.meta?.changed ? 'Заказ-наряд автозаполнен.' : 'Пустые поля для автозаполнения не найдены.', false);
+        setStatus(buildRepairOrderAutofillStatus(data), false);
       } catch (error) {
         setStatus(error.message, true);
       } finally {
         els.repairOrderAutofillButton.disabled = false;
       }
+    }
+
+    function buildRepairOrderAutofillStatus(data) {
+      if (!data?.meta?.changed) return 'Пустые поля для автозаполнения не найдены.';
+      const report = data?.meta?.autofill_report || {};
+      const parts = [];
+      const worksSuggested = Number(report.works_suggested || 0);
+      const materialsSuggested = Number(report.materials_suggested || 0);
+      const priceHits = Array.isArray(report.prices_applied) ? report.prices_applied.length : 0;
+      if (worksSuggested > 0) parts.push('работы ' + worksSuggested);
+      if (materialsSuggested > 0) parts.push('материалы ' + materialsSuggested);
+      if (priceHits > 0) parts.push('цены из истории ' + priceHits);
+      const reviewItems = Array.isArray(report.review_items) ? report.review_items.filter(Boolean) : [];
+      if (!parts.length) return 'Заказ-наряд автозаполнен.';
+      return 'Заказ-наряд автозаполнен: ' + parts.join(', ') + '.' + (reviewItems.length ? ' ' + reviewItems[0] : '');
     }
 
     saveRepairOrder = async function(printAfter = false) {

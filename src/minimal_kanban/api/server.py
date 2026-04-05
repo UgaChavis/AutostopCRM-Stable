@@ -161,6 +161,33 @@ class ApiServer:
             "/api/add_card_attachment": service.add_card_attachment,
             "/api/remove_card_attachment": service.remove_card_attachment,
         }
+        proxied_write_routes = {
+            "/api/create_card",
+            "/api/create_column",
+            "/api/rename_column",
+            "/api/delete_column",
+            "/api/create_sticky",
+            "/api/autofill_vehicle_data",
+            "/api/autofill_repair_order",
+            "/api/update_board_settings",
+            "/api/update_repair_order",
+            "/api/set_repair_order_status",
+            "/api/replace_repair_order_works",
+            "/api/replace_repair_order_materials",
+            "/api/update_card",
+            "/api/mark_card_seen",
+            "/api/update_sticky",
+            "/api/set_card_deadline",
+            "/api/set_card_indicator",
+            "/api/move_card",
+            "/api/bulk_move_cards",
+            "/api/move_sticky",
+            "/api/archive_card",
+            "/api/restore_card",
+            "/api/delete_sticky",
+            "/api/add_card_attachment",
+            "/api/remove_card_attachment",
+        }
         operator_session_routes = {
             "/api/logout_operator",
             "/api/get_operator_profile",
@@ -242,7 +269,6 @@ class ApiServer:
                     "/api/get_board_snapshot",
                     "/api/get_board_context",
                     "/api/get_gpt_wall",
-                    "/api/update_board_settings",
                     "/api/get_card_log",
                     "/api/search_cards",
                     "/api/list_archived_cards",
@@ -495,6 +521,19 @@ class ApiServer:
                         )
                         return None
                     return next_payload
+                # Reverse-proxy deployments forward X-Forwarded-For/X-Real-IP
+                # to this local API. In that proxied scenario, block anonymous
+                # mutating or expensive operator-only routes while leaving
+                # direct localhost/MCP calls intact.
+                if route in proxied_write_routes and session is None and self._is_proxied_request():
+                    self._send_error_response(
+                        request_id,
+                        HTTPStatus.UNAUTHORIZED,
+                        "unauthorized",
+                        "Нужен вход оператора.",
+                        {"auth_type": "operator_session"},
+                    )
+                    return None
                 if str(next_payload.get("source", "")).strip().lower() == "ui" and session is None:
                     self._send_error_response(
                         request_id,
@@ -505,6 +544,12 @@ class ApiServer:
                     )
                     return None
                 return next_payload
+
+            def _is_proxied_request(self) -> bool:
+                return bool(
+                    str(self.headers.get("X-Forwarded-For", "") or "").strip()
+                    or str(self.headers.get("X-Real-IP", "") or "").strip()
+                )
 
             def _write_body(self, body: bytes, *, route: str, request_id: str, status_code: int) -> bool:
                 try:
