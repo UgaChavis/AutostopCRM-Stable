@@ -18,6 +18,7 @@ from ..config import (
     get_mcp_public_endpoint_url,
 )
 from ..logging_setup import close_logger, configure_logging
+from ..operator_auth import OperatorAuthService
 from ..settings_service import SettingsService
 from ..settings_store import SettingsStore
 from ..services.card_service import CardService
@@ -84,6 +85,7 @@ def run() -> int:
         if not api_base_url:
             store = JsonStore(logger=logger)
             service = CardService(store, logger)
+            operator_service = OperatorAuthService(store, service, logger=logger)
             resolved_api_host = _runtime_bind_host(
                 get_api_host() if os.environ.get("MINIMAL_KANBAN_API_HOST") is not None else settings.local_api.local_api_host,
                 env_explicit=os.environ.get("MINIMAL_KANBAN_API_HOST") is not None,
@@ -91,6 +93,7 @@ def run() -> int:
             embedded_api_server = ApiServer(
                 service,
                 logger,
+                operator_service=operator_service,
                 host=resolved_api_host,
                 start_port=get_api_port() if os.environ.get("MINIMAL_KANBAN_API_PORT") is not None else settings.local_api.local_api_port,
                 bearer_token=api_bearer_token,
