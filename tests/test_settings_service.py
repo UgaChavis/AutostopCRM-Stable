@@ -14,6 +14,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from minimal_kanban.settings_models import derive_allowed_hosts, derive_allowed_origins
 from minimal_kanban.settings_service import ConnectionCheckResult, ConnectionTestSummary, SettingsService, SettingsValidationError
 from minimal_kanban.settings_store import SettingsStore
 
@@ -52,6 +53,27 @@ class SettingsServiceTests(unittest.TestCase):
         self.assertEqual(settings.openai.model, "gpt-5.4-mini")
         self.assertEqual(settings.openai.base_url, "https://api.openai.com/v1")
         self.assertEqual(settings.openai.timeout_seconds, 30)
+
+    def test_derived_allowed_hosts_and_origins_accept_tuple_inputs(self) -> None:
+        hosts = derive_allowed_hosts(
+            "http://0.0.0.0:41831/mcp",
+            "https://crm.autostopcrm.ru",
+            None,
+            "https://crm.autostopcrm.ru/mcp",
+            extra_hosts=("185.42.164.2", "185.42.164.2:*"),
+        )
+        origins = derive_allowed_origins(
+            "http://0.0.0.0:41831/mcp",
+            "https://crm.autostopcrm.ru",
+            None,
+            "https://crm.autostopcrm.ru/mcp",
+            extra_origins=("http://185.42.164.2", "http://185.42.164.2:*"),
+        )
+
+        self.assertIn("185.42.164.2", hosts)
+        self.assertIn("185.42.164.2:*", hosts)
+        self.assertIn("http://185.42.164.2", origins)
+        self.assertIn("http://185.42.164.2:*", origins)
 
     def test_save_load_cycle_preserves_extended_values(self) -> None:
         settings = self.service.load()

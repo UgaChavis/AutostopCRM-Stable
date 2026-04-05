@@ -101,8 +101,8 @@ def normalize_messages(value, *, limit: int = 12) -> list[str]:
 def normalize_string_list(value, *, limit: int = 32, item_limit: int = 255) -> list[str]:
     if isinstance(value, str):
         raw_values = [item for chunk in value.splitlines() for item in chunk.split(",")]
-    elif isinstance(value, list):
-        raw_values = value
+    elif isinstance(value, (list, tuple)):
+        raw_values = list(value)
     else:
         return []
     result: list[str] = []
