@@ -145,6 +145,16 @@ def _api_request(
             return exc.code, {"ok": False, "error": {"code": "http_error", "message": raw}}
 
 
+def _can_reach_api(base_url: str, *, bearer_token: str | None = None, timeout: float = 3.0) -> bool:
+    if not _clean_url(base_url):
+        return False
+    try:
+        status, payload = _api_request(base_url, "/api/health", bearer_token=bearer_token, timeout=timeout)
+    except Exception:
+        return False
+    return bool(status == 200 and _envelope_ok(payload))
+
+
 def _envelope_ok(payload: dict[str, Any] | None) -> bool:
     return bool(isinstance(payload, dict) and payload.get("ok"))
 
@@ -692,6 +702,15 @@ def main() -> int:
     mcp_url = _resolve_mcp_url(settings, args.mcp_url)
     mcp_token = _resolve_mcp_token(settings, args.mcp_token)
     api_probe_url = local_api_url or site_url
+    explicit_local_api = bool(_clean_url(args.local_api_url))
+    if (
+        not explicit_local_api
+        and site_url
+        and local_api_url
+        and _classify_probe_url(local_api_url) == "local"
+        and not _can_reach_api(local_api_url, bearer_token=local_api_token or None, timeout=2.5)
+    ):
+        api_probe_url = site_url
     api_probe_kind = _classify_probe_url(api_probe_url)
 
     site_surface = check_site(site_url, expect_https=args.expect_https)
