@@ -69,10 +69,14 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("refreshInFlight: null", BOARD_WEB_APP_HTML)
         self.assertIn("const SNAPSHOT_POLL_INTERVAL_MS = 5000;", BOARD_WEB_APP_HTML)
         self.assertIn("const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 30000;", BOARD_WEB_APP_HTML)
+        self.assertIn("function snapshotPollIntervalMs()", BOARD_WEB_APP_HTML)
+        self.assertIn("function scheduleNextSnapshotPoll()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleSnapshotVisibilityChange()", BOARD_WEB_APP_HTML)
         self.assertIn("if (!document.hidden) refreshSnapshot(false);", BOARD_WEB_APP_HTML)
         self.assertIn("document.addEventListener('visibilitychange', handleSnapshotVisibilityChange);", BOARD_WEB_APP_HTML)
-        self.assertIn("state.pollHandle = setInterval(() => refreshSnapshot(false), interval);", BOARD_WEB_APP_HTML)
+        self.assertIn("state.pollHandle = window.setTimeout(async () => {", BOARD_WEB_APP_HTML)
+        self.assertIn("await refreshSnapshot(false);", BOARD_WEB_APP_HTML)
+        self.assertIn("scheduleNextSnapshotPoll();", BOARD_WEB_APP_HTML)
 
     def test_archive_modal_uses_last_30_compact_rows(self) -> None:
         self.assertIn("АРХИВ / ПОСЛЕДНИЕ 30", BOARD_WEB_APP_HTML)

@@ -6039,15 +6039,26 @@ function renderCompactArchiveRows(cards) {
 
     function stopSnapshotPolling() {
       if (state.pollHandle) {
-        clearInterval(state.pollHandle);
+        clearTimeout(state.pollHandle);
         state.pollHandle = null;
       }
     }
 
-    function startSnapshotPolling() {
+    function snapshotPollIntervalMs() {
+      return document.hidden ? SNAPSHOT_POLL_HIDDEN_INTERVAL_MS : SNAPSHOT_POLL_INTERVAL_MS;
+    }
+
+    function scheduleNextSnapshotPoll() {
       stopSnapshotPolling();
-      const interval = document.hidden ? SNAPSHOT_POLL_HIDDEN_INTERVAL_MS : SNAPSHOT_POLL_INTERVAL_MS;
-      state.pollHandle = setInterval(() => refreshSnapshot(false), interval);
+      state.pollHandle = window.setTimeout(async () => {
+        state.pollHandle = null;
+        await refreshSnapshot(false);
+        scheduleNextSnapshotPoll();
+      }, snapshotPollIntervalMs());
+    }
+
+    function startSnapshotPolling() {
+      scheduleNextSnapshotPoll();
     }
 
     function handleSnapshotVisibilityChange() {
