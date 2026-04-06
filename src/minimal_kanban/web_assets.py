@@ -2805,7 +2805,7 @@ BOARD_WEB_APP_HTML = "".join(
     };
 
     const SNAPSHOT_POLL_INTERVAL_MS = 5000;
-    const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 15000;
+    const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 30000;
     const CARD_UNREAD_HOVER_DELAY_MS = 260;
 
     const COLUMN_TONES = [
@@ -5884,39 +5884,6 @@ function renderCompactArchiveRows(cards) {
       els.board.innerHTML = snapshot.columns.map((column, index) => renderBoardColumnHtml(column, index, snapshot)).join('') + '<div class="sticky-layer" id="stickyLayer"></div>';
       els.stickyLayer = document.getElementById('stickyLayer');
       renderStickies();
-      return;
-      els.board.innerHTML = snapshot.columns.map((column, index) => {
-        const cards = (grouped.get(column.id) || []).slice().sort((left, right) =>
-          ((left.position ?? 0) - (right.position ?? 0))
-          || String(left.created_at || '').localeCompare(String(right.created_at || ''))
-          || String(left.id || '').localeCompare(String(right.id || ''))
-        );
-        const tone = COLUMN_TONES[index % COLUMN_TONES.length];
-        const toneStyle = '--column-tint:' + tone.tint + ';--column-head:' + tone.head + ';--column-edge:' + tone.edge + ';--column-empty:' + tone.empty + ';';
-        const isDeleteBlocked = cards.length > 0 || snapshot.columns.length <= 1;
-        const deleteTitle = cards.length > 0
-          ? 'Сначала убери карточки из этого столбца'
-          : (snapshot.columns.length <= 1 ? 'Последний столбец нельзя удалить' : 'Удалить пустой столбец');
-        const deleteAttrs = isDeleteBlocked ? ' disabled' : '';
-        return '<section class="column" style="' + toneStyle + '" data-column-id="' + escapeHtml(column.id) + '"><div class="column__head"><div class="column__title">' + escapeHtml(column.label) + '</div><div class="column__head-actions"><button class="btn btn--ghost column__delete" type="button" data-delete-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" data-card-count="' + cards.length + '" title="' + escapeHtml(deleteTitle) + '" aria-label="' + escapeHtml(deleteTitle) + '"' + deleteAttrs + '>×</button><div class="column__count">' + cards.length + '</div></div></div><div class="column__cards">' + (cards.length ? cards.map(renderBoardCardHtml).join('') : '<div class="empty">ЗДЕСЬ ПОКА ПУСТО.</div>') + '</div><button class="btn" data-create-in="' + escapeHtml(column.id) + '">+ КАРТОЧКА</button></section>';
-      }).join('') + '<div class="sticky-layer" id="stickyLayer"></div>';
-      els.stickyLayer = document.getElementById('stickyLayer');
-      snapshot.columns.forEach((column) => {
-        const section = els.board.querySelector('[data-column-id="' + column.id + '"]');
-        const actions = section?.querySelector('.column__head-actions');
-        if (!actions || actions.querySelector('[data-rename-column]')) return;
-        const renameTitle = 'Переименовать столбец';
-        const button = document.createElement('button');
-        button.className = 'btn btn--ghost column__rename';
-        button.type = 'button';
-        button.setAttribute('data-rename-column', column.id);
-        button.setAttribute('data-column-label', column.label);
-        button.setAttribute('title', renameTitle);
-        button.setAttribute('aria-label', renameTitle);
-        button.innerHTML = '&#9998;';
-        actions.insertBefore(button, actions.firstChild);
-      });
-      renderStickies();
     }
 
     function setTab(name) {
@@ -6081,6 +6048,11 @@ function renderCompactArchiveRows(cards) {
       stopSnapshotPolling();
       const interval = document.hidden ? SNAPSHOT_POLL_HIDDEN_INTERVAL_MS : SNAPSHOT_POLL_INTERVAL_MS;
       state.pollHandle = setInterval(() => refreshSnapshot(false), interval);
+    }
+
+    function handleSnapshotVisibilityChange() {
+      startSnapshotPolling();
+      if (!document.hidden) refreshSnapshot(false);
     }
 
     async function legacySaveCardShadow() {
@@ -7017,7 +6989,7 @@ function renderCompactArchiveRows(cards) {
     mountStatusLine();
     bootstrapOperatorSession();
     refreshSnapshot(true);
-    document.addEventListener('visibilitychange', startSnapshotPolling);
+    document.addEventListener('visibilitychange', handleSnapshotVisibilityChange);
     startSnapshotPolling();
   </script>
 </body>

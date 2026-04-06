@@ -68,8 +68,10 @@ class WebAssetsTests(unittest.TestCase):
     def test_board_snapshot_polling_is_throttled_and_visibility_aware(self) -> None:
         self.assertIn("refreshInFlight: null", BOARD_WEB_APP_HTML)
         self.assertIn("const SNAPSHOT_POLL_INTERVAL_MS = 5000;", BOARD_WEB_APP_HTML)
-        self.assertIn("const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 15000;", BOARD_WEB_APP_HTML)
-        self.assertIn("document.addEventListener('visibilitychange', startSnapshotPolling);", BOARD_WEB_APP_HTML)
+        self.assertIn("const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 30000;", BOARD_WEB_APP_HTML)
+        self.assertIn("function handleSnapshotVisibilityChange()", BOARD_WEB_APP_HTML)
+        self.assertIn("if (!document.hidden) refreshSnapshot(false);", BOARD_WEB_APP_HTML)
+        self.assertIn("document.addEventListener('visibilitychange', handleSnapshotVisibilityChange);", BOARD_WEB_APP_HTML)
         self.assertIn("state.pollHandle = setInterval(() => refreshSnapshot(false), interval);", BOARD_WEB_APP_HTML)
 
     def test_archive_modal_uses_last_30_compact_rows(self) -> None:
