@@ -3336,7 +3336,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function openTextBlobWindow(text, fileName) {
-      const blob = new Blob([String(text || '').trim() + '\n'], { type: 'text/plain;charset=utf-8' });
+      const blob = new Blob([String(text || '').trim() + '\\n'], { type: 'text/plain;charset=utf-8' });
       withObjectUrl(blob, (objectUrl) => {
         const opened = window.open(objectUrl, '_blank', 'noopener');
         if (!opened) {
@@ -4125,7 +4125,7 @@ BOARD_WEB_APP_HTML = "".join(
       const input = getVehicleFieldInput(fieldName);
       if (!input) return;
       if (Array.isArray(value)) {
-        input.value = value.join('\n');
+        input.value = value.join('\\n');
         return;
       }
       input.value = value === null || value === undefined ? '' : String(value);
@@ -4154,7 +4154,7 @@ BOARD_WEB_APP_HTML = "".join(
         lines.push('Refs: ' + profile.source_links_or_refs.join(' | '));
       }
       (profile?.warnings || []).forEach((warning) => lines.push('! ' + warning));
-      return lines.length ? lines.join('\n') : 'Автозаполнение пока не запускалось.';
+      return lines.length ? lines.join('\\n') : 'Автозаполнение пока не запускалось.';
     }
 
     function renderVehicleAutofillStatus(message, isWarning = false) {
@@ -4210,7 +4210,7 @@ BOARD_WEB_APP_HTML = "".join(
       const profile = cloneVehicleProfile(state.vehicleProfileDraft || emptyVehicleProfile());
       const summaryLines = [];
       if (profile.vin) summaryLines.push('VIN: ' + profile.vin);
-      els.vehiclePanelSummary.textContent = summaryLines.join('\n');
+      els.vehiclePanelSummary.textContent = summaryLines.join('\\n');
       els.vehiclePanelSummary.style.display = summaryLines.length ? '' : 'none';
 
       const vinInput = getVehicleFieldInput('vin');
@@ -4260,7 +4260,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     async function copyVehicleFieldValue(fieldName) {
       const rawValue = readVehicleFieldValue(fieldName);
-      const value = Array.isArray(rawValue) ? rawValue.join('\n') : String(rawValue || '').trim();
+      const value = Array.isArray(rawValue) ? rawValue.join('\\n') : String(rawValue || '').trim();
       if (!value) {
         setStatus('НЕТ ДАННЫХ ДЛЯ КОПИРОВАНИЯ.', true);
         return;
@@ -4296,7 +4296,7 @@ BOARD_WEB_APP_HTML = "".join(
       }
       warnings.forEach((warning) => lines.push('! ' + warning));
       return {
-        text: lines.length ? lines.join('\n') : 'Автозаполнение отработало без замечаний.',
+        text: lines.length ? lines.join('\\n') : 'Автозаполнение отработало без замечаний.',
         isWarning: warnings.length > 0 || vinLooksSuspicious(profile.vin),
       };
     }
@@ -5321,7 +5321,7 @@ function renderCompactArchiveRows(cards) {
         ];
         if (event?.details_text) parts.push(event.details_text);
         return parts.join(' | ');
-      }).join('\n');
+      }).join('\\n');
     }
 
     function buildReadableGptWallEvents(data) {
@@ -5340,8 +5340,8 @@ function renderCompactArchiveRows(cards) {
         if (cardRef) lines.push('card: ' + cardRef);
         if (event?.card_heading) lines.push('heading: ' + event.card_heading);
         if (event?.details_text) lines.push('details: ' + String(event.details_text).replace(/\r?\n/g, ' / '));
-        return lines.join('\n');
-      }).join('\n\n');
+        return lines.join('\\n');
+      }).join('\\n\\n');
     }
 
     function gptWallSectionMetaText(view, data) {
@@ -6814,8 +6814,8 @@ function renderCompactArchiveRows(cards) {
       const description = String(els.cardDescription.value || '').trim();
       if (vehicle) parts.push(CARD_VEHICLE_FIELD_LABEL + ': ' + vehicle);
       if (title) parts.push(CARD_TITLE_FIELD_LABEL + ': ' + title);
-      if (description) parts.push('Описание:\n' + description);
-      return parts.join('\n\n').trim();
+      if (description) parts.push('Описание:\\n' + description);
+      return parts.join('\\n\\n').trim();
     }
 
     function buildCardHeadingHtml(card) {
@@ -6906,7 +6906,7 @@ function renderCompactArchiveRows(cards) {
       const profile = cloneVehicleProfile(state.vehicleProfileDraft || emptyVehicleProfile());
       const summaryLines = [];
       if (profile.vin) summaryLines.push('VIN: ' + profile.vin);
-      els.vehiclePanelSummary.textContent = summaryLines.join('\n');
+      els.vehiclePanelSummary.textContent = summaryLines.join('\\n');
       els.vehiclePanelSummary.style.display = summaryLines.length ? '' : 'none';
 
       const vinInput = getVehicleFieldInput('vin');
