@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import tempfile
-import threading
 from pathlib import Path
 
 
@@ -11,8 +10,6 @@ class PdfRenderError(RuntimeError):
 
 
 def _ensure_qt_application():
-    if threading.current_thread() is not threading.main_thread():
-        raise PdfRenderError("PDF generation is only available from the main desktop thread.")
     if not os.environ.get("QT_QPA_PLATFORM") and os.name != "nt":
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
     try:
@@ -71,7 +68,7 @@ def render_html_to_pdf_bytes(
         document.setHtml(str(html or ""))
         page_size = printer.pageRect(QPrinter.Unit.Point).size()
         document.setPageSize(QSizeF(page_size.width(), page_size.height()))
-        document.print(printer)
+        document.print_(printer)
         if not pdf_path.exists():
             raise PdfRenderError("Qt не создал PDF-файл.")
         return pdf_path.read_bytes()

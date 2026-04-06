@@ -647,6 +647,70 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(snapshot_service._column_labels.call_count, 0)
         self.assertEqual(snapshot_service._event_counts.call_count, 0)
 
+    def test_review_board_returns_operational_summary(self) -> None:
+        base = datetime(2026, 4, 5, 10, 0, 0, tzinfo=timezone.utc)
+        patches = self._patch_time(base)
+        with patches[0], patches[1], patches[2]:
+            overdue_card = self.service.create_card(
+                {
+                    "vehicle": "Toyota Camry",
+                    "title": "Шум АКПП",
+                    "description": "Проверить гидроблок",
+                    "deadline": {"hours": 1},
+                }
+            )
+            self.service.create_card(
+                {
+                    "vehicle": "Kia Rio",
+                    "title": "Стук подвески",
+                    "description": "Осмотр передней оси",
+                    "deadline": {"days": 3},
+                }
+            )
+            self.service.create_card(
+                {
+                    "vehicle": "Mazda CX-5",
+                    "title": "Диагностика ABS",
+                    "description": "Горит ABS",
+                    "deadline": {"days": 3},
+                }
+            )
+            archived_card = self.service.create_card(
+                {
+                    "vehicle": "Nissan X-Trail",
+                    "title": "Архивный заказ",
+                    "description": "Закрытая работа",
+                    "deadline": {"hours": 6},
+                }
+            )
+            self.service.archive_card({"card_id": archived_card["card"]["id"]})
+
+        review_moment = base + timedelta(hours=50)
+        with patch("minimal_kanban.services.snapshot_service.utc_now", return_value=review_moment), patch(
+            "minimal_kanban.services.snapshot_service.utc_now_iso",
+            return_value=review_moment.isoformat(),
+        ):
+            review = self.service.review_board(
+                {
+                    "stale_hours": 24,
+                    "overload_threshold": 2,
+                    "priority_limit": 5,
+                    "recent_event_limit": 5,
+                }
+            )
+
+        self.assertEqual(review["summary"]["active_cards"], 3)
+        self.assertEqual(review["summary"]["archived_cards"], 1)
+        self.assertEqual(review["summary"]["overdue_cards"], 1)
+        self.assertGreaterEqual(review["summary"]["critical_cards"], 1)
+        self.assertEqual(review["summary"]["stale_cards"], 3)
+        self.assertTrue(any(item["column_id"] == "inbox" and item["count"] == 3 for item in review["by_column"]))
+        self.assertTrue(any("перегружена" in item for item in review["alerts"]))
+        self.assertEqual(review["priority_cards"][0]["card_id"], overdue_card["card"]["id"])
+        self.assertIn("Просрочена", review["priority_cards"][0]["short_reason"])
+        self.assertTrue(any(item["type"] == "card_archived" for item in review["recent_events"]))
+        self.assertIn("[BOARD REVIEW]", review["text"])
+
     def test_rejects_invalid_indicator(self) -> None:
         created = self.service.create_card({"title": "Индикатор", "deadline": {"hours": 1}})
         card_id = created["card"]["id"]

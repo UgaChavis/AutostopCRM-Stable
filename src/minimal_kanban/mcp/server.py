@@ -257,6 +257,7 @@ def create_mcp_server(
         "bootstrap_context",
         "get_connector_identity",
         "get_board_context",
+        "review_board",
         "get_board_content",
         "get_board_events",
         "get_gpt_wall",
@@ -608,6 +609,7 @@ def create_mcp_server(
             "attention_cards": attention_cards[:5],
             "events_preview": preview_events,
             "stickies_preview": preview_stickies,
+            "review_tool": "review_board",
             "board_content_tool": "get_board_content",
             "event_log_tool": "get_board_events",
             "full_wall_tool": "get_gpt_wall",
@@ -655,7 +657,7 @@ def create_mcp_server(
                 lines.append(
                     f"- {event.get('timestamp') or '-'} | {event.get('actor_name') or '-'} | {event.get('card_short_id') or '-'} | {event.get('message') or '-'}"
                 )
-        lines.append("next_step: call get_board_content for card text, get_board_events for the event journal, or get_gpt_wall for both")
+        lines.append("next_step: call review_board for an operational summary, get_board_content for card text, get_board_events for the event journal, or get_gpt_wall for both")
         return "\n".join(lines) + "\n"
 
     @server.tool(
@@ -921,6 +923,31 @@ def create_mcp_server(
     )
     def get_board_context() -> JsonEnvelope:
         return _relay_board_call("get_board_context", board_api.get_board_context)
+
+    @server.tool(
+        name="review_board",
+        description=_scoped_description(
+            "Return an operational board review for the current Minimal Kanban board: summary counts, per-column load, manager alerts, priority cards, and recent important events."
+        ),
+        annotations=_read_tool_annotations("Board Review"),
+        structured_output=True,
+    )
+    def review_board(
+        stale_hours: int = 48,
+        overload_threshold: int = 5,
+        priority_limit: int = 5,
+        recent_event_limit: int = 10,
+    ) -> JsonEnvelope:
+        return _relay_board_call(
+            "review_board",
+            lambda: board_api.review_board(
+                stale_hours=stale_hours,
+                overload_threshold=overload_threshold,
+                priority_limit=priority_limit,
+                recent_event_limit=recent_event_limit,
+            ),
+            error_code="review_board_unreachable",
+        )
 
     @server.tool(
         name="update_board_settings",

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from threading import RLock
 from typing import Any
 
-from ..models import ARCHIVE_PREVIEW_LIMIT, AuditEvent, Card, Column, StickyNote, utc_now_iso
+from ..models import ARCHIVE_PREVIEW_LIMIT, AuditEvent, Card, Column, StickyNote, parse_datetime, short_entity_id, utc_now, utc_now_iso
 from ..storage.json_store import JsonStore
+
+REVIEW_BOARD_STALE_HOURS_DEFAULT = 48
+REVIEW_BOARD_OVERLOAD_THRESHOLD_DEFAULT = 5
+REVIEW_BOARD_PRIORITY_LIMIT_DEFAULT = 5
+REVIEW_BOARD_EVENT_LIMIT_DEFAULT = 10
 
 GPT_WALL_EVENTS_HEADER = "[ЛЕНТА СОБЫТИЙ]"
 
@@ -262,6 +268,131 @@ class SnapshotService:
                 },
             }
 
+    def review_board(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            stale_hours = self._validated_limit(
+                payload.get("stale_hours"),
+                default=REVIEW_BOARD_STALE_HOURS_DEFAULT,
+                maximum=24 * 30,
+            )
+            overload_threshold = self._validated_limit(
+                payload.get("overload_threshold"),
+                default=REVIEW_BOARD_OVERLOAD_THRESHOLD_DEFAULT,
+                maximum=100,
+            )
+            priority_limit = self._validated_limit(
+                payload.get("priority_limit"),
+                default=REVIEW_BOARD_PRIORITY_LIMIT_DEFAULT,
+                maximum=20,
+            )
+            recent_event_limit = self._validated_limit(
+                payload.get("recent_event_limit"),
+                default=REVIEW_BOARD_EVENT_LIMIT_DEFAULT,
+                maximum=50,
+            )
+            bundle = self._store.read_bundle()
+            columns = bundle["columns"]
+            cards = bundle["cards"]
+            events = bundle["events"]
+            now = utc_now()
+            column_labels = self._column_labels(columns)
+            cards_by_id = {card.id: card for card in cards}
+            latest_event_by_card = self._latest_event_by_card(events)
+            active_cards = [card for card in cards if not card.archived]
+            archived_cards_total = sum(1 for card in cards if card.archived)
+            card_states = [
+                self._review_card_state(
+                    card,
+                    now=now,
+                    stale_hours=stale_hours,
+                    column_labels=column_labels,
+                    latest_event=latest_event_by_card.get(card.id),
+                )
+                for card in active_cards
+            ]
+            summary = {
+                "active_cards": len(card_states),
+                "archived_cards": archived_cards_total,
+                "overdue_cards": sum(1 for item in card_states if item["overdue"]),
+                "critical_cards": sum(1 for item in card_states if item["critical"]),
+                "stale_cards": sum(1 for item in card_states if item["stale"]),
+            }
+            by_column: list[dict[str, Any]] = []
+            for column in columns:
+                column_cards = [item for item in card_states if item["column_id"] == column.id]
+                by_column.append(
+                    {
+                        "column_id": column.id,
+                        "label": column.label,
+                        "count": len(column_cards),
+                        "stale_count": sum(1 for item in column_cards if item["stale"]),
+                        "overdue_count": sum(1 for item in column_cards if item["overdue"]),
+                        "critical_count": sum(1 for item in column_cards if item["critical"]),
+                    }
+                )
+
+            alerts: list[str] = []
+            if summary["overdue_cards"]:
+                alerts.append(f"{summary['overdue_cards']} просроченных карточек")
+            for item in by_column:
+                if item["count"] >= overload_threshold:
+                    alerts.append(f"Колонка {item['label']} перегружена")
+            if summary["stale_cards"]:
+                alerts.append(f"{summary['stale_cards']} карточек без движения более {stale_hours} ч")
+            critical_stale_cards = [item for item in card_states if item["critical"] and item["stale"]]
+            if critical_stale_cards:
+                alerts.append(f"{len(critical_stale_cards)} критичных карточек без обновлений")
+
+            priority_cards = [
+                {
+                    "card_id": item["card_id"],
+                    "short_id": item["short_id"],
+                    "title": item["title"],
+                    "vehicle": item["vehicle"],
+                    "column": item["column_id"],
+                    "column_label": item["column_label"],
+                    "indicator": item["indicator"],
+                    "short_reason": item["short_reason"],
+                }
+                for item in sorted(
+                    (item for item in card_states if item["priority_score"] > 0),
+                    key=lambda item: (
+                        -item["priority_score"],
+                        -item["stale_hours"],
+                        item["deadline_sort"],
+                        item["title"],
+                    ),
+                )[:priority_limit]
+            ]
+            recent_events = self._review_recent_events(
+                events,
+                cards_by_id=cards_by_id,
+                column_labels=column_labels,
+                limit=recent_event_limit,
+            )
+            return {
+                "summary": summary,
+                "by_column": by_column,
+                "alerts": alerts,
+                "priority_cards": priority_cards,
+                "recent_events": recent_events,
+                "meta": {
+                    "generated_at": utc_now_iso(),
+                    "stale_hours": stale_hours,
+                    "overload_threshold": overload_threshold,
+                    "priority_limit": priority_limit,
+                    "recent_event_limit": recent_event_limit,
+                },
+                "text": self._build_review_board_text(
+                    summary=summary,
+                    by_column=by_column,
+                    alerts=alerts,
+                    priority_cards=priority_cards,
+                    recent_events=recent_events,
+                ),
+            }
+
     def get_gpt_wall(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
@@ -497,6 +628,188 @@ class SnapshotService:
             _ = card
             events = [event.to_dict() for event in self._events_for_card(bundle["events"], card.id)]
             return {"events": events}
+
+    def _latest_event_by_card(self, events: list[AuditEvent]) -> dict[str, AuditEvent]:
+        latest: dict[str, AuditEvent] = {}
+        for event in events:
+            if not event.card_id:
+                continue
+            current = latest.get(event.card_id)
+            if current is None or str(event.timestamp) > str(current.timestamp):
+                latest[event.card_id] = event
+        return latest
+
+    def _review_card_state(
+        self,
+        card: Card,
+        *,
+        now: datetime,
+        stale_hours: int,
+        column_labels: dict[str, str],
+        latest_event: AuditEvent | None,
+    ) -> dict[str, Any]:
+        updated_at = parse_datetime(card.updated_at) or parse_datetime(card.created_at) or now
+        latest_event_at = parse_datetime(latest_event.timestamp) if latest_event is not None else None
+        last_activity = updated_at
+        if latest_event_at is not None and latest_event_at > last_activity:
+            last_activity = latest_event_at
+        stale_age_seconds = max(0.0, (now - last_activity).total_seconds())
+        stale_age_hours = int(stale_age_seconds // 3600)
+        status = card.status(now)
+        indicator = card.indicator(now)
+        overdue = status == "expired"
+        critical = indicator == "red" or status in {"critical", "expired"}
+        stale = stale_age_seconds >= stale_hours * 3600
+        priority_score = 0
+        if overdue:
+            priority_score += 4
+        if critical:
+            priority_score += 3
+        if stale:
+            priority_score += 2
+        if status == "warning" or indicator == "yellow":
+            priority_score += 1
+        return {
+            "card_id": card.id,
+            "short_id": short_entity_id(card.id, prefix="C"),
+            "title": card.title,
+            "vehicle": card.vehicle_display(),
+            "column_id": card.column,
+            "column_label": column_labels.get(card.column, card.column),
+            "indicator": indicator,
+            "overdue": overdue,
+            "critical": critical,
+            "stale": stale,
+            "stale_hours": stale_age_hours,
+            "deadline_sort": card.deadline_timestamp or "",
+            "short_reason": self._review_short_reason(
+                overdue=overdue,
+                critical=critical,
+                stale=stale,
+                stale_hours=stale_age_hours,
+                status=status,
+            ),
+            "priority_score": priority_score,
+        }
+
+    def _review_short_reason(
+        self,
+        *,
+        overdue: bool,
+        critical: bool,
+        stale: bool,
+        stale_hours: int,
+        status: str,
+    ) -> str:
+        if overdue and stale:
+            return f"Просрочена и без движения {stale_hours} ч"
+        if overdue:
+            return "Просрочена"
+        if critical and stale:
+            return f"Критичная и без движения {stale_hours} ч"
+        if critical:
+            return "Критичный сигнал"
+        if stale:
+            return f"Без движения {stale_hours} ч"
+        if status == "warning":
+            return "Срок подходит"
+        return "Требует внимания"
+
+    def _review_recent_events(
+        self,
+        events: list[AuditEvent],
+        *,
+        cards_by_id: dict[str, Card],
+        column_labels: dict[str, str],
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        reviewable = self._wall_events(events, cards_by_id, column_labels, limit=max(limit * 4, limit))
+        result: list[dict[str, Any]] = []
+        for event in reviewable:
+            if not self._is_review_relevant_event(event):
+                continue
+            result.append(
+                {
+                    "type": event.get("action"),
+                    "timestamp": event.get("timestamp"),
+                    "actor_name": event.get("actor_name"),
+                    "card_id": event.get("card_id"),
+                    "card_short_id": event.get("card_short_id"),
+                    "text": event.get("message"),
+                    "related_to": event.get("card_heading") or event.get("details_text") or "",
+                }
+            )
+            if len(result) >= limit:
+                break
+        return result
+
+    def _is_review_relevant_event(self, event: dict[str, Any]) -> bool:
+        action = str(event.get("action") or "").strip().lower()
+        if action in {
+            "card_created",
+            "card_moved",
+            "card_archived",
+            "card_restored",
+            "repair_order_updated",
+            "repair_order_open",
+            "repair_order_closed",
+            "repair_order_autofilled",
+            "description_changed",
+            "title_changed",
+            "vehicle_changed",
+            "vehicle_profile_updated",
+            "signal_changed",
+            "signal_indicator_changed",
+            "tags_changed",
+        }:
+            return True
+        return "repair_order_" in action
+
+    def _build_review_board_text(
+        self,
+        *,
+        summary: dict[str, Any],
+        by_column: list[dict[str, Any]],
+        alerts: list[str],
+        priority_cards: list[dict[str, Any]],
+        recent_events: list[dict[str, Any]],
+    ) -> str:
+        lines = [
+            "[BOARD REVIEW]",
+            f"active_cards: {summary.get('active_cards', 0)}",
+            f"archived_cards: {summary.get('archived_cards', 0)}",
+            f"overdue_cards: {summary.get('overdue_cards', 0)}",
+            f"critical_cards: {summary.get('critical_cards', 0)}",
+            f"stale_cards: {summary.get('stale_cards', 0)}",
+            "",
+            "[ALERTS]",
+        ]
+        if alerts:
+            lines.extend(f"- {item}" for item in alerts)
+        else:
+            lines.append("- no critical alerts")
+        lines.extend(["", "[BY COLUMN]"])
+        for item in by_column:
+            lines.append(
+                f"- {item.get('label') or item.get('column_id')}: count={item.get('count', 0)}, stale={item.get('stale_count', 0)}, overdue={item.get('overdue_count', 0)}, critical={item.get('critical_count', 0)}"
+            )
+        lines.extend(["", "[PRIORITY CARDS]"])
+        if priority_cards:
+            for item in priority_cards:
+                lines.append(
+                    f"- {item.get('short_id') or item.get('card_id')}: {item.get('vehicle') or '-'} / {item.get('title') or '-'} | {item.get('column_label') or item.get('column') or '-'} | {item.get('indicator') or '-'} | {item.get('short_reason') or '-'}"
+                )
+        else:
+            lines.append("- no priority cards")
+        lines.extend(["", "[RECENT EVENTS]"])
+        if recent_events:
+            for item in recent_events:
+                lines.append(
+                    f"- {item.get('timestamp') or '-'} | {item.get('actor_name') or '-'} | {item.get('type') or '-'} | {item.get('card_short_id') or item.get('card_id') or '-'} | {item.get('text') or '-'}"
+                )
+        else:
+            lines.append("- no recent events")
+        return "\n".join(lines) + "\n"
 
     def _event_counts(self, events: list[AuditEvent]) -> dict[str, int]:
         counts: dict[str, int] = {}

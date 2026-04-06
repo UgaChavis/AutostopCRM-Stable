@@ -105,6 +105,27 @@ class BoardApiClient:
     def get_board_context(self) -> dict:
         return self._request("/api/get_board_context", method="GET")
 
+    def review_board(
+        self,
+        *,
+        stale_hours: int | None = None,
+        overload_threshold: int | None = None,
+        priority_limit: int | None = None,
+        recent_event_limit: int | None = None,
+    ) -> dict:
+        payload: dict[str, object] = {}
+        if stale_hours is not None:
+            payload["stale_hours"] = stale_hours
+        if overload_threshold is not None:
+            payload["overload_threshold"] = overload_threshold
+        if priority_limit is not None:
+            payload["priority_limit"] = priority_limit
+        if recent_event_limit is not None:
+            payload["recent_event_limit"] = recent_event_limit
+        if not payload:
+            return self._request("/api/review_board", method="GET")
+        return self._request("/api/review_board", payload, method="POST")
+
     def update_board_settings(self, *, board_scale: float, actor_name: str | None = None) -> dict:
         payload: dict[str, object] = {"board_scale": board_scale}
         return self._request_with_identity("/api/update_board_settings", payload, actor_name=actor_name)

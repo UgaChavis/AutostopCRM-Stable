@@ -113,6 +113,24 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("remaining_seconds", created["data"]["card"])
         self.assertIn("deadline_timestamp", created["data"]["card"])
 
+    def test_review_board_route_returns_summary(self) -> None:
+        status, created = self.request(
+            "/api/create_card",
+            {"title": "Review route", "description": "For review_board", "deadline": {"hours": 2}},
+        )
+        self.assertEqual(status, 200)
+
+        status, review = self.request("/api/review_board", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(review["ok"])
+        self.assertIn("summary", review["data"])
+        self.assertIn("by_column", review["data"])
+        self.assertIn("alerts", review["data"])
+        self.assertIn("priority_cards", review["data"])
+        self.assertIn("recent_events", review["data"])
+        self.assertGreaterEqual(review["data"]["summary"]["active_cards"], 1)
+        self.assertIn("[BOARD REVIEW]", review["data"]["text"])
+
     def test_operator_login_profile_and_admin_user_management(self) -> None:
         status, logged_in = self.request(
             "/api/login_operator",
@@ -889,6 +907,87 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(printed["data"]["printer_name"], "Office Printer")
         self.assertEqual(printed["data"]["copies"], 2)
         print_backend.assert_called_once()
+
+    def test_repair_order_print_pdf_export_works_from_http_thread(self) -> None:
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "vehicle": "Lexus IS F",
+                "title": "Threaded PDF export",
+                "deadline": {"hours": 2},
+            },
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, _ = self.request(
+            "/api/update_repair_order",
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "client": "Иван Иванов",
+                    "phone": "+7 900 123-45-67",
+                    "vehicle": "Lexus IS F",
+                    "vin": "USE205004751",
+                    "works": [{"name": "Замена масла", "quantity": "1", "price": "2500", "total": ""}],
+                    "materials": [{"name": "Масло 5W-30", "quantity": "6", "price": "950", "total": ""}],
+                },
+            },
+        )
+        self.assertEqual(status, 200)
+
+        status, exported = self.request(
+            "/api/export_repair_order_print_pdf",
+            {
+                "card_id": card_id,
+                "selected_document_ids": ["repair_order"],
+                "active_document_id": "repair_order",
+            },
+        )
+        self.assertEqual(status, 200)
+        content = base64.b64decode(exported["data"]["content_base64"])
+        self.assertTrue(content.startswith(b"%PDF"))
+        self.assertEqual(exported["data"]["meta"]["documents"][0]["id"], "repair_order")
+
+    def test_save_print_module_settings_route_persists_workspace_settings(self) -> None:
+        status, saved = self.request(
+            "/api/save_print_module_settings",
+            {
+                "print_settings": {
+                    "default_printer": "",
+                    "copies": 2,
+                    "paper_size": "A5",
+                    "orientation": "landscape",
+                    "service_profile": {
+                        "company_name": "AutoStop CRM",
+                        "phone": "+7 900 123-45-67",
+                    },
+                }
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["data"]["settings"]["copies"], 2)
+        self.assertEqual(saved["data"]["settings"]["paper_size"], "A5")
+        self.assertEqual(saved["data"]["settings"]["orientation"], "landscape")
+        self.assertEqual(saved["data"]["settings"]["service_profile"]["company_name"], "AutoStop CRM")
+
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "vehicle": "Toyota Camry",
+                "title": "Workspace settings reuse",
+                "deadline": {"hours": 2},
+            },
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, workspace = self.request("/api/get_repair_order_print_workspace", {"card_id": card_id})
+        self.assertEqual(status, 200)
+        self.assertEqual(workspace["data"]["settings"]["copies"], 2)
+        self.assertEqual(workspace["data"]["settings"]["paper_size"], "A5")
+        self.assertEqual(workspace["data"]["settings"]["orientation"], "landscape")
+        self.assertEqual(workspace["data"]["settings"]["service_profile"]["company_name"], "AutoStop CRM")
 
     def test_autofill_repair_order_route_uses_card_and_vehicle_profile(self) -> None:
         status, created = self.request(

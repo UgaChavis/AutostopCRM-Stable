@@ -491,6 +491,14 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("'/api/set_default_print_template'", BOARD_WEB_APP_HTML)
         self.assertIn("printRepairOrderDraft = function() { return openRepairOrderPrintWorkspace(); };", BOARD_WEB_APP_HTML)
         self.assertIn("printEls.documents.addEventListener('change', handleRepairOrderPrintDocumentsChange);", BOARD_WEB_APP_HTML)
+        self.assertIn("return '<div class=\"repair-order-print-doc' + activeClass + '\" data-print-document=\"' + escapeHtml(item.id) + '\">' +", BOARD_WEB_APP_HTML)
+        self.assertIn("if (target.checked) repairOrderPrintState.activeDocumentId = documentId;", BOARD_WEB_APP_HTML)
+        self.assertIn("if (target.closest('input[data-print-document-toggle]')) return;", BOARD_WEB_APP_HTML)
+        self.assertIn("if (needsSelection) repairOrderPrintState.selectedDocumentIds = [...selectedIds, documentId];", BOARD_WEB_APP_HTML)
+        self.assertIn('#repairOrderPrintModal {', BOARD_WEB_APP_HTML)
+        self.assertIn('#printTemplateEditorModal {', BOARD_WEB_APP_HTML)
+        self.assertIn('z-index: 16;', BOARD_WEB_APP_HTML)
+        self.assertIn('z-index: 17;', BOARD_WEB_APP_HTML)
 
     def test_topbar_repair_orders_list_uses_compact_row_open_flow(self) -> None:
         self.assertIn('id="repairOrdersButton"', BOARD_WEB_APP_HTML)

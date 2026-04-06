@@ -1,4 +1,10 @@
 PRINTING_WEB_MODULE_STYLE = r"""
+    #repairOrderPrintModal {
+      z-index: 16;
+    }
+    #printTemplateEditorModal {
+      z-index: 17;
+    }
     .dialog--repair-order-print {
       width: min(1860px, calc(100% - 18px));
       max-width: none;
@@ -468,14 +474,14 @@ _PRINTING_SCRIPT_PART2 = r"""
         const checked = selected.has(item.id) ? ' checked' : '';
         const templateId = repairOrderPrintSelectedTemplateId(item.id);
         const template = repairOrderPrintTemplatesFor(item.id).find((candidate) => candidate.id === templateId);
-        return '<label class="repair-order-print-doc' + activeClass + '" data-print-document="' + escapeHtml(item.id) + '">' +
+        return '<div class="repair-order-print-doc' + activeClass + '" data-print-document="' + escapeHtml(item.id) + '">' +
           '<input type="checkbox" data-print-document-toggle="' + escapeHtml(item.id) + '"' + checked + '>' +
           '<div class="repair-order-print-doc__meta">' +
             '<div class="repair-order-print-doc__title">' + escapeHtml(item.label) + '</div>' +
             '<div class="repair-order-print-doc__description">' + escapeHtml(item.description || '') + '</div>' +
             '<div class="repair-order-print-doc__template">Шаблон: ' + escapeHtml(template?.name || 'не выбран') + '</div>' +
           '</div>' +
-        '</label>';
+        '</div>';
       }).join('') : '<div class="repair-order-print-empty">Документы для печати пока недоступны.</div>';
       printEls.documentsMeta.textContent = docs.length ? ('Выбрано документов: ' + repairOrderPrintSelectedIds().length) : 'Документы для печати отсутствуют.';
     }
@@ -644,6 +650,7 @@ _PRINTING_SCRIPT_PART3 = r"""
       const next = new Set(repairOrderPrintSelectedIds());
       if (target.checked) next.add(documentId); else next.delete(documentId);
       repairOrderPrintState.selectedDocumentIds = Array.from(next);
+      if (target.checked) repairOrderPrintState.activeDocumentId = documentId;
       if (!repairOrderPrintState.selectedDocumentIds.length) repairOrderPrintState.selectedDocumentIds = [documentId];
       if (!repairOrderPrintState.selectedDocumentIds.includes(repairOrderPrintActiveDocument())) repairOrderPrintState.activeDocumentId = repairOrderPrintState.selectedDocumentIds[0];
       renderRepairOrderPrintDocuments();
@@ -654,12 +661,18 @@ _PRINTING_SCRIPT_PART3 = r"""
     function handleRepairOrderPrintDocumentsClick(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
+      if (target.closest('input[data-print-document-toggle]')) return;
       const card = target.closest('[data-print-document]');
       if (!card) return;
-      repairOrderPrintState.activeDocumentId = card.dataset.printDocument || 'repair_order';
+      const documentId = card.dataset.printDocument || 'repair_order';
+      const selectedIds = repairOrderPrintSelectedIds();
+      const needsSelection = !selectedIds.includes(documentId);
+      if (needsSelection) repairOrderPrintState.selectedDocumentIds = [...selectedIds, documentId];
+      repairOrderPrintState.activeDocumentId = documentId;
       renderRepairOrderPrintDocuments();
       renderRepairOrderPrintTemplateSelect();
-      renderRepairOrderPrintPreview();
+      if (needsSelection || !repairOrderPrintState.previewByDocument?.[documentId]) refreshRepairOrderPrintPreview();
+      else renderRepairOrderPrintPreview();
     }
 
     function handleRepairOrderPrintTemplateSelectChange() {

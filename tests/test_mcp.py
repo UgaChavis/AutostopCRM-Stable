@@ -157,6 +157,7 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
                         "get_card",
                         "get_card_context",
                         "get_board_snapshot",
+                        "review_board",
                         "autofill_vehicle_data",
                         "autofill_repair_order",
                         "update_board_settings",
@@ -233,6 +234,16 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
                     "Current AutoStop CRM Board",
                 )
                 self.assertIn("[BOARD CONTEXT]", board_context.structuredContent["data"]["text"])
+
+                review = await session.call_tool("review_board", {})
+                self.assertFalse(review.isError)
+                self.assertTrue(review.structuredContent["ok"])
+                self.assertIn("summary", review.structuredContent["data"])
+                self.assertIn("by_column", review.structuredContent["data"])
+                self.assertIn("alerts", review.structuredContent["data"])
+                self.assertIn("priority_cards", review.structuredContent["data"])
+                self.assertIn("recent_events", review.structuredContent["data"])
+                self.assertIn("[BOARD REVIEW]", review.structuredContent["data"]["text"])
 
                 runtime_status = await session.call_tool("get_runtime_status", {})
                 self.assertFalse(runtime_status.isError)
