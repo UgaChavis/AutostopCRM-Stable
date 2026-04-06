@@ -5841,15 +5841,50 @@ function renderCompactArchiveRows(cards) {
       return '<article class="card" style="' + heatStyle + '" draggable="true" data-card-id="' + escapeHtml(card.id) + '" data-indicator="' + escapeHtml(card.indicator) + '" data-status="' + escapeHtml(card.status) + '" data-blink="' + (card.is_blinking ? "true" : "false") + '" data-unread="' + (card.is_unread ? 'true' : 'false') + '" data-deadline-bucket="' + escapeHtml(card.deadline_progress_bucket ?? 0) + '" data-deadline-step="' + escapeHtml(card.deadline_progress_step_percent ?? 0) + '">' + unreadBadgeHtml + headingHtml + '<div class="card__desc">' + escapeHtml(card.description || 'РћРїРёСЃР°РЅРёРµ РЅРµ СѓРєР°Р·Р°РЅРѕ') + '</div><div class="card__signal"><span class="card__signal-label"><span class="lamp" data-indicator="' + escapeHtml(card.indicator) + '"></span><span>РЎРР“Рќ</span></span><span class="card__signal-value">' + durationToMarkup(card.remaining_seconds, false) + '</span></div><div class="card__tags">' + tagsHtml + '</div><div class="meta-line"><span>Р¤РђР™Р›Р« ' + escapeHtml(card.attachment_count) + '</span><span>Р–РЈР РќРђР› ' + escapeHtml(card.events_count) + '</span></div></article>';
     }
 
+    function sortedCardsForBoardColumn(snapshot, columnId) {
+      const cards = (snapshot?.cards || []).filter((card) => card.column === columnId);
+      return cards.slice().sort((left, right) =>
+        ((left.position ?? 0) - (right.position ?? 0))
+        || String(left.created_at || '').localeCompare(String(right.created_at || ''))
+        || String(left.id || '').localeCompare(String(right.id || ''))
+      );
+    }
+
+    function renderBoardColumnHtml(column, index, snapshot) {
+      const cards = sortedCardsForBoardColumn(snapshot, column.id);
+      const tone = COLUMN_TONES[index % COLUMN_TONES.length];
+      const toneStyle = '--column-tint:' + tone.tint + ';--column-head:' + tone.head + ';--column-edge:' + tone.edge + ';--column-empty:' + tone.empty + ';';
+      const isDeleteBlocked = cards.length > 0 || snapshot.columns.length <= 1;
+      const deleteTitle = cards.length > 0
+        ? 'Сначала убери карточки из этого столбца'
+        : (snapshot.columns.length <= 1 ? 'Последний столбец нельзя удалить' : 'Удалить пустой столбец');
+      const renameTitle = 'Переименовать столбец';
+      const deleteAttrs = isDeleteBlocked ? ' disabled' : '';
+      return '<section class="column" style="' + toneStyle + '" data-column-id="' + escapeHtml(column.id) + '"><div class="column__head"><div class="column__title">' + escapeHtml(column.label) + '</div><div class="column__head-actions"><button class="btn btn--ghost column__rename" type="button" data-rename-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" title="' + escapeHtml(renameTitle) + '" aria-label="' + escapeHtml(renameTitle) + '">&#9998;</button><button class="btn btn--ghost column__delete" type="button" data-delete-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" data-card-count="' + cards.length + '" title="' + escapeHtml(deleteTitle) + '" aria-label="' + escapeHtml(deleteTitle) + '"' + deleteAttrs + '>×</button><div class="column__count">' + cards.length + '</div></div></div><div class="column__cards">' + (cards.length ? cards.map(renderBoardCardHtml).join('') : '<div class="empty">ЗДЕСЬ ПОКА ПУСТО.</div>') + '</div><button class="btn" data-create-in="' + escapeHtml(column.id) + '">+ КАРТОЧКА</button></section>';
+    }
+
+    function renderBoardColumnById(columnId) {
+      const snapshot = state.snapshot;
+      if (!snapshot || !columnId) return false;
+      const columnIndex = snapshot.columns.findIndex((column) => column.id === columnId);
+      if (columnIndex < 0) return false;
+      const currentSection = els.board.querySelector('[data-column-id="' + columnId + '"]');
+      if (!currentSection) return false;
+      const template = document.createElement('template');
+      template.innerHTML = renderBoardColumnHtml(snapshot.columns[columnIndex], columnIndex, snapshot);
+      const nextSection = template.content.firstElementChild;
+      if (!nextSection) return false;
+      currentSection.replaceWith(nextSection);
+      return true;
+    }
+
     function renderBoard() {
       const snapshot = state.snapshot;
       if (!snapshot) return;
-      const grouped = new Map();
-      snapshot.columns.forEach((column) => grouped.set(column.id, []));
-      snapshot.cards.forEach((card) => {
-        if (!grouped.has(card.column)) grouped.set(card.column, []);
-        grouped.get(card.column).push(card);
-      });
+      els.board.innerHTML = snapshot.columns.map((column, index) => renderBoardColumnHtml(column, index, snapshot)).join('') + '<div class="sticky-layer" id="stickyLayer"></div>';
+      els.stickyLayer = document.getElementById('stickyLayer');
+      renderStickies();
+      return;
       els.board.innerHTML = snapshot.columns.map((column, index) => {
         const cards = (grouped.get(column.id) || []).slice().sort((left, right) =>
           ((left.position ?? 0) - (right.position ?? 0))
@@ -5947,6 +5982,7 @@ function renderCompactArchiveRows(cards) {
 
     function replaceSnapshotCard(nextCard) {
       if (!nextCard?.id) return;
+      const previousCard = snapshotCardById(nextCard.id);
       if (Array.isArray(state.snapshot?.cards)) {
         state.snapshot.cards = state.snapshot.cards.map((card) => card.id === nextCard.id ? nextCard : card);
       }
@@ -5954,8 +5990,23 @@ function renderCompactArchiveRows(cards) {
         state.snapshot.archive = state.snapshot.archive.map((card) => card.id === nextCard.id ? nextCard : card);
       }
       if (state.activeCard?.id === nextCard.id) state.activeCard = nextCard;
-      renderBoard();
-      if (els.archiveModal.classList.contains('is-open')) renderArchive();
+      const archiveOpen = els.archiveModal.classList.contains('is-open');
+      const touchesArchive = previousCard?.archived || nextCard.archived;
+      if (archiveOpen && touchesArchive) renderArchive();
+      if (!previousCard || previousCard.archived || nextCard.archived) {
+        renderBoard();
+        if (archiveOpen && !touchesArchive) renderArchive();
+        return;
+      }
+      const previousColumnId = String(previousCard.column || '').trim();
+      const nextColumnId = String(nextCard.column || '').trim();
+      if (previousColumnId && previousColumnId === nextColumnId) {
+        if (!renderBoardColumnById(previousColumnId)) renderBoard();
+        return;
+      }
+      const renderedPrevious = previousColumnId ? renderBoardColumnById(previousColumnId) : false;
+      const renderedNext = nextColumnId ? renderBoardColumnById(nextColumnId) : false;
+      if (!renderedPrevious || !renderedNext) renderBoard();
     }
 
     function clearUnreadHoverTimer(cardId) {

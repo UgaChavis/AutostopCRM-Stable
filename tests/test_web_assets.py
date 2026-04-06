@@ -620,6 +620,13 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("const boardChanged = !previousRevision || !nextRevision || previousRevision !== nextRevision;", BOARD_WEB_APP_HTML)
         self.assertIn("if (boardChanged) {", BOARD_WEB_APP_HTML)
         self.assertIn("state.lastSnapshotRevision = nextRevision;", BOARD_WEB_APP_HTML)
+        self.assertIn("function sortedCardsForBoardColumn(snapshot, columnId)", BOARD_WEB_APP_HTML)
+        self.assertIn("function renderBoardColumnHtml(column, index, snapshot)", BOARD_WEB_APP_HTML)
+        self.assertIn("function renderBoardColumnById(columnId)", BOARD_WEB_APP_HTML)
+        self.assertIn("renderBoardColumnHtml(column, index, snapshot)", BOARD_WEB_APP_HTML)
+        self.assertIn("const previousCard = snapshotCardById(nextCard.id);", BOARD_WEB_APP_HTML)
+        self.assertIn("if (previousColumnId && previousColumnId === nextColumnId) {", BOARD_WEB_APP_HTML)
+        self.assertIn("renderBoardColumnById(previousColumnId)", BOARD_WEB_APP_HTML)
 
     def test_web_assets_do_not_keep_duplicate_active_function_names(self) -> None:
         self.assertEqual(BOARD_WEB_APP_HTML.count("function buildVehicleAutofillRawText()"), 1)
