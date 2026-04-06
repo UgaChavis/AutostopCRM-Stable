@@ -91,6 +91,25 @@ def _resolve_site_url(settings: IntegrationSettings, override: str | None) -> st
     return ""
 
 
+def _classify_probe_url(url: str) -> str:
+    host = (urlsplit(_clean_url(url)).hostname or "").strip().lower()
+    if host in {"127.0.0.1", "localhost"}:
+        return "local"
+    if host:
+        return "public"
+    return "unknown"
+
+
+def _emit_output(text: str) -> None:
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    data = text.encode(encoding, errors="backslashreplace")
+    if hasattr(sys.stdout, "buffer"):
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.write(b"\n")
+        return
+    sys.stdout.write(data.decode(encoding, errors="replace") + "\n")
+
+
 def _api_request(
     base_url: str,
     path: str,
@@ -409,12 +428,18 @@ async def check_mcp(mcp_url: str, *, bearer_token: str | None = None) -> dict[st
         "has_ping_connector": False,
         "has_bootstrap_context": False,
         "has_get_runtime_status": False,
+        "has_get_connector_identity": False,
+        "has_review_board": False,
         "ping_ok": False,
         "bootstrap_ok": False,
         "runtime_ok": False,
+        "identity_ok": False,
+        "review_ok": False,
         "ping_data": None,
         "bootstrap_data": None,
         "runtime_data": None,
+        "identity_data": None,
+        "review_data": None,
         "error": None,
     }
     if not mcp_url:
@@ -439,6 +464,8 @@ async def check_mcp(mcp_url: str, *, bearer_token: str | None = None) -> dict[st
                         result["has_ping_connector"] = "ping_connector" in tool_names
                         result["has_bootstrap_context"] = "bootstrap_context" in tool_names
                         result["has_get_runtime_status"] = "get_runtime_status" in tool_names
+                        result["has_get_connector_identity"] = "get_connector_identity" in tool_names
+                        result["has_review_board"] = "review_board" in tool_names
 
                         if result["has_ping_connector"]:
                             ping = await session.call_tool("ping_connector", {})
@@ -470,14 +497,38 @@ async def check_mcp(mcp_url: str, *, bearer_token: str | None = None) -> dict[st
                             if isinstance(runtime.structuredContent, dict):
                                 result["runtime_data"] = runtime.structuredContent.get("data")
 
+                        if result["has_get_connector_identity"]:
+                            identity = await session.call_tool("get_connector_identity", {})
+                            result["identity_ok"] = bool(
+                                not identity.isError
+                                and isinstance(identity.structuredContent, dict)
+                                and identity.structuredContent.get("ok")
+                            )
+                            if isinstance(identity.structuredContent, dict):
+                                result["identity_data"] = identity.structuredContent.get("data")
+
+                        if result["has_review_board"]:
+                            review = await session.call_tool("review_board", {})
+                            result["review_ok"] = bool(
+                                not review.isError
+                                and isinstance(review.structuredContent, dict)
+                                and review.structuredContent.get("ok")
+                            )
+                            if isinstance(review.structuredContent, dict):
+                                result["review_data"] = review.structuredContent.get("data")
+
                         result["ok"] = all(
                             [
                                 result["has_ping_connector"],
                                 result["has_bootstrap_context"],
                                 result["has_get_runtime_status"],
+                                result["has_get_connector_identity"],
+                                result["has_review_board"],
                                 result["ping_ok"],
                                 result["bootstrap_ok"],
                                 result["runtime_ok"],
+                                result["identity_ok"],
+                                result["review_ok"],
                             ]
                         )
                         if not result["ok"]:
@@ -583,6 +634,8 @@ def _print_mcp(report: dict[str, Any]) -> None:
         ping_data = report.get("ping_data") or {}
         bootstrap_data = report.get("bootstrap_data") or {}
         runtime_data = report.get("runtime_data") or {}
+        identity_data = report.get("identity_data") or {}
+        review_data = report.get("review_data") or {}
         board_context = bootstrap_data.get("board_context") or {}
         board_name = (
             ((board_context.get("context") or {}).get("board_name"))
@@ -599,8 +652,19 @@ def _print_mcp(report: dict[str, Any]) -> None:
         print(f"tool_count: {report.get('tool_count')}")
         print(f"connector_name: {ping_data.get('connector_name', '<unknown>')}")
         print(f"resource_url: {ping_data.get('resource_url', '<unknown>')}")
+        identity_payload = identity_data.get("identity") or {}
+        connector_scope = (
+            identity_payload.get("board_scope")
+            or identity_data.get("board_scope")
+            or identity_data.get("scope")
+            or "<unknown>"
+        )
+        print(f"connector_scope: {connector_scope}")
         print(f"board_name: {board_name}")
         print(f"runtime_status: {runtime_api_status}")
+        summary = review_data.get("summary") or {}
+        print(f"review_active_cards: {summary.get('active_cards', 0)}")
+        print(f"review_alerts: {len(review_data.get('alerts') or [])}")
     else:
         print("status: failed")
         print(f"error: {report.get('error')}")
@@ -628,7 +692,7 @@ def main() -> int:
     mcp_url = _resolve_mcp_url(settings, args.mcp_url)
     mcp_token = _resolve_mcp_token(settings, args.mcp_token)
     api_probe_url = local_api_url or site_url
-    api_probe_kind = "local" if local_api_url else ("public" if site_url else "unknown")
+    api_probe_kind = _classify_probe_url(api_probe_url)
 
     site_surface = check_site(site_url, expect_https=args.expect_https)
     api_surface = check_api_surface(api_probe_url, bearer_token=local_api_token or None)
@@ -654,7 +718,7 @@ def main() -> int:
     }
 
     if args.json:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        _emit_output(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         print("AutoStop CRM live diagnostics")
         print(f"settings_file: {report['settings_file']}")

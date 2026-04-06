@@ -19,13 +19,7 @@ services:
     volumes:
       - "${AUTOSTOP_DATA_DIR:-./data}:/root/.minimal-kanban"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import json, urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:41731/api/health', timeout=5)); raise SystemExit(0 if data.get('ok') else 1)",
-        ]
+      test: ["CMD", "python", "scripts/container_healthcheck.py"]
       interval: 20s
       timeout: 5s
       retries: 6
