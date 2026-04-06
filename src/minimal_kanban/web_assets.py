@@ -4172,7 +4172,7 @@ BOARD_WEB_APP_HTML = "".join(
     };
 
     cardHtml = function(card) {
-      const previewTags = (card.tags || []).slice(0, 3);
+      const previewTags = (card.tags || []).slice(0, CARD_TAG_LIMIT);
       const extraTags = (card.tags || []).length - previewTags.length;
       const tagsHtml = previewTags.length
         ? previewTags.map((tag) => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '')
@@ -4183,7 +4183,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     renderCardHtml = function(card) {
       const normalizedTags = normalizeDraftTags(card.tag_items || card.tags || []);
-      const previewTags = normalizedTags.slice(0, 3);
+      const previewTags = normalizedTags.slice(0, CARD_TAG_LIMIT);
       const extraTags = normalizedTags.length - previewTags.length;
       const tagsHtml = previewTags.length
         ? previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '')
@@ -5801,7 +5801,7 @@ function renderCompactArchiveRows(cards) {
     };
 
     function cardHtml(card) {
-      const previewTags = (card.tags || []).slice(0, 3);
+      const previewTags = (card.tags || []).slice(0, CARD_TAG_LIMIT);
       const extraTags = (card.tags || []).length - previewTags.length;
       const tagsHtml = previewTags.length
         ? previewTags.map((tag) => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '')
@@ -5814,7 +5814,7 @@ function renderCompactArchiveRows(cards) {
 
     function renderCardHtml(card) {
       const normalizedTags = normalizeDraftTags(card.tag_items || card.tags || []);
-      const previewTags = normalizedTags.slice(0, 3);
+      const previewTags = normalizedTags.slice(0, CARD_TAG_LIMIT);
       const extraTags = normalizedTags.length - previewTags.length;
       const tagsHtml = previewTags.length
         ? previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '')
@@ -5828,7 +5828,7 @@ function renderCompactArchiveRows(cards) {
 
     function renderBoardCardHtml(card) {
       const normalizedTags = normalizeDraftTags(card.tag_items || card.tags || []);
-      const previewTags = normalizedTags.slice(0, 3);
+      const previewTags = normalizedTags.slice(0, CARD_TAG_LIMIT);
       const extraTags = normalizedTags.length - previewTags.length;
       const tagsHtml = previewTags.length
         ? previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '')
@@ -6846,7 +6846,7 @@ function renderCompactArchiveRows(cards) {
 
     renderBoardCardHtml = function(card) {
       const normalizedTags = normalizeDraftTags(card.tag_items || card.tags || []);
-      const previewTags = normalizedTags.slice(0, 3);
+      const previewTags = normalizedTags.slice(0, CARD_TAG_LIMIT);
       const extraTags = normalizedTags.length - previewTags.length;
       const tagsHtml = previewTags.length
         ? previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '')
