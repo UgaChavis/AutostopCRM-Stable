@@ -1033,6 +1033,7 @@ class CardService:
             actor_name, source = self._audit_identity(payload, default_source="api")
             next_column = self._validated_column(payload.get("column", card.column), columns)
             before_card_id = normalize_text(payload.get("before_card_id"), default="", limit=128) or None
+            column_labels = self._column_labels(columns)
             move_meta = self._reposition_card(cards, card, target_column=next_column, before_card_id=before_card_id)
             changed = (
                 move_meta["before_column"] != move_meta["after_column"]
@@ -1058,7 +1059,28 @@ class CardService:
                 actor_name,
                 source,
             )
-            return {"card": self._serialize_card(card, events, column_labels=self._column_labels(columns))}
+            affected_column_ids = list(
+                dict.fromkeys(
+                    [
+                        str(move_meta["before_column"] or "").strip(),
+                        str(move_meta["after_column"] or "").strip(),
+                    ]
+                )
+            )
+            affected_column_ids = [column_id for column_id in affected_column_ids if column_id]
+            return {
+                "card": self._serialize_card(card, events, column_labels=column_labels),
+                "affected_column_ids": affected_column_ids,
+                "affected_cards": self._serialize_compact_cards_for_columns(
+                    cards,
+                    events,
+                    affected_column_ids,
+                    column_labels=column_labels,
+                ),
+                "meta": {
+                    "changed": changed,
+                },
+            }
 
     def archive_card(self, payload: dict) -> dict:
         with self._lock:
@@ -1554,6 +1576,29 @@ class CardService:
 
     def _column_labels(self, columns: list[Column]) -> dict[str, str]:
         return {column.id: column.label for column in columns}
+
+    def _serialize_compact_cards_for_columns(
+        self,
+        cards: list[Card],
+        events: list[AuditEvent],
+        column_ids: list[str],
+        *,
+        column_labels: dict[str, str] | None = None,
+    ) -> list[dict]:
+        normalized_column_ids = [str(column_id or "").strip() for column_id in column_ids if str(column_id or "").strip()]
+        if not normalized_column_ids:
+            return []
+        target_ids = set(normalized_column_ids)
+        selected_cards = [
+            card
+            for card in cards
+            if not card.archived and card.column in target_ids
+        ]
+        selected_cards.sort(key=lambda item: (item.column, item.position, item.created_at, item.updated_at, item.id))
+        return [
+            self._serialize_card(card, events, column_labels=column_labels, compact=True)
+            for card in selected_cards
+        ]
 
     def _ordered_cards_in_column(
         self,

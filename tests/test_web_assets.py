@@ -632,11 +632,14 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("renderBoardColumnHtml(column, index, snapshot)", BOARD_WEB_APP_HTML)
         self.assertIn("function boardCardElementById(cardId)", BOARD_WEB_APP_HTML)
         self.assertIn("function replaceBoardCardElement(nextCard)", BOARD_WEB_APP_HTML)
+        self.assertIn("function applyBoardColumnCardsPatch(nextCards, affectedColumnIds)", BOARD_WEB_APP_HTML)
         self.assertIn("const previousCard = snapshotCardById(nextCard.id);", BOARD_WEB_APP_HTML)
         self.assertIn("if (previousColumnId && previousColumnId === nextColumnId) {", BOARD_WEB_APP_HTML)
         self.assertIn("const samePosition = previousPosition === nextPosition || (Number.isNaN(previousPosition) && Number.isNaN(nextPosition));", BOARD_WEB_APP_HTML)
         self.assertIn("if (samePosition && replaceBoardCardElement(nextCard)) return;", BOARD_WEB_APP_HTML)
         self.assertIn("renderBoardColumnById(previousColumnId)", BOARD_WEB_APP_HTML)
+        self.assertIn("const patched = applyBoardColumnCardsPatch(data?.affected_cards || [], data?.affected_column_ids || []);", BOARD_WEB_APP_HTML)
+        self.assertIn("if (!patched && data?.card) {", BOARD_WEB_APP_HTML)
 
     def test_web_assets_do_not_keep_duplicate_active_function_names(self) -> None:
         self.assertEqual(BOARD_WEB_APP_HTML.count("function buildVehicleAutofillRawText()"), 1)

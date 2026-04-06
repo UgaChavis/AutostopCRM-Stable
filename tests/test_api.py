@@ -483,6 +483,13 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(moved["ok"])
         self.assertEqual(moved["data"]["card"]["position"], 1)
+        self.assertEqual(moved["data"]["affected_column_ids"], ["inbox"])
+        self.assertEqual(
+            [card["id"] for card in moved["data"]["affected_cards"][:3]],
+            [first["data"]["card"]["id"], third["data"]["card"]["id"], second["data"]["card"]["id"]],
+        )
+        self.assertTrue(all("repair_order" not in card for card in moved["data"]["affected_cards"]))
+        self.assertTrue(moved["data"]["meta"]["changed"])
 
         status, snapshot = self.request("/api/get_board_snapshot", method="GET")
         self.assertEqual(status, 200)

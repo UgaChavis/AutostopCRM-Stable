@@ -112,6 +112,10 @@ class CardServiceTests(unittest.TestCase):
 
         self.assertEqual(moved["card"]["column"], "inbox")
         self.assertEqual(moved["card"]["position"], 1)
+        self.assertEqual(moved["affected_column_ids"], ["inbox"])
+        self.assertEqual([card["id"] for card in moved["affected_cards"][:3]], [first["card"]["id"], third["card"]["id"], second["card"]["id"]])
+        self.assertTrue(all("repair_order" not in card for card in moved["affected_cards"]))
+        self.assertTrue(moved["meta"]["changed"])
 
         snapshot = self.service.get_board_snapshot()
         inbox_cards = sorted(
@@ -138,6 +142,11 @@ class CardServiceTests(unittest.TestCase):
 
         self.assertEqual(moved["card"]["column"], "in_progress")
         self.assertEqual(moved["card"]["position"], 1)
+        self.assertEqual(moved["affected_column_ids"], ["inbox", "in_progress"])
+        self.assertEqual(
+            [card["id"] for card in moved["affected_cards"]],
+            [first_target["card"]["id"], source["card"]["id"], second_target["card"]["id"]],
+        )
 
         snapshot = self.service.get_board_snapshot()
         target_cards = sorted(

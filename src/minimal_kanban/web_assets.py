@@ -5963,6 +5963,28 @@ function renderCompactArchiveRows(cards) {
       return true;
     }
 
+    function applyBoardColumnCardsPatch(nextCards, affectedColumnIds) {
+      if (!Array.isArray(state.snapshot?.cards) || !Array.isArray(nextCards) || !Array.isArray(affectedColumnIds)) return false;
+      const normalizedColumnIds = affectedColumnIds
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      if (!normalizedColumnIds.length) return false;
+      const targetColumns = new Set(normalizedColumnIds);
+      const nextCardMap = new Map(nextCards.filter((card) => card?.id).map((card) => [card.id, card]));
+      state.snapshot.cards = state.snapshot.cards
+        .filter((card) => !targetColumns.has(String(card.column || '').trim()))
+        .concat(nextCards);
+      if (state.activeCard?.id) {
+        const nextActiveCard = nextCardMap.get(state.activeCard.id);
+        if (nextActiveCard) state.activeCard = nextActiveCard;
+      }
+      let renderedAny = false;
+      for (const columnId of normalizedColumnIds) {
+        renderedAny = renderBoardColumnById(columnId) || renderedAny;
+      }
+      return renderedAny;
+    }
+
     function replaceSnapshotCard(nextCard) {
       if (!nextCard?.id) return;
       const previousCard = snapshotCardById(nextCard.id);
@@ -6137,7 +6159,7 @@ function renderCompactArchiveRows(cards) {
 
     async function moveCard(cardId, columnId, beforeCardId = '') {
       try {
-        await api('/api/move_card', {
+        const data = await api('/api/move_card', {
           method: 'POST',
           body: {
             card_id: cardId,
@@ -6147,7 +6169,15 @@ function renderCompactArchiveRows(cards) {
             source: 'ui',
           },
         });
-        await refreshSnapshot(true);
+        const patched = applyBoardColumnCardsPatch(data?.affected_cards || [], data?.affected_column_ids || []);
+        if (!patched && data?.card) {
+          replaceSnapshotCard(data.card);
+        }
+        if (!patched && !data?.card) {
+          await refreshSnapshot(true);
+        } else {
+          setStatus('ДОСКА ОБНОВЛЕНА · ' + new Date().toLocaleTimeString('ru-RU'), false);
+        }
       } catch (error) {
         setStatus(error.message, true);
       } finally {
