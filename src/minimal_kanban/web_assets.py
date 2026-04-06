@@ -5963,6 +5963,17 @@ function renderCompactArchiveRows(cards) {
       return true;
     }
 
+    function updateSnapshotStatusLine({ showSuccess = false } = {}) {
+      const data = state.snapshot;
+      if (!data) return;
+      setStatus(
+        showSuccess
+          ? ('ДОСКА ОБНОВЛЕНА · ' + new Date().toLocaleTimeString('ru-RU'))
+          : ('СЕРВЕР АКТИВЕН · КАРТОЧЕК: ' + data.cards.length + ' · АРХИВ: ' + data.archive.length),
+        false,
+      );
+    }
+
     function applyBoardColumnCardsPatch(nextCards, affectedColumnIds) {
       if (!Array.isArray(state.snapshot?.cards) || !Array.isArray(nextCards) || !Array.isArray(affectedColumnIds)) return false;
       const normalizedColumnIds = affectedColumnIds
@@ -5983,6 +5994,35 @@ function renderCompactArchiveRows(cards) {
         renderedAny = renderBoardColumnById(columnId) || renderedAny;
       }
       return renderedAny;
+    }
+
+    function applyArchivedCardPatch(nextCard) {
+      if (!nextCard?.id || !Array.isArray(state.snapshot?.cards) || !Array.isArray(state.snapshot?.archive)) return false;
+      const previousCard = snapshotCardById(nextCard.id);
+      state.snapshot.cards = state.snapshot.cards.filter((card) => card.id !== nextCard.id);
+      state.snapshot.archive = state.snapshot.archive.filter((card) => card.id !== nextCard.id);
+      if (nextCard.archived) {
+        state.snapshot.archive = [nextCard].concat(state.snapshot.archive);
+      } else {
+        state.snapshot.cards = state.snapshot.cards.concat(nextCard);
+      }
+      if (state.activeCard?.id === nextCard.id) state.activeCard = nextCard.archived ? null : nextCard;
+      const affectedColumnId = String((nextCard.column || previousCard?.column || '')).trim();
+      if (affectedColumnId) {
+        if (!renderBoardColumnById(affectedColumnId)) renderBoard();
+      } else {
+        renderBoard();
+      }
+      if (els.archiveModal.classList.contains('is-open')) renderArchive();
+      updateSnapshotStatusLine();
+      return true;
+    }
+
+    function applyStickySnapshot(stickies) {
+      if (!Array.isArray(state.snapshot?.stickies) || !Array.isArray(stickies)) return false;
+      state.snapshot.stickies = stickies;
+      renderStickies();
+      return true;
     }
 
     function replaceSnapshotCard(nextCard) {
@@ -6187,7 +6227,8 @@ function renderCompactArchiveRows(cards) {
 
     async function restoreCard(cardId) {
       try {
-        await api('/api/restore_card', { method: 'POST', body: { card_id: cardId, actor_name: state.actor, source: 'ui' } });
+        const data = await api('/api/restore_card', { method: 'POST', body: { card_id: cardId, actor_name: state.actor, source: 'ui' } });
+        if (data?.card && applyArchivedCardPatch(data.card)) return;
         await refreshSnapshot(true);
       } catch (error) {
         setStatus(error.message, true);
@@ -6362,8 +6403,9 @@ function renderCompactArchiveRows(cards) {
     async function archiveActiveCard() {
       if (!state.editingId) return;
       try {
-        await api('/api/archive_card', { method: 'POST', body: { card_id: state.editingId, actor_name: state.actor, source: 'ui' } });
+        const data = await api('/api/archive_card', { method: 'POST', body: { card_id: state.editingId, actor_name: state.actor, source: 'ui' } });
         closeCardModal();
+        if (data?.card && applyArchivedCardPatch(data.card)) return;
         await refreshSnapshot(true);
       } catch (error) {
         setStatus(error.message, true);
@@ -6430,12 +6472,17 @@ function renderCompactArchiveRows(cards) {
       const payload = buildStickyPayload();
       if (!payload.text) return setStatus('УКАЖИ ТЕКСТ СТИКЕРА.', true);
       try {
+        let data = null;
         if (payload.sticky_id) {
-          await api('/api/update_sticky', { method: 'POST', body: { sticky_id: payload.sticky_id, text: payload.text, deadline: payload.deadline, actor_name: state.actor, source: 'ui' } });
+          data = await api('/api/update_sticky', { method: 'POST', body: { sticky_id: payload.sticky_id, text: payload.text, deadline: payload.deadline, actor_name: state.actor, source: 'ui' } });
         } else {
-          await api('/api/create_sticky', { method: 'POST', body: { text: payload.text, x: payload.x, y: payload.y, deadline: payload.deadline, actor_name: state.actor, source: 'ui' } });
+          data = await api('/api/create_sticky', { method: 'POST', body: { text: payload.text, x: payload.x, y: payload.y, deadline: payload.deadline, actor_name: state.actor, source: 'ui' } });
         }
         closeStickyModal();
+        if (applyStickySnapshot(data?.stickies || [])) {
+          setStatus('СТИКЕР СОХРАНЕН.', false);
+          return;
+        }
         await refreshSnapshot(true);
       } catch (error) {
         setStatus(error.message, true);
@@ -6444,7 +6491,11 @@ function renderCompactArchiveRows(cards) {
 
     async function removeSticky(stickyId) {
       try {
-        await api('/api/delete_sticky', { method: 'POST', body: { sticky_id: stickyId, actor_name: state.actor, source: 'ui' } });
+        const data = await api('/api/delete_sticky', { method: 'POST', body: { sticky_id: stickyId, actor_name: state.actor, source: 'ui' } });
+        if (applyStickySnapshot(data?.stickies || [])) {
+          setStatus('СТИКЕР УДАЛЕН.', false);
+          return;
+        }
         await refreshSnapshot(true);
       } catch (error) {
         setStatus(error.message, true);
@@ -6531,7 +6582,8 @@ function renderCompactArchiveRows(cards) {
       const nextX = Math.max(0, Math.round(drag.startX + (dx / scale)));
       const nextY = Math.max(0, Math.round(drag.startY + (dy / scale)));
       try {
-        await api('/api/move_sticky', { method: 'POST', body: { sticky_id: drag.stickyId, x: nextX, y: nextY, actor_name: state.actor, source: 'ui' } });
+        const data = await api('/api/move_sticky', { method: 'POST', body: { sticky_id: drag.stickyId, x: nextX, y: nextY, actor_name: state.actor, source: 'ui' } });
+        if (applyStickySnapshot(data?.stickies || [])) return;
         await refreshSnapshot(true);
       } catch (error) {
         setStatus(error.message, true);

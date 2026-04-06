@@ -102,9 +102,11 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("color: rgba(104, 42, 39, 0.94);", BOARD_WEB_APP_HTML)
         self.assertIn("async function handleAuxiliaryBoardClick(target, event)", BOARD_WEB_APP_HTML)
         self.assertIn("function handleStickyModalOverlayClick(event)", BOARD_WEB_APP_HTML)
+        self.assertIn("function applyStickySnapshot(stickies)", BOARD_WEB_APP_HTML)
         self.assertIn("if (target === els.stickyDockButton || target.closest('#stickyDockButton')) {", BOARD_WEB_APP_HTML)
         self.assertIn("if (await handleAuxiliaryBoardClick(target, event)) return;", BOARD_WEB_APP_HTML)
         self.assertIn("els.stickyModal.addEventListener('click', handleStickyModalOverlayClick);", BOARD_WEB_APP_HTML)
+        self.assertIn("if (applyStickySnapshot(data?.stickies || [])) {", BOARD_WEB_APP_HTML)
 
     def test_card_description_textarea_allows_extended_text(self) -> None:
         self.assertIn('id="cardDescription" maxlength="20000"', BOARD_WEB_APP_HTML)
@@ -633,6 +635,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function boardCardElementById(cardId)", BOARD_WEB_APP_HTML)
         self.assertIn("function replaceBoardCardElement(nextCard)", BOARD_WEB_APP_HTML)
         self.assertIn("function applyBoardColumnCardsPatch(nextCards, affectedColumnIds)", BOARD_WEB_APP_HTML)
+        self.assertIn("function applyArchivedCardPatch(nextCard)", BOARD_WEB_APP_HTML)
         self.assertIn("const previousCard = snapshotCardById(nextCard.id);", BOARD_WEB_APP_HTML)
         self.assertIn("if (previousColumnId && previousColumnId === nextColumnId) {", BOARD_WEB_APP_HTML)
         self.assertIn("const samePosition = previousPosition === nextPosition || (Number.isNaN(previousPosition) && Number.isNaN(nextPosition));", BOARD_WEB_APP_HTML)
@@ -640,6 +643,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("renderBoardColumnById(previousColumnId)", BOARD_WEB_APP_HTML)
         self.assertIn("const patched = applyBoardColumnCardsPatch(data?.affected_cards || [], data?.affected_column_ids || []);", BOARD_WEB_APP_HTML)
         self.assertIn("if (!patched && data?.card) {", BOARD_WEB_APP_HTML)
+        self.assertIn("if (data?.card && applyArchivedCardPatch(data.card)) return;", BOARD_WEB_APP_HTML)
 
     def test_web_assets_do_not_keep_duplicate_active_function_names(self) -> None:
         self.assertEqual(BOARD_WEB_APP_HTML.count("function buildVehicleAutofillRawText()"), 1)
