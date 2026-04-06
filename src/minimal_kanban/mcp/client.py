@@ -444,7 +444,10 @@ class BoardApiClient:
             except json.JSONDecodeError as json_error:  # pragma: no cover
                 raise BoardApiTransportError(f"Локальный API вернул некорректный JSON для {path}.") from json_error
             self._log("board_api_request path=%s status=%s error=%s", path, exc.code, payload.get("error"))
-            return payload
+            try:
+                return payload
+            finally:
+                exc.close()
         except (urllib.error.URLError, TimeoutError) as exc:
             raise BoardApiTransportError(f"Не удалось подключиться к локальному API по адресу {self.base_url}.") from exc
 

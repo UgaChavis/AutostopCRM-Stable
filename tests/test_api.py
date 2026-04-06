@@ -92,7 +92,10 @@ class ApiServerTests(unittest.TestCase):
             with urllib.request.urlopen(request, timeout=5) as response:
                 return response.status, json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
+            try:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
+            finally:
+                exc.close()
 
     def test_health_and_create_card(self) -> None:
         status, health = self.request("/api/health", method="GET")
@@ -1239,7 +1242,10 @@ class ApiServerTests(unittest.TestCase):
         )
         with self.assertRaises(urllib.error.HTTPError) as invalid_json:
             urllib.request.urlopen(request, timeout=5)
-        payload = json.loads(invalid_json.exception.read().decode("utf-8"))
+        try:
+            payload = json.loads(invalid_json.exception.read().decode("utf-8"))
+        finally:
+            invalid_json.exception.close()
         self.assertEqual(payload["error"]["code"], "invalid_json")
 
         status, wrong_type = self.request("/api/create_card", payload=["not", "object"])  # type: ignore[arg-type]
@@ -1405,7 +1411,10 @@ class ApiServerAuthTests(unittest.TestCase):
             with urllib.request.urlopen(request, timeout=5) as response:
                 return response.status, json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
+            try:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
+            finally:
+                exc.close()
 
     def test_mutating_routes_require_bearer_token(self) -> None:
         status, health = self.request("/api/health", method="GET")

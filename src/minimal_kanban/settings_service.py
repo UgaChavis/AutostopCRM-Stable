@@ -587,7 +587,10 @@ class SettingsService:
                 payload = json.loads(exc.read().decode("utf-8"))
             except json.JSONDecodeError:
                 payload = {}
-            return exc.code, payload
+            try:
+                return exc.code, payload
+            finally:
+                exc.close()
         except (urllib.error.URLError, TimeoutError) as exc:
             raise RuntimeError(f"Не удалось подключиться к адресу {url}: {type(exc).__name__}.") from exc
 

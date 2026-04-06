@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import gc
 import hashlib
 import logging
 import socket
@@ -47,42 +48,35 @@ async def open_mcp_session(url: str, *, http_client: httpx.AsyncClient | None = 
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
     try:
-        async with anyio.create_task_group() as tg:
-            if not client_provided:
-                client_cm = client
-            else:
-                client_cm = _yield_client(client)
-            async with client_cm:
-                def start_get_stream() -> None:
-                    tg.start_soon(transport.handle_get_stream, client, read_stream_writer)
+        async with read_stream_writer, read_stream, write_stream, write_stream_reader:
+            async with anyio.create_task_group() as tg:
+                if not client_provided:
+                    client_cm = client
+                else:
+                    client_cm = _yield_client(client)
+                async with client_cm:
+                    def start_get_stream() -> None:
+                        tg.start_soon(transport.handle_get_stream, client, read_stream_writer)
 
-                tg.start_soon(
-                    transport.post_writer,
-                    client,
-                    write_stream_reader,
-                    read_stream_writer,
-                    write_stream,
-                    start_get_stream,
-                    tg,
-                )
-                try:
-                    async with ClientSession(read_stream, write_stream) as session:
-                        await session.initialize()
-                        yield session
-                finally:
-                    if transport.session_id:
-                        with suppress(Exception):
-                            await transport.terminate_session(client)
-                    tg.cancel_scope.cancel()
+                    tg.start_soon(
+                        transport.post_writer,
+                        client,
+                        write_stream_reader,
+                        read_stream_writer,
+                        write_stream,
+                        start_get_stream,
+                        tg,
+                    )
+                    try:
+                        async with ClientSession(read_stream, write_stream) as session:
+                            await session.initialize()
+                            yield session
+                    finally:
+                        if transport.session_id:
+                            with suppress(Exception):
+                                await transport.terminate_session(client)
+                        tg.cancel_scope.cancel()
     finally:
-        with suppress(Exception):
-            await write_stream_reader.aclose()
-        with suppress(Exception):
-            await read_stream.aclose()
-        with suppress(Exception):
-            await write_stream.aclose()
-        with suppress(Exception):
-            await read_stream_writer.aclose()
         if not client_provided:
             with suppress(Exception):
                 await client.aclose()
@@ -129,9 +123,10 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.start()
 
     async def asyncTearDown(self) -> None:
-        await asyncio.sleep(0.1)
         self.runtime.stop()
         self.api_server.stop()
+        await asyncio.sleep(0.1)
+        gc.collect()
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
