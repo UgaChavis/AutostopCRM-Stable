@@ -510,6 +510,7 @@ class ApiServerTests(unittest.TestCase):
         self.assertNotIn("repair_order", compact_card)
         self.assertNotIn("vehicle_profile", compact_card)
         self.assertNotIn("attachments", compact_card)
+        self.assertTrue(snapshot["data"]["meta"]["revision"])
 
     def test_repair_order_routes_list_and_open_text_file(self) -> None:
         status, created = self.request(

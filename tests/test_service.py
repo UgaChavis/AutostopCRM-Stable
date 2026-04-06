@@ -544,6 +544,23 @@ class CardServiceTests(unittest.TestCase):
         self.assertNotIn("vehicle_profile", compact_card)
         self.assertNotIn("attachments", compact_card)
 
+    def test_board_snapshot_revision_stays_stable_until_board_changes(self) -> None:
+        first_snapshot = self.service.get_board_snapshot({"compact": True})
+        second_snapshot = self.service.get_board_snapshot({"compact": True})
+
+        self.assertEqual(first_snapshot["meta"]["revision"], second_snapshot["meta"]["revision"])
+
+        self.service.create_card(
+            {
+                "vehicle": "Lexus IS F",
+                "title": "Revision test",
+                "deadline": {"hours": 2},
+            }
+        )
+        changed_snapshot = self.service.get_board_snapshot({"compact": True})
+
+        self.assertNotEqual(first_snapshot["meta"]["revision"], changed_snapshot["meta"]["revision"])
+
     def test_board_snapshot_skips_expensive_prep_when_there_are_no_cards(self) -> None:
         snapshot_service = self.service._snapshot_service
         snapshot_service._column_labels = Mock(wraps=snapshot_service._column_labels)

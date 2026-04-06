@@ -614,6 +614,12 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("id=\"gptWallEventsTab\"", BOARD_WEB_APP_HTML)
         self.assertIn("function setModalListError(metaEl, listEl, metaText, bodyText)", BOARD_WEB_APP_HTML)
         self.assertIn("function setModalTextError(metaEl, textEl, metaText, bodyText)", BOARD_WEB_APP_HTML)
+        self.assertIn("lastSnapshotRevision: ''", BOARD_WEB_APP_HTML)
+        self.assertIn("const previousRevision = String(state.lastSnapshotRevision || '');", BOARD_WEB_APP_HTML)
+        self.assertIn("const nextRevision = String(nextSnapshot?.meta?.revision || '');", BOARD_WEB_APP_HTML)
+        self.assertIn("const boardChanged = !previousRevision || !nextRevision || previousRevision !== nextRevision;", BOARD_WEB_APP_HTML)
+        self.assertIn("if (boardChanged) {", BOARD_WEB_APP_HTML)
+        self.assertIn("state.lastSnapshotRevision = nextRevision;", BOARD_WEB_APP_HTML)
 
     def test_web_assets_do_not_keep_duplicate_active_function_names(self) -> None:
         self.assertEqual(BOARD_WEB_APP_HTML.count("function buildVehicleAutofillRawText()"), 1)

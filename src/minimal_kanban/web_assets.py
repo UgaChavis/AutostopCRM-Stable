@@ -2777,6 +2777,7 @@ BOARD_WEB_APP_HTML = "".join(
         moved: false,
       },
       snapshot: null,
+      lastSnapshotRevision: '',
       gptWall: null,
       gptWallView: 'board_content',
       activeCard: null,
@@ -5912,11 +5913,18 @@ function renderCompactArchiveRows(cards) {
 
       state.refreshInFlight = (async () => {
         try {
-          state.snapshot = await api('/api/get_board_snapshot?archive_limit=30&compact=1');
+          const nextSnapshot = await api('/api/get_board_snapshot?archive_limit=30&compact=1');
+          const previousRevision = String(state.lastSnapshotRevision || '');
+          const nextRevision = String(nextSnapshot?.meta?.revision || '');
+          const boardChanged = !previousRevision || !nextRevision || previousRevision !== nextRevision;
+          state.snapshot = nextSnapshot;
           applyBoardScale(state.snapshot?.settings?.board_scale ?? state.boardScale ?? 1, { syncInput: true });
-          renderBoard();
-          if (els.archiveModal.classList.contains('is-open')) renderArchive();
-          primeBoardViewport();
+          if (boardChanged) {
+            renderBoard();
+            if (els.archiveModal.classList.contains('is-open')) renderArchive();
+            primeBoardViewport();
+          }
+          state.lastSnapshotRevision = nextRevision;
           if (els.gptWallModal.classList.contains('is-open')) await loadGptWall(false);
           const data = state.snapshot;
         setStatus(showSuccess ? ('ДОСКА ОБНОВЛЕНА · ' + new Date().toLocaleTimeString('ru-RU')) : ('СЕРВЕР АКТИВЕН · КАРТОЧЕК: ' + data.cards.length + ' · АРХИВ: ' + data.archive.length));

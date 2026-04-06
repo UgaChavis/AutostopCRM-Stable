@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable
 from datetime import datetime
 from threading import RLock
@@ -105,6 +107,29 @@ class SnapshotService:
         if not cards:
             return {}, {}
         return self._column_labels(columns), self._event_counts(events)
+
+    def _snapshot_revision(
+        self,
+        *,
+        columns: list[dict[str, Any]],
+        cards: list[dict[str, Any]],
+        archive: list[dict[str, Any]],
+        stickies: list[dict[str, Any]],
+        settings: dict[str, Any],
+        compact_cards: bool,
+        archive_limit: int,
+    ) -> str:
+        revision_payload = {
+            "columns": columns,
+            "cards": cards,
+            "archive": archive,
+            "stickies": stickies,
+            "settings": settings,
+            "compact_cards": compact_cards,
+            "archive_limit": archive_limit,
+        }
+        serialized = json.dumps(revision_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha1(serialized.encode("utf-8")).hexdigest()
 
     def _extract_board_content_text(self, full_text: str) -> str:
         normalized = str(full_text or "").strip()
@@ -224,31 +249,46 @@ class SnapshotService:
                 columns=bundle["columns"],
                 events=bundle["events"],
             )
+            serialized_columns = [column.to_dict() for column in bundle["columns"]]
+            serialized_cards = self._serialize_cards_payload(
+                cards,
+                events=bundle["events"],
+                column_labels=column_labels,
+                event_counts=event_counts,
+                viewer_username=viewer_username,
+                compact=compact_cards,
+            )
+            serialized_archive = self._serialize_cards_payload(
+                archive,
+                events=bundle["events"],
+                column_labels=column_labels,
+                event_counts=event_counts,
+                viewer_username=viewer_username,
+                compact=compact_cards,
+            )
+            serialized_stickies = [self._serialize_sticky(sticky) for sticky in stickies]
+            serialized_settings = dict(bundle["settings"])
+            revision = self._snapshot_revision(
+                columns=serialized_columns,
+                cards=serialized_cards,
+                archive=serialized_archive,
+                stickies=serialized_stickies,
+                settings=serialized_settings,
+                compact_cards=compact_cards,
+                archive_limit=archive_limit,
+            )
             return {
-                "columns": [column.to_dict() for column in bundle["columns"]],
-                "cards": self._serialize_cards_payload(
-                    cards,
-                    events=bundle["events"],
-                    column_labels=column_labels,
-                    event_counts=event_counts,
-                    viewer_username=viewer_username,
-                    compact=compact_cards,
-                ),
-                "archive": self._serialize_cards_payload(
-                    archive,
-                    events=bundle["events"],
-                    column_labels=column_labels,
-                    event_counts=event_counts,
-                    viewer_username=viewer_username,
-                    compact=compact_cards,
-                ),
-                "stickies": [self._serialize_sticky(sticky) for sticky in stickies],
-                "settings": dict(bundle["settings"]),
+                "columns": serialized_columns,
+                "cards": serialized_cards,
+                "archive": serialized_archive,
+                "stickies": serialized_stickies,
+                "settings": serialized_settings,
                 "meta": {
                     "generated_at": utc_now_iso(),
                     "archive_limit": archive_limit,
                     "compact_cards": compact_cards,
                     "stickies_total": len(stickies),
+                    "revision": revision,
                 },
             }
 
