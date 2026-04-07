@@ -1959,13 +1959,12 @@ BOARD_WEB_APP_HTML = "".join(
     .dialog--repair-orders {
       --repair-orders-columns:
         minmax(54px, 68px)
-        minmax(90px, 102px)
-        minmax(86px, 98px)
-        minmax(108px, 122px)
-        minmax(150px, 190px)
-        minmax(132px, 152px)
-        minmax(150px, 190px)
-        minmax(320px, 2.8fr)
+        minmax(92px, 104px)
+        minmax(108px, 124px)
+        minmax(138px, 168px)
+        minmax(126px, 144px)
+        minmax(138px, 168px)
+        minmax(380px, 3.2fr)
         minmax(88px, 104px)
         minmax(88px, 104px);
     }
@@ -1997,7 +1996,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row {
       align-items: stretch;
       gap: 8px 10px;
-      padding: 7px 10px;
+      padding: 6px 10px;
       transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
     }
     .repair-orders-row:hover {
@@ -2030,8 +2029,8 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__total {
       min-width: 0;
       font-family: var(--mono);
-      font-size: 12.5px;
-      line-height: 1.3;
+      font-size: 12px;
+      line-height: 1.28;
     }
     .repair-orders-row__number {
       color: var(--text);
@@ -2097,8 +2096,15 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__payment-cell,
     .repair-orders-row__paid-cell,
     .repair-orders-row__total-cell {
-      justify-items: end;
       text-align: right;
+    }
+    .repair-orders-row__payment-cell {
+      justify-items: start;
+      text-align: left;
+    }
+    .repair-orders-row__paid-cell,
+    .repair-orders-row__total-cell {
+      justify-items: end;
     }
     .repair-orders-row__payment-status {
       display: inline-flex;
@@ -2184,8 +2190,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-orders-controls {
       display: grid;
-      grid-template-columns: minmax(280px, 1fr) repeat(2, minmax(180px, 220px));
-      gap: 10px 12px;
+      grid-template-columns: minmax(320px, 1fr) repeat(2, minmax(156px, 188px));
+      gap: 8px 10px;
       align-items: end;
     }
     .repair-orders-controls .field {
@@ -2744,7 +2750,6 @@ BOARD_WEB_APP_HTML = "".join(
       <div class="repair-orders-table-head" id="repairOrdersTableHead">
         <div>Номер</div>
         <div>Открыта</div>
-        <div>Статус</div>
         <div>Оплата</div>
         <div>Клиент</div>
         <div>Телефон</div>
@@ -6241,7 +6246,7 @@ function renderCompactArchiveRows(cards) {
     function repairOrdersColumnsValue(status = state.repairOrdersFilter) {
       return repairOrdersIsClosedView(status)
         ? 'minmax(54px, 68px) minmax(90px, 102px) minmax(90px, 102px) minmax(86px, 98px) minmax(108px, 122px) minmax(150px, 190px) minmax(132px, 152px) minmax(150px, 190px) minmax(280px, 2.5fr) minmax(88px, 104px) minmax(88px, 104px)'
-        : 'minmax(54px, 68px) minmax(90px, 102px) minmax(86px, 98px) minmax(108px, 122px) minmax(150px, 190px) minmax(132px, 152px) minmax(150px, 190px) minmax(320px, 2.8fr) minmax(88px, 104px) minmax(88px, 104px)';
+        : 'minmax(54px, 68px) minmax(92px, 104px) minmax(108px, 124px) minmax(138px, 168px) minmax(126px, 144px) minmax(138px, 168px) minmax(380px, 3.2fr) minmax(88px, 104px) minmax(88px, 104px)';
     }
 
     function repairOrdersTableHeadHtml(status = state.repairOrdersFilter) {
@@ -6260,7 +6265,6 @@ function renderCompactArchiveRows(cards) {
       }
       return '<div>Номер</div>'
         + '<div>Открыта</div>'
-        + '<div>Статус</div>'
         + '<div>Оплата</div>'
         + '<div>Клиент</div>'
         + '<div>Телефон</div>'
@@ -6541,7 +6545,7 @@ function renderCompactArchiveRows(cards) {
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__number">№ ' + escapeHtml(number) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__opened">' + escapeHtml(openedAt || '-') + '</div></div>'
           + closedCell
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__status" data-status="' + escapeHtml(rawStatus) + '">' + escapeHtml(status) + '</div></div>'
+          + (isClosedView ? '<div class="repair-orders-row__cell"><div class="repair-orders-row__status" data-status="' + escapeHtml(rawStatus) + '">' + escapeHtml(status) + '</div></div>' : '')
           + '<div class="repair-orders-row__cell repair-orders-row__payment-cell"><div class="repair-orders-row__payment-status" data-payment-status="' + escapeHtml(paymentStatus) + '">' + escapeHtml(paymentStatusLabel) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__client" title="' + escapeHtml(clientText) + '">' + escapeHtml(clientText) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__phone" title="' + escapeHtml(phoneText) + '">' + escapeHtml(phoneText) + '</div></div>'
