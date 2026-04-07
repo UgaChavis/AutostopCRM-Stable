@@ -745,9 +745,9 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .dialog--card {
       width: min(1200px, calc(100% - 28px));
-      padding: 16px;
+      padding: 14px;
       transform: none;
-      gap: 12px;
+      gap: 10px;
     }
     .dialog__head, .dialog__foot, .dialog__tabs {
       display: flex;
@@ -757,12 +757,12 @@ BOARD_WEB_APP_HTML = "".join(
       flex-wrap: wrap;
     }
     .dialog__foot--card {
-      padding-top: 6px;
+      padding-top: 4px;
       border-top: 1px solid rgba(115, 126, 105, 0.16);
     }
     .dialog__foot-group {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       align-items: center;
     }
@@ -784,20 +784,20 @@ BOARD_WEB_APP_HTML = "".join(
     .dialog__head--card {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
     }
     .dialog__title-wrap {
       min-width: 0;
       display: grid;
-      gap: 3px;
+      gap: 2px;
     }
     .dialog__title-prefix {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: rgba(200, 198, 187, 0.78);
+      letter-spacing: 0.1em;
+      color: rgba(200, 198, 187, 0.62);
     }
     .dialog__title--card {
       min-width: 0;
@@ -806,8 +806,8 @@ BOARD_WEB_APP_HTML = "".join(
       overflow: hidden;
       text-overflow: ellipsis;
       line-height: 1.2;
-      font-size: 16px;
-      letter-spacing: 0.08em;
+      font-size: 15px;
+      letter-spacing: 0.07em;
     }
     .tab-btn {
       border: 1px solid var(--line-soft);
@@ -823,23 +823,23 @@ BOARD_WEB_APP_HTML = "".join(
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .overview-layout {
       display: grid;
-      grid-template-columns: minmax(620px, 734px) minmax(274px, 320px);
-      gap: 18px;
+      grid-template-columns: minmax(648px, 756px) minmax(264px, 308px);
+      gap: 14px;
       align-items: start;
       justify-content: center;
     }
     .overview-main {
       display: grid;
-      gap: 10px;
+      gap: 9px;
       min-width: 0;
-      max-width: 734px;
+      max-width: 756px;
       position: relative;
       z-index: 1;
     }
     .overview-main__meta {
       display: grid;
-      grid-template-columns: minmax(150px, 168px) minmax(0, 1fr);
-      gap: 7px;
+      grid-template-columns: minmax(136px, 152px) minmax(0, 1fr);
+      gap: 6px;
       align-items: start;
     }
     .dialog__tabs--card {
@@ -849,14 +849,15 @@ BOARD_WEB_APP_HTML = "".join(
     }
     #cardMetaLine {
       color: rgba(200, 198, 187, 0.76);
-      font-size: 11px;
+      font-size: 10px;
       line-height: 1.35;
       letter-spacing: 0.03em;
       text-align: right;
+      opacity: 0.82;
     }
     .stack { display: grid; gap: 12px; }
     .field { display: grid; gap: 5px; }
-    .grid--overview { grid-template-columns: minmax(188px, 0.7fr) minmax(0, 1fr); gap: 8px; }
+    .grid--overview { grid-template-columns: minmax(176px, 0.62fr) minmax(0, 1fr); gap: 7px; }
     .field label {
       font-family: var(--mono);
       font-size: 12px;
@@ -906,8 +907,8 @@ BOARD_WEB_APP_HTML = "".join(
     input[type="number"] { text-align: center; }
     textarea { min-height: 192px; }
     .field--description textarea {
-      min-height: 154px;
-      height: 154px;
+      min-height: 136px;
+      height: 136px;
       max-height: clamp(440px, 56vh, 720px);
       padding: 10px 12px;
       line-height: 1.54;
@@ -922,8 +923,8 @@ BOARD_WEB_APP_HTML = "".join(
       color: var(--text-soft);
     }
     .signal-panel {
-      gap: 6px;
-      padding: 8px 8px 8px;
+      gap: 5px;
+      padding: 7px 7px 7px;
       align-content: start;
       min-width: 0;
     }
@@ -937,13 +938,13 @@ BOARD_WEB_APP_HTML = "".join(
       background:
         linear-gradient(180deg, rgba(255,255,255,0.03), transparent 38%),
         rgba(0,0,0,0.18);
-      min-height: 32px;
-      padding: 5px 8px;
+      min-height: 30px;
+      padding: 4px 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.15;
       letter-spacing: 0.06em;
       color: var(--text);
@@ -972,7 +973,7 @@ BOARD_WEB_APP_HTML = "".join(
       font-size: 11px;
     }
     .signal-grid--timer {
-      gap: 6px;
+      gap: 5px;
     }
     .signal-grid--timer > .signal-cell:not(.signal-cell--timer) {
       display: none;
@@ -991,7 +992,7 @@ BOARD_WEB_APP_HTML = "".join(
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
-      min-height: 34px;
+      min-height: 32px;
       border: 1px solid var(--line-soft);
       background:
         linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%),
@@ -999,12 +1000,12 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .signal-input__field {
       min-width: 0;
-      min-height: 32px;
+      min-height: 30px;
       border: 0;
       background: transparent;
       padding: 0 8px;
       font-family: var(--mono);
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       color: var(--text);
       text-align: center;
@@ -1131,8 +1132,8 @@ BOARD_WEB_APP_HTML = "".join(
       cursor: pointer;
     }
     .tags-panel {
-      gap: 7px;
-      padding: 8px 9px 8px;
+      gap: 6px;
+      padding: 7px 8px 7px;
       align-content: start;
       min-width: 0;
     }
@@ -1160,8 +1161,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .tag-entry {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 40px;
-      gap: 6px;
+      grid-template-columns: minmax(0, 1fr) 38px;
+      gap: 5px;
       align-items: center;
     }
     .tag-list {
@@ -1173,7 +1174,7 @@ BOARD_WEB_APP_HTML = "".join(
       padding: 1px 0;
     }
     .tag-entry input[type="text"] {
-      min-height: 34px;
+      min-height: 32px;
       padding: 6px 10px;
       font-family: var(--mono);
       font-size: 12px;
@@ -1185,8 +1186,8 @@ BOARD_WEB_APP_HTML = "".join(
       cursor: not-allowed;
     }
     .tag-entry .btn {
-      min-width: 40px;
-      min-height: 34px;
+      min-width: 38px;
+      min-height: 32px;
       padding: 0;
       display: grid;
       place-items: center;
@@ -1328,12 +1329,12 @@ BOARD_WEB_APP_HTML = "".join(
       background: rgba(0,0,0,0.14);
     }
     .vehicle-panel {
-      gap: 7px;
-      width: min(100%, 320px);
-      max-width: 320px;
+      gap: 6px;
+      width: min(100%, 308px);
+      max-width: 308px;
       justify-self: end;
       margin-left: 2px;
-      padding: 8px 9px;
+      padding: 8px;
       position: relative;
       z-index: 2;
       isolation: isolate;
@@ -1354,15 +1355,16 @@ BOARD_WEB_APP_HTML = "".join(
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: start;
-      gap: 10px;
+      gap: 8px;
     }
     .vehicle-panel__summary {
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10px;
-      line-height: 1.4;
+      font-size: 9px;
+      line-height: 1.32;
       letter-spacing: 0.03em;
       white-space: pre-wrap;
+      opacity: 0.84;
     }
     .vehicle-panel__flags {
       display: flex;
@@ -1421,15 +1423,15 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .vehicle-panel__fields {
       display: grid;
-      gap: 6px;
+      gap: 5px;
       max-height: none;
       overflow: visible;
       padding-right: 0;
     }
     .vehicle-panel__repair {
       display: grid;
-      gap: 6px;
-      padding-top: 8px;
+      gap: 5px;
+      padding-top: 7px;
       margin-top: 2px;
       border-top: 1px solid rgba(115, 126, 105, 0.24);
       position: relative;
