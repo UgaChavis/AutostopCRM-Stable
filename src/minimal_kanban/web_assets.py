@@ -2628,35 +2628,46 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-detail {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
+      min-width: 0;
+    }
+    .cashbox-detail__identity {
+      display: grid;
+      gap: 2px;
       min-width: 0;
     }
     .cashbox-detail__meta {
       color: var(--muted);
-      font-size: 11px;
+      font-size: 10.5px;
       line-height: 1.3;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 10px;
+    }
+    .cashbox-detail__meta span {
+      white-space: nowrap;
     }
     .cashbox-composer {
       display: grid;
-      gap: 8px;
-      padding: 9px;
+      gap: 7px;
+      padding: 8px;
       border: 1px solid var(--line-soft);
       background: rgba(255,255,255,0.02);
     }
-    .cashbox-form-grid {
+    .cashbox-composer__row {
       display: grid;
-      grid-template-columns: minmax(148px, 172px) minmax(0, 1fr);
+      grid-template-columns: minmax(144px, 166px) minmax(0, 1fr);
       gap: 8px;
       align-items: end;
     }
-    .cashbox-form-grid .field--compact input[type="text"],
-    .cashbox-form-grid .field--compact textarea {
+    .cashbox-composer__row .field--compact input[type="text"],
+    .cashbox-composer__row .field--compact textarea {
       min-height: 34px;
       padding: 6px 8px;
     }
     .cashbox-composer textarea {
-      min-height: 64px;
-      max-height: 84px;
+      min-height: 54px;
+      max-height: 72px;
     }
     .cashbox-composer__actions {
       display: flex;
@@ -2682,12 +2693,12 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 8px;
     }
     .cashbox-detail__head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
       gap: 10px;
-      flex-wrap: wrap;
     }
+    .cashbox-detail__actions { display: flex; justify-content: flex-end; }
     .cashbox-delete-button {
       border-color: rgba(207, 91, 75, 0.42);
       color: rgba(255, 210, 201, 0.9);
@@ -2709,10 +2720,10 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-transaction {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 7px;
+      gap: 6px;
       align-items: start;
       border: 1px solid var(--line-soft);
-      padding: 7px 8px;
+      padding: 6px 7px;
       background: rgba(255,255,255,0.02);
     }
     .cashbox-transaction__badge {
@@ -2735,7 +2746,7 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-transaction__amount[data-direction="expense"] { color: #f0b1a6; }
     .cashbox-transaction__note {
       font-size: 12.5px;
-      line-height: 1.35;
+      line-height: 1.3;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -2954,15 +2965,17 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
         <div class="subpanel cashbox-detail cashboxes-pane">
           <div class="cashbox-detail__head">
-            <div>
+            <div class="cashbox-detail__identity">
               <div class="panel-title" id="cashboxDetailTitle">КАССА НЕ ВЫБРАНА</div>
               <div class="cashbox-detail__meta" id="cashboxDetailMeta">Выберите кассу слева.</div>
             </div>
-            <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">УДАЛИТЬ КАССУ</button>
+            <div class="cashbox-detail__actions">
+              <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">УДАЛИТЬ КАССУ</button>
+            </div>
           </div>
           <div class="cashbox-stats" id="cashboxStats"></div>
           <div class="cashbox-composer">
-            <div class="cashbox-form-grid">
+            <div class="cashbox-composer__row">
               <div class="field field--compact">
                 <label for="cashboxAmountInput">СУММА</label>
                 <input id="cashboxAmountInput" type="text" inputmode="decimal" maxlength="24" placeholder="1000 или 1000,50">
@@ -7463,14 +7476,14 @@ function renderCompactArchiveRows(cards) {
           + '<div><div class="cashbox-transaction__note">' + escapeHtml(note) + '</div><div class="cashbox-transaction__meta">' + escapeHtml(formatDate(item?.created_at)) + ' | ' + escapeHtml(actor) + '</div></div>'
           + '<div class="cashbox-transaction__amount" data-direction="' + escapeHtml(direction) + '">' + escapeHtml(direction === 'expense' ? '-' : '+') + escapeHtml(item?.amount_display || cashboxFormatMinorAmount(item?.amount_minor || 0)) + '</div>'
           + '</div>';
-      }).join('') : '<div class="cashboxes-empty">ДВИЖЕНИЙ ПОКА НЕТ.</div>';
+      }).join('') : '<div class="cashboxes-empty">ДВИЖЕНИЙ ПОКА НЕТ. ДОБАВЬТЕ ПОСТУПЛЕНИЕ ИЛИ СПИСАНИЕ.</div>';
     }
 
     function renderCashboxDetail() {
       const cashbox = state.activeCashbox?.cashbox || null;
       if (!cashbox) {
         els.cashboxDetailTitle.textContent = 'КАССА НЕ ВЫБРАНА';
-        els.cashboxDetailMeta.textContent = 'Выберите кассу слева.';
+        els.cashboxDetailMeta.innerHTML = '<span>Выберите кассу слева.</span>';
         els.cashboxDeleteButton.disabled = true;
         els.cashboxIncomeButton.disabled = true;
         els.cashboxExpenseButton.disabled = true;
@@ -7481,7 +7494,10 @@ function renderCompactArchiveRows(cards) {
       const stats = activeCashboxStatistics();
       const lastTransactionAt = stats?.last_transaction_at ? formatDate(stats.last_transaction_at) : '—';
       els.cashboxDetailTitle.textContent = cashbox.name || 'КАССА';
-      els.cashboxDetailMeta.textContent = (cashbox.short_id || cashbox.id || '—') + ' · ' + String(stats.transactions_total || 0) + ' движ. · ' + lastTransactionAt;
+      els.cashboxDetailMeta.innerHTML =
+        '<span>ID: ' + escapeHtml(cashbox.short_id || cashbox.id || '—') + '</span>' +
+        '<span>Движений: ' + escapeHtml(String(stats.transactions_total || 0)) + '</span>' +
+        '<span>Последнее: ' + escapeHtml(lastTransactionAt) + '</span>';
       els.cashboxDeleteButton.disabled = false;
       els.cashboxIncomeButton.disabled = false;
       els.cashboxExpenseButton.disabled = false;
