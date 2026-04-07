@@ -1423,8 +1423,8 @@ BOARD_WEB_APP_HTML = "".join(
       letter-spacing: 0.03em;
     }
     .dialog--repair-order {
-      width: min(1360px, calc(100% - 18px));
-      max-height: min(94vh, 960px);
+      width: min(1320px, calc(100% - 16px));
+      max-height: min(93vh, 940px);
       padding: 0;
       gap: 0;
       overflow: hidden;
@@ -1434,15 +1434,15 @@ BOARD_WEB_APP_HTML = "".join(
         var(--bg-panel);
     }
     .dialog--repair-order .dialog__head {
-      padding: 15px 16px 11px;
+      padding: 13px 15px 10px;
       margin: 0;
       border-bottom: 1px solid rgba(115, 126, 105, 0.2);
       background: rgba(0, 0, 0, 0.08);
     }
     .repair-order-shell {
       display: grid;
-      gap: 10px;
-      padding: 12px 14px 14px;
+      gap: 8px;
+      padding: 10px 12px 12px;
       overflow: auto;
       min-height: 0;
       align-content: start;
@@ -1451,21 +1451,25 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
+    }
+    .repair-order-toolbar .btn {
+      min-height: 34px;
+      padding: 7px 11px;
     }
     .repair-order-groups {
       display: grid;
-      grid-template-columns: minmax(224px, 0.78fr) minmax(316px, 1fr) minmax(520px, 1.82fr);
-      gap: 10px;
-      align-items: start;
+      grid-template-columns: minmax(210px, 0.72fr) minmax(290px, 0.96fr) minmax(500px, 1.72fr);
+      gap: 8px;
+      align-items: stretch;
     }
     .repair-order-card,
     .repair-order-table-card {
       display: grid;
-      gap: 8px;
-      padding: 10px;
-      border: 1px solid rgba(116, 126, 106, 0.18);
+      gap: 7px;
+      padding: 9px;
+      border: 1px solid rgba(116, 126, 106, 0.15);
       background:
         linear-gradient(180deg, rgba(255,255,255,0.02), transparent 24%),
         rgba(0, 0, 0, 0.08);
@@ -1473,10 +1477,10 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: 7px;
     }
     .repair-order-card__grid--document {
-      grid-template-columns: 56px repeat(3, minmax(0, 1fr));
+      grid-template-columns: 52px repeat(3, minmax(0, 1fr));
       align-items: end;
     }
     .repair-order-card__grid--payment {
@@ -1496,9 +1500,9 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid--payment .field--compact select,
     .repair-order-card__grid--client .field--compact input[type="text"],
     .repair-order-card__grid--vehicle .field--compact input[type="text"] {
-      min-height: 32px;
-      padding: 5px 8px;
-      font-size: 12.5px;
+      min-height: 30px;
+      padding: 4px 7px;
+      font-size: 12px;
     }
     .repair-order-field--number input[type="text"],
     .repair-order-field--vin input[type="text"] {
@@ -1510,7 +1514,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-field--client input[type="text"],
     .repair-order-field--vehicle input[type="text"] {
-      font-size: 13.5px;
+      font-size: 13px;
     }
     .repair-order-card__grid--document .field--compact label,
     .repair-order-card__grid--payment .field--compact label,
@@ -1521,24 +1525,24 @@ BOARD_WEB_APP_HTML = "".join(
       white-space: nowrap;
     }
     .repair-order-client-info textarea {
-      min-height: 138px;
-      height: 138px;
-      max-height: 196px;
-      line-height: 1.46;
-      padding: 9px 11px;
-      font-size: 13px;
+      min-height: 124px;
+      height: 124px;
+      max-height: 176px;
+      line-height: 1.42;
+      padding: 8px 10px;
+      font-size: 12.5px;
     }
     .repair-order-status {
       display: inline-flex;
       align-items: center;
       justify-self: start;
-      min-height: 26px;
-      padding: 5px 9px;
+      min-height: 24px;
+      padding: 4px 8px;
       border: 1px solid rgba(116, 126, 106, 0.24);
       background: rgba(255, 255, 255, 0.02);
       color: var(--text);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9.5px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
@@ -1551,11 +1555,15 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
+    .repair-order-section-bar .btn {
+      min-height: 32px;
+      padding: 6px 10px;
+    }
     .repair-order-table-wrap {
-      border: 1px solid rgba(116, 126, 106, 0.16);
+      border: 1px solid rgba(116, 126, 106, 0.14);
       background: rgba(0, 0, 0, 0.07);
       overflow: hidden;
     }
@@ -1565,10 +1573,10 @@ BOARD_WEB_APP_HTML = "".join(
       table-layout: fixed;
     }
     .repair-order-table th {
-      padding: 8px 10px;
+      padding: 7px 9px;
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -1577,7 +1585,7 @@ BOARD_WEB_APP_HTML = "".join(
       background: rgba(255, 255, 255, 0.02);
     }
     .repair-order-table td {
-      padding: 3px 6px;
+      padding: 2px 5px;
       vertical-align: middle;
       border-bottom: 1px solid rgba(116, 126, 106, 0.12);
     }
@@ -1598,10 +1606,10 @@ BOARD_WEB_APP_HTML = "".join(
       border-bottom-color: rgba(116, 126, 106, 0.16);
       background: transparent;
       color: var(--text);
-      padding: 7px 8px;
-      min-height: 34px;
+      padding: 6px 8px;
+      min-height: 32px;
       outline: none;
-      font-size: 13px;
+      font-size: 12.5px;
     }
     .repair-order-table__input:focus {
       border-bottom-color: var(--accent);
@@ -1613,48 +1621,48 @@ BOARD_WEB_APP_HTML = "".join(
       font-family: var(--mono);
     }
     .repair-order-cell-total {
-      min-height: 34px;
+      min-height: 32px;
       display: flex;
       align-items: center;
       justify-content: flex-end;
       padding: 0 9px;
       color: var(--text);
       font-family: var(--mono);
-      font-size: 12.5px;
+      font-size: 12px;
       font-variant-numeric: tabular-nums;
     }
     .repair-order-cell-total[data-empty="true"] {
       color: rgba(200, 198, 187, 0.56);
     }
     .repair-order-row-remove {
-      width: 30px;
-      min-width: 30px;
-      height: 30px;
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
       padding: 0;
-      font-size: 16px;
+      font-size: 15px;
       line-height: 1;
     }
     .repair-order-subtotal {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10.5px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
     }
     .repair-order-subtotal strong {
-      min-width: 132px;
+      min-width: 118px;
       text-align: right;
       color: var(--text);
-      font-size: 16px;
+      font-size: 15px;
       letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
     }
     .repair-order-footer {
-      padding: 10px 14px 12px;
+      padding: 9px 12px 10px;
       margin: 0;
       border-top: 1px solid rgba(115, 126, 105, 0.18);
       background:
@@ -1662,21 +1670,21 @@ BOARD_WEB_APP_HTML = "".join(
         rgba(17, 23, 19, 0.94);
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
-      gap: 14px;
+      align-items: center;
+      gap: 10px;
     }
     .repair-order-footer__totals {
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(124px, max-content);
+      grid-auto-columns: minmax(108px, max-content);
       align-items: end;
-      gap: 12px;
+      gap: 10px;
       flex: 1 1 auto;
       min-width: 0;
     }
     .repair-order-total {
       display: grid;
-      gap: 3px;
+      gap: 2px;
       min-width: 0;
     }
     .repair-order-total.is-hidden {
@@ -1685,35 +1693,37 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-total span {
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9.5px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
     .repair-order-total strong {
       color: var(--text);
-      font-size: 17px;
+      font-size: 16px;
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
     }
     .repair-order-total--grand {
-      padding: 8px 11px;
+      padding: 7px 10px;
       border: 1px solid rgba(140, 151, 109, 0.34);
       background: rgba(140, 151, 109, 0.12);
     }
     .repair-order-total--grand strong {
-      font-size: 26px;
+      font-size: 23px;
       color: #f7f4e6;
     }
     .repair-order-footer__actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       justify-content: flex-end;
       margin-left: auto;
       flex: 0 0 auto;
     }
     .repair-order-footer__actions .btn {
-      min-width: 110px;
+      min-width: 104px;
+      min-height: 38px;
+      padding: 8px 11px;
     }
     .repair-order-hidden-fields {
       display: none !important;
@@ -1722,31 +1732,31 @@ BOARD_WEB_APP_HTML = "".join(
       display: none;
     }
     .repair-order-money-button {
-      min-width: 44px !important;
-      width: 44px;
+      min-width: 42px !important;
+      width: 42px;
       padding: 0;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
     .dialog--repair-order-payments {
-      width: min(820px, calc(100% - 22px));
+      width: min(780px, calc(100% - 20px));
       max-height: min(82vh, 760px);
       padding: 0;
       gap: 0;
       overflow: hidden;
     }
     .dialog--repair-order-payments .dialog__head {
-      padding: 14px 16px 10px;
+      padding: 12px 14px 9px;
       margin: 0;
       border-bottom: 1px solid rgba(115, 126, 105, 0.18);
       background: rgba(0, 0, 0, 0.08);
     }
     .repair-order-payments-layout {
       display: grid;
-      gap: 12px;
+      gap: 10px;
       min-height: 0;
-      padding: 14px 16px 16px;
+      padding: 12px 14px 14px;
       overflow: auto;
     }
     .repair-order-payments-head {
@@ -1760,12 +1770,12 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-payments-stats {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
+      gap: 6px;
     }
     .repair-order-payments-stat {
       display: grid;
-      gap: 3px;
-      padding: 9px 10px;
+      gap: 2px;
+      padding: 8px 9px;
       border: 1px solid rgba(116, 126, 106, 0.18);
       background: rgba(0, 0, 0, 0.08);
     }
@@ -1778,7 +1788,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payments-stat strong {
       color: var(--text);
-      font-size: 18px;
+      font-size: 17px;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }
@@ -1789,10 +1799,10 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payments-form {
       display: grid;
-      grid-template-columns: minmax(140px, 156px) minmax(180px, 220px) minmax(140px, 156px) auto;
-      gap: 8px 10px;
+      grid-template-columns: minmax(128px, 148px) minmax(158px, 204px) minmax(132px, 148px) auto;
+      gap: 7px 8px;
       align-items: end;
-      padding: 10px 12px;
+      padding: 9px 10px;
       border: 1px solid rgba(116, 126, 106, 0.18);
       background: rgba(0, 0, 0, 0.08);
     }
@@ -1801,33 +1811,33 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payments-form .field--compact input[type="text"],
     .repair-order-payments-form .field--compact select {
-      min-height: 34px;
-      padding: 6px 8px;
+      min-height: 32px;
+      padding: 5px 8px;
     }
     .repair-order-payments-form .btn {
-      min-width: 118px;
-      min-height: 34px;
+      min-width: 112px;
+      min-height: 32px;
     }
     .repair-order-payments-list {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      max-height: 340px;
+      max-height: 300px;
       overflow: auto;
       padding: 4px 2px 0 0;
     }
     .repair-order-payment-row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto auto;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
-      padding: 8px 10px;
+      padding: 7px 9px;
       border: 1px solid var(--line-soft);
       background: rgba(255,255,255,0.02);
     }
     .repair-order-payment-row__badge {
       min-width: 74px;
-      padding: 4px 7px;
+      padding: 3px 7px;
       border: 1px solid rgba(140, 151, 109, 0.28);
       text-align: center;
       color: var(--text-soft);
@@ -1838,13 +1848,13 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payment-row__body {
       display: grid;
-      gap: 3px;
+      gap: 2px;
       min-width: 0;
     }
     .repair-order-payment-row__line {
       color: var(--text);
-      font-size: 13px;
-      line-height: 1.4;
+      font-size: 12.5px;
+      line-height: 1.35;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1852,12 +1862,12 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-payment-row__subline {
       color: var(--muted);
       font-size: 11px;
-      line-height: 1.35;
+      line-height: 1.3;
       white-space: normal;
       word-break: break-word;
     }
     .repair-order-payment-row__amount {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
