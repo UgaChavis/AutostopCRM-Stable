@@ -1958,14 +1958,16 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .dialog--repair-orders {
       --repair-orders-columns:
-        minmax(56px, 74px)
-        minmax(90px, 108px)
-        minmax(72px, 88px)
-        minmax(160px, 208px)
-        minmax(132px, 168px)
-        minmax(132px, 176px)
-        minmax(460px, 2.25fr)
-        minmax(74px, 92px);
+        minmax(54px, 68px)
+        minmax(90px, 102px)
+        minmax(86px, 98px)
+        minmax(108px, 122px)
+        minmax(150px, 190px)
+        minmax(132px, 152px)
+        minmax(150px, 190px)
+        minmax(320px, 2.8fr)
+        minmax(88px, 104px)
+        minmax(88px, 104px);
     }
     .repair-orders-table-head,
     .repair-orders-row {
@@ -1979,7 +1981,7 @@ BOARD_WEB_APP_HTML = "".join(
       z-index: 2;
       cursor: default;
       gap: 8px 10px;
-      padding: 8px 10px 7px;
+      padding: 9px 10px 8px;
       border: 1px solid var(--line);
       background: rgba(19, 24, 20, 0.98);
       color: var(--text-soft);
@@ -1995,7 +1997,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row {
       align-items: stretch;
       gap: 8px 10px;
-      padding: 8px 10px;
+      padding: 7px 10px;
       transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
     }
     .repair-orders-row:hover {
@@ -2028,12 +2030,13 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__total {
       min-width: 0;
       font-family: var(--mono);
-      font-size: 13px;
-      line-height: 1.35;
+      font-size: 12.5px;
+      line-height: 1.3;
     }
     .repair-orders-row__number {
       color: var(--text);
       font-weight: 700;
+      white-space: nowrap;
     }
     .repair-orders-row__status {
       color: #f0ecdc;
@@ -2066,6 +2069,7 @@ BOARD_WEB_APP_HTML = "".join(
       -webkit-box-orient: vertical;
       white-space: normal;
       word-break: break-word;
+      max-width: 100%;
     }
     .repair-orders-row__tags {
       display: flex;
@@ -2100,12 +2104,12 @@ BOARD_WEB_APP_HTML = "".join(
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 28px;
-      padding: 4px 10px;
+      min-height: 24px;
+      padding: 3px 8px;
       border: 1px solid rgba(167, 178, 132, 0.32);
       background: rgba(0, 0, 0, 0.12);
       color: var(--text-soft);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -2124,7 +2128,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__paid,
     .repair-orders-row__total {
       color: #f0ecdc;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -2715,10 +2719,12 @@ BOARD_WEB_APP_HTML = "".join(
         <div>Номер</div>
         <div>Открыта</div>
         <div>Статус</div>
+        <div>Оплата</div>
         <div>Клиент</div>
         <div>Телефон</div>
         <div>Автомобиль</div>
         <div>Смысл карточки</div>
+        <div class="repair-orders-table-head__sum">Внесено</div>
         <div class="repair-orders-table-head__sum">Сумма</div>
       </div>
       <div class="repair-orders-list" id="repairOrdersList"></div>
@@ -6231,8 +6237,8 @@ function renderCompactArchiveRows(cards) {
 
     function repairOrdersColumnsValue(status = state.repairOrdersFilter) {
       return repairOrdersIsClosedView(status)
-        ? 'minmax(56px, 74px) minmax(90px, 108px) minmax(90px, 108px) minmax(92px, 118px) minmax(108px, 130px) minmax(150px, 196px) minmax(126px, 160px) minmax(126px, 168px) minmax(360px, 2fr) minmax(96px, 120px) minmax(96px, 120px)'
-        : 'minmax(56px, 74px) minmax(90px, 108px) minmax(92px, 118px) minmax(108px, 130px) minmax(160px, 208px) minmax(132px, 168px) minmax(132px, 176px) minmax(440px, 2.2fr) minmax(96px, 120px) minmax(96px, 120px)';
+        ? 'minmax(54px, 68px) minmax(90px, 102px) minmax(90px, 102px) minmax(86px, 98px) minmax(108px, 122px) minmax(150px, 190px) minmax(132px, 152px) minmax(150px, 190px) minmax(280px, 2.5fr) minmax(88px, 104px) minmax(88px, 104px)'
+        : 'minmax(54px, 68px) minmax(90px, 102px) minmax(86px, 98px) minmax(108px, 122px) minmax(150px, 190px) minmax(132px, 152px) minmax(150px, 190px) minmax(320px, 2.8fr) minmax(88px, 104px) minmax(88px, 104px)';
     }
 
     function repairOrdersTableHeadHtml(status = state.repairOrdersFilter) {
