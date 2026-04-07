@@ -80,26 +80,26 @@ BOARD_WEB_APP_HTML = "".join(
       background: var(--scroll-track);
     }
     button, input, textarea, select { font: inherit; }
-    .shell { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
+    .shell { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
     .status-shell {
       min-height: 0;
-      padding: 10px 16px 0;
+      padding: 0;
       position: relative;
       z-index: 2;
     }
     .status-shell .message {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       width: max-content;
       max-width: 100%;
-      padding: 8px 12px;
-      font-size: 12px;
+      padding: 5px 9px;
+      font-size: 11px;
       line-height: 1.2;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
       color: var(--text-soft);
       border-color: rgba(167, 178, 132, 0.24);
-      background: rgba(13, 17, 14, 0.42);
+      background: rgba(13, 17, 14, 0.32);
     }
     .status-shell .message::before {
       content: "";
@@ -113,41 +113,48 @@ BOARD_WEB_APP_HTML = "".join(
     .topbar {
       border-bottom: 1px solid var(--line);
       background: rgba(0, 0, 0, 0.16);
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       position: relative;
       z-index: 3;
     }
-    .topbar__left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .brand { display: flex; flex-direction: column; gap: 2px; }
+    .topbar__left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .brand { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
     .brand__title {
       font-family: var(--mono);
-      font-size: 18px;
-      letter-spacing: 0.12em;
+      font-size: 17px;
+      letter-spacing: 0.11em;
       font-weight: 700;
       line-height: 1.05;
     }
+    .topbar__meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
     .brand__sub {
       color: var(--text-soft);
-      font-size: 10.5px;
+      font-size: 9.5px;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.08em;
       font-family: var(--mono);
-      opacity: 0.84;
+      opacity: 0.68;
     }
     .topbar__actions {
       display: flex;
-      gap: 6px;
-      row-gap: 6px;
+      gap: 5px;
+      row-gap: 5px;
       flex-wrap: wrap;
       justify-content: flex-end;
     }
     .topbar__actions .btn {
-      min-height: 34px;
-      padding: 8px 10px;
+      min-height: 32px;
+      padding: 7px 10px;
     }
     .btn, .pill {
       border: 1px solid var(--line);
@@ -174,8 +181,8 @@ BOARD_WEB_APP_HTML = "".join(
       border-color: var(--line);
     }
     .gear-button {
-      width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
       padding: 0;
       display: grid;
       place-items: center;
@@ -190,8 +197,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .gear-button:hover { border-color: var(--accent); }
     .gear-button svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       stroke: currentColor;
       stroke-width: 1.8;
       fill: none;
@@ -2762,8 +2769,11 @@ BOARD_WEB_APP_HTML = "".join(
           </svg>
         </button>
         <div class="brand">
-        <div class="brand__title">AUTOSTOP / ПУЛЬТ</div>
-          <div class="brand__sub">МИНИМУМ ИНТЕРФЕЙСА · ПОЛНЫЙ ЖУРНАЛ · ХОСТ В СЕТИ</div>
+          <div class="brand__title">AUTOSTOP / ПУЛЬТ</div>
+          <div class="topbar__meta">
+            <div class="brand__sub">МИНИМУМ ИНТЕРФЕЙСА · ХОСТ В СЕТИ</div>
+            <div class="status-shell" id="topbarStatusHost"></div>
+          </div>
         </div>
       </div>
       <div class="topbar__actions">
@@ -3530,6 +3540,7 @@ BOARD_WEB_APP_HTML = "".join(
       board: document.getElementById('board'),
       statusLine: document.getElementById('statusLine'),
       boardSettingsButton: document.getElementById('boardSettingsButton'),
+      topbarStatusHost: document.getElementById('topbarStatusHost'),
       stickyDockButton: document.getElementById('stickyDockButton'),
       operatorButton: document.getElementById('operatorButton'),
       archiveButton: document.getElementById('archiveButton'),
@@ -4252,7 +4263,12 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function mountStatusLine() {
-      if (!els.statusLine || !els.boardScroll || els.statusLine.parentElement !== els.boardScroll) return;
+      if (!els.statusLine || els.statusLine.parentElement !== els.boardScroll) return;
+      if (els.topbarStatusHost) {
+        els.topbarStatusHost.appendChild(els.statusLine);
+        return;
+      }
+      if (!els.boardScroll) return;
       const host = document.createElement('div');
       host.className = 'status-shell';
       els.boardScroll.parentElement.insertBefore(host, els.boardScroll);

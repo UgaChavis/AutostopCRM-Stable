@@ -17,7 +17,8 @@ class WebAssetsTests(unittest.TestCase):
     def test_board_brand_uses_autostop_name(self) -> None:
         self.assertIn("<title>AutoStop</title>", BOARD_WEB_APP_HTML)
         self.assertIn('<div class="brand__title">AUTOSTOP / ПУЛЬТ</div>', BOARD_WEB_APP_HTML)
-        self.assertIn('<div class="brand__sub">МИНИМУМ ИНТЕРФЕЙСА · ПОЛНЫЙ ЖУРНАЛ · ХОСТ В СЕТИ</div>', BOARD_WEB_APP_HTML)
+        self.assertIn('<div class="brand__sub">МИНИМУМ ИНТЕРФЕЙСА · ХОСТ В СЕТИ</div>', BOARD_WEB_APP_HTML)
+        self.assertIn('id="topbarStatusHost"', BOARD_WEB_APP_HTML)
         self.assertNotIn('<div class="brand__title">КАНБАН / ПУЛЬТ</div>', BOARD_WEB_APP_HTML)
 
     def test_board_settings_keep_slider_but_remove_wheel_zoom_binding(self) -> None:
@@ -25,9 +26,10 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('class="scale-track"', BOARD_WEB_APP_HTML)
         self.assertNotIn("addEventListener('wheel'", BOARD_WEB_APP_HTML)
         self.assertNotIn("function handleBoardWheel", BOARD_WEB_APP_HTML)
-        self.assertIn("grid-template-rows: auto auto minmax(0, 1fr);", BOARD_WEB_APP_HTML)
+        self.assertIn("grid-template-rows: auto minmax(0, 1fr);", BOARD_WEB_APP_HTML)
         self.assertIn("--board-gutter-left: 0px;", BOARD_WEB_APP_HTML)
         self.assertIn("--board-gutter-top: 0px;", BOARD_WEB_APP_HTML)
+        self.assertIn(".topbar__meta {", BOARD_WEB_APP_HTML)
         self.assertIn(".status-shell .message {", BOARD_WEB_APP_HTML)
         self.assertIn(".status-shell .message::before {", BOARD_WEB_APP_HTML)
         self.assertIn("width: max-content;", BOARD_WEB_APP_HTML)
