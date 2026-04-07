@@ -1490,9 +1490,15 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-toolbar {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: space-between;
       gap: 8px;
       flex-wrap: wrap;
+    }
+    .repair-order-toolbar__status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
     }
     .repair-order-toolbar .btn {
       min-height: 34px;
@@ -1500,7 +1506,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-groups {
       display: grid;
-      grid-template-columns: minmax(210px, 0.72fr) minmax(290px, 0.96fr) minmax(500px, 1.72fr);
+      grid-template-columns: minmax(188px, 0.62fr) minmax(308px, 1.02fr) minmax(500px, 1.72fr);
       gap: 8px;
       align-items: stretch;
     }
@@ -1577,12 +1583,12 @@ BOARD_WEB_APP_HTML = "".join(
       align-items: center;
       justify-self: start;
       min-height: 24px;
-      padding: 4px 8px;
+      padding: 5px 10px;
       border: 1px solid rgba(116, 126, 106, 0.24);
       background: rgba(255, 255, 255, 0.02);
       color: var(--text);
       font-family: var(--mono);
-      font-size: 9.5px;
+      font-size: 10px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
@@ -2358,13 +2364,19 @@ BOARD_WEB_APP_HTML = "".join(
       min-height: 72px;
     }
     .repair-order-tags-card {
-      gap: 10px;
+      gap: 7px;
     }
     .repair-order-tags-card .tag-list {
-      min-height: 28px;
+      min-height: 24px;
     }
     .repair-order-tag-list {
-      gap: 6px;
+      gap: 4px;
+    }
+    .repair-order-tag-editor {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
     }
     .repair-order-tag-item {
       display: inline-flex;
@@ -3183,6 +3195,9 @@ BOARD_WEB_APP_HTML = "".join(
       </div>
       <div class="repair-order-shell">
         <div class="repair-order-toolbar">
+          <div class="repair-order-toolbar__status">
+            <div class="repair-order-status" id="repairOrderStatus">Открыт</div>
+          </div>
           <button class="btn btn--ghost" id="repairOrderAutofillButton" type="button">АВТОЗАПОЛНЕНИЕ</button>
         </div>
         <div class="repair-order-groups">
@@ -3206,7 +3221,6 @@ BOARD_WEB_APP_HTML = "".join(
                 <input id="repairOrderClosedAt" data-repair-order-field="closed_at" type="text" maxlength="32" placeholder="05.04.26 18:20">
               </div>
             </div>
-            <div class="repair-order-status" id="repairOrderStatus">Открыт</div>
           </section>
           <section class="repair-order-card" data-repair-order-section="client">
             <div class="panel-title">КЛИЕНТ</div>
@@ -3277,11 +3291,13 @@ BOARD_WEB_APP_HTML = "".join(
             <div class="panel-title">ВНУТРЕННИЕ МЕТКИ</div>
             <div class="tag-limit" id="repairOrderTagMeta">0 / 5</div>
           </div>
-          <div class="tag-color-picker" id="repairOrderTagColorPicker"></div>
           <div class="tag-list repair-order-tag-list" id="repairOrderTagList"></div>
-          <div class="tag-entry">
-            <input id="repairOrderTagInput" type="text" maxlength="24" placeholder="МЕТКА">
-            <button class="btn" id="repairOrderTagAddButton" type="button">+</button>
+          <div class="repair-order-tag-editor">
+            <div class="tag-color-picker" id="repairOrderTagColorPicker"></div>
+            <div class="tag-entry">
+              <input id="repairOrderTagInput" type="text" maxlength="24" placeholder="МЕТКА">
+              <button class="btn" id="repairOrderTagAddButton" type="button">+</button>
+            </div>
           </div>
         </section>
         <section class="repair-order-table-card" data-repair-order-section="works">
