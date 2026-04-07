@@ -1132,8 +1132,8 @@ BOARD_WEB_APP_HTML = "".join(
       cursor: pointer;
     }
     .tags-panel {
-      gap: 6px;
-      padding: 7px 8px 7px;
+      gap: 5px;
+      padding: 6px 7px 6px;
       align-content: start;
       min-width: 0;
     }
@@ -1141,15 +1141,15 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 6px;
     }
     .tag-limit {
-      min-width: 44px;
-      padding: 4px 6px;
+      min-width: 40px;
+      padding: 3px 5px;
       border: 1px solid var(--line-soft);
       background: rgba(0,0,0,0.16);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       letter-spacing: 0.06em;
       text-align: center;
       color: var(--text-soft);
@@ -1159,25 +1159,31 @@ BOARD_WEB_APP_HTML = "".join(
       color: #d7c58a;
       background: rgba(193, 162, 84, 0.12);
     }
+    .tag-controls {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+    }
     .tag-entry {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 38px;
-      gap: 5px;
+      grid-template-columns: minmax(0, 1fr) 34px;
+      gap: 4px;
       align-items: center;
     }
     .tag-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 4px;
       align-content: flex-start;
-      min-height: 28px;
+      min-height: 24px;
       padding: 1px 0;
     }
     .tag-entry input[type="text"] {
-      min-height: 32px;
-      padding: 6px 10px;
+      min-height: 30px;
+      padding: 5px 9px;
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 11px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
@@ -1186,12 +1192,12 @@ BOARD_WEB_APP_HTML = "".join(
       cursor: not-allowed;
     }
     .tag-entry .btn {
-      min-width: 38px;
-      min-height: 32px;
+      min-width: 34px;
+      min-height: 30px;
       padding: 0;
       display: grid;
       place-items: center;
-      font-size: 13px;
+      font-size: 12px;
     }
     .tag-entry .btn[disabled] {
       opacity: 0.44;
@@ -1200,19 +1206,20 @@ BOARD_WEB_APP_HTML = "".join(
     .tag-suggestions {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 4px;
       align-content: flex-start;
-      min-height: 24px;
+      min-height: 22px;
     }
     .tag-color-picker {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      min-height: 24px;
+      gap: 4px;
+      min-height: 30px;
+      padding: 0 2px;
     }
     .tag-color-option {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       border: 1px solid rgba(255,255,255,0.14);
       background: rgba(0, 0, 0, 0.16);
       padding: 0;
@@ -1237,17 +1244,17 @@ BOARD_WEB_APP_HTML = "".join(
       display: inline-flex;
       align-items: center;
       justify-content: flex-start;
-      min-height: 24px;
-      padding: 3px 8px;
+      min-height: 22px;
+      padding: 2px 7px;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       letter-spacing: 0.05em;
       line-height: 1;
     }
     .tag-list .tag--muted {
       justify-content: center;
-      min-width: 110px;
+      min-width: 96px;
       color: var(--text-soft);
       background: rgba(0,0,0,0.14);
       border-color: var(--line-soft);
@@ -1256,13 +1263,13 @@ BOARD_WEB_APP_HTML = "".join(
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 24px;
+      min-height: 22px;
       border: 1px solid var(--line-soft);
       background: rgba(0, 0, 0, 0.16);
       color: var(--text-soft);
-      padding: 3px 8px;
+      padding: 2px 7px;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -3113,10 +3120,12 @@ BOARD_WEB_APP_HTML = "".join(
                   </div>
                   <div class="tag-list" id="tagList"></div>
                   <div class="tag-suggestions" id="tagSuggestions"></div>
-                  <div class="tag-color-picker" id="tagColorPicker"></div>
-                  <div class="tag-entry">
-                    <input id="tagInput" type="text" maxlength="24" placeholder="ЖДЁМ">
-                    <button class="btn" id="tagAddButton">+</button>
+                  <div class="tag-controls">
+                    <div class="tag-color-picker" id="tagColorPicker"></div>
+                    <div class="tag-entry">
+                      <input id="tagInput" type="text" maxlength="24" placeholder="ЖДЁМ">
+                      <button class="btn" id="tagAddButton">+</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3475,7 +3484,7 @@ BOARD_WEB_APP_HTML = "".join(
     ];
     VEHICLE_FIELD_GROUPS[0].title = '';
     VEHICLE_FIELD_GROUPS[0].fields.splice(
-      3,
+      4,
       0,
       { name: 'customer_phone', label: 'Телефон клиента', placeholder: '+7 900 123-45-67', wide: true },
       { name: 'customer_name', label: 'ФИО клиента', placeholder: 'Иван Иванов', wide: true },

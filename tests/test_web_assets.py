@@ -39,9 +39,11 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn(".tags-panel {", BOARD_WEB_APP_HTML)
         self.assertIn(".tags-panel__head {", BOARD_WEB_APP_HTML)
         self.assertIn(".tag-limit {", BOARD_WEB_APP_HTML)
+        self.assertIn(".tag-controls {", BOARD_WEB_APP_HTML)
         self.assertIn(".tag-list .tag {", BOARD_WEB_APP_HTML)
         self.assertIn('class="tag-suggestions" id="tagSuggestions"', BOARD_WEB_APP_HTML)
         self.assertIn('class="tag-entry"', BOARD_WEB_APP_HTML)
+        self.assertIn('class="tag-controls"', BOARD_WEB_APP_HTML)
         self.assertIn('class="field field--tags"', BOARD_WEB_APP_HTML)
         self.assertIn('id="tagMeta"', BOARD_WEB_APP_HTML)
         self.assertIn("МЕТОК НЕТ", BOARD_WEB_APP_HTML)
@@ -220,6 +222,13 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("if (profile.mileage) summaryLines.push('Пробег: ' + profile.mileage);", BOARD_WEB_APP_HTML)
         self.assertNotIn("const display = vehicleDisplayFromProfile(profile);", BOARD_WEB_APP_HTML)
         self.assertIn("els.vehiclePanelSummary.style.display = summaryLines.length ? '' : 'none';", BOARD_WEB_APP_HTML)
+
+    def test_vehicle_panel_places_mileage_before_customer_contact_fields(self) -> None:
+        year_index = BOARD_WEB_APP_HTML.index("{ name: 'production_year'")
+        mileage_index = BOARD_WEB_APP_HTML.index("{ name: 'mileage'")
+        customer_phone_index = BOARD_WEB_APP_HTML.index("{ name: 'customer_phone'")
+        self.assertLess(year_index, mileage_index)
+        self.assertLess(mileage_index, customer_phone_index)
 
     def test_vehicle_panel_collapses_cleanly_on_narrow_screens(self) -> None:
         self.assertIn("@media (max-width: 900px) {", BOARD_WEB_APP_HTML)
