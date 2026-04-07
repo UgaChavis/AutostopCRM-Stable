@@ -2363,6 +2363,7 @@ BOARD_WEB_APP_HTML = "".join(
       .repair-order-footer__actions { width: 100%; }
       .repair-order-footer__actions .btn { flex: 1 1 0; min-width: 0; }
       .repair-order-payments-form { grid-template-columns: 1fr; }
+      .cashbox-form-grid { grid-template-columns: 1fr; }
       .repair-order-payment-row { grid-template-columns: 1fr; }
       .repair-order-payment-row__remove { width: 100%; }
       .cashboxes-layout { grid-template-columns: 1fr; }
@@ -2384,17 +2385,17 @@ BOARD_WEB_APP_HTML = "".join(
 """,
         PRINTING_WEB_MODULE_STYLE,
         """
-    #cashboxesModal .dialog { width: min(1180px, 100%); }
+    #cashboxesModal .dialog { width: min(1120px, 100%); }
     .cashboxes-layout {
       display: grid;
-      grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
-      gap: 16px;
-      min-height: 520px;
+      grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+      gap: 14px;
+      min-height: 500px;
     }
     .cashboxes-pane {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
     .cashboxes-create-row {
       display: grid;
@@ -2402,10 +2403,15 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 8px;
       align-items: end;
     }
+    .cashboxes-meta {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
     .cashboxes-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       max-height: 560px;
       overflow: auto;
       padding-right: 4px;
@@ -2413,10 +2419,10 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-row {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       width: 100%;
       text-align: left;
-      padding: 12px 14px;
+      padding: 10px 12px;
       border: 1px solid var(--line-soft);
       background: rgba(255,255,255,0.02);
       color: var(--text);
@@ -2427,13 +2433,13 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-stat-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
     }
-    .cashbox-row__name { font-size: 18px; font-weight: 700; line-height: 1.2; }
+    .cashbox-row__name { font-size: 16px; font-weight: 700; line-height: 1.2; }
     .cashbox-row__balance,
     .cashbox-stat-grid__value {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -2450,12 +2456,11 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-stats {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
+      gap: 8px;
     }
     .cashbox-stat-grid {
       border: 1px solid var(--line-soft);
-      padding: 10px 12px;
+      padding: 9px 10px;
       background: rgba(255,255,255,0.02);
     }
     .cashbox-stat-grid__label {
@@ -2467,15 +2472,30 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-detail {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 10px;
       min-width: 0;
+    }
+    .cashbox-detail__meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
     }
     .cashbox-composer {
       display: grid;
       gap: 10px;
-      padding: 12px;
+      padding: 10px;
       border: 1px solid var(--line-soft);
       background: rgba(255,255,255,0.02);
+    }
+    .cashbox-form-grid {
+      display: grid;
+      grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+      gap: 10px;
+      align-items: end;
+    }
+    .cashbox-composer textarea {
+      min-height: 76px;
+      max-height: 96px;
     }
     .cashbox-composer__actions {
       display: flex;
@@ -2485,10 +2505,16 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .cashbox-transactions-card {
       display: grid;
-      gap: 10px;
-      padding: 12px;
+      gap: 8px;
+      padding: 10px;
       border: 1px solid var(--line-soft);
       background: rgba(255,255,255,0.02);
+    }
+    .cashbox-transactions-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
     }
     .cashbox-detail__head {
       display: flex;
@@ -2500,33 +2526,33 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-transactions {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      max-height: 360px;
+      gap: 6px;
+      max-height: 380px;
       overflow: auto;
       padding-right: 4px;
     }
     .cashbox-transaction {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 10px;
+      gap: 8px;
       align-items: start;
       border: 1px solid var(--line-soft);
-      padding: 10px 12px;
+      padding: 8px 10px;
       background: rgba(255,255,255,0.02);
     }
     .cashbox-transaction__badge {
-      min-width: 68px;
+      min-width: 64px;
       text-align: center;
-      padding: 5px 8px;
+      padding: 4px 7px;
       border: 1px solid var(--line-soft);
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
     .cashbox-transaction__badge[data-direction="income"] { border-color: rgba(67, 126, 79, 0.62); color: #d3efd9; }
     .cashbox-transaction__badge[data-direction="expense"] { border-color: rgba(152, 86, 78, 0.58); color: #ffd2c9; }
     .cashbox-transaction__amount {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -2739,43 +2765,48 @@ BOARD_WEB_APP_HTML = "".join(
       </div>
       <div class="cashboxes-layout">
         <div class="subpanel cashboxes-pane">
-          <div class="panel-title">СПИСОК КАСС</div>
-          <div class="field field--compact">
-            <label for="cashboxNameInput">НАЗВАНИЕ</label>
-            <input id="cashboxNameInput" type="text" maxlength="80" placeholder="Наличный / Счет компании">
-          </div>
-          <div class="dialog__foot" style="padding:0; border:none; margin-top:10px;">
-            <div class="log-row__meta" id="cashboxesMeta">Кассы еще не загружены.</div>
+          <div class="panel-title">КАССЫ</div>
+          <div class="cashboxes-create-row">
+            <div class="field field--compact">
+              <label for="cashboxNameInput">НАЗВАНИЕ</label>
+              <input id="cashboxNameInput" type="text" maxlength="80" placeholder="Наличный / Счет компании">
+            </div>
             <button class="btn btn--accent" id="cashboxCreateButton">+ КАССА</button>
           </div>
+          <div class="cashboxes-meta" id="cashboxesMeta">Кассы еще не загружены.</div>
           <div class="cashboxes-list" id="cashboxesList"></div>
         </div>
         <div class="subpanel cashbox-detail cashboxes-pane">
           <div class="cashbox-detail__head">
             <div>
               <div class="panel-title" id="cashboxDetailTitle">КАССА НЕ ВЫБРАНА</div>
-              <div class="log-row__meta" id="cashboxDetailMeta">Выберите кассу слева.</div>
+              <div class="cashbox-detail__meta" id="cashboxDetailMeta">Выберите кассу слева.</div>
             </div>
             <button class="btn btn--danger" id="cashboxDeleteButton">УДАЛИТЬ КАССУ</button>
           </div>
           <div class="cashbox-stats" id="cashboxStats"></div>
-          <div class="field field--compact">
-            <label for="cashboxAmountInput">СУММА</label>
-            <input id="cashboxAmountInput" type="text" inputmode="decimal" maxlength="24" placeholder="1000 или 1000,50">
-          </div>
-          <div class="field field--compact">
-            <label for="cashboxNoteInput">КОММЕНТАРИЙ</label>
-            <textarea id="cashboxNoteInput" maxlength="240" placeholder="Коротко опишите поступление или списание."></textarea>
-          </div>
-          <div class="dialog__foot" style="padding:0;">
-            <div class="log-row__meta">Ниже хранится история всех движений выбранной кассы.</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="cashbox-composer">
+            <div class="cashbox-form-grid">
+              <div class="field field--compact">
+                <label for="cashboxAmountInput">СУММА</label>
+                <input id="cashboxAmountInput" type="text" inputmode="decimal" maxlength="24" placeholder="1000 или 1000,50">
+              </div>
+              <div class="field field--compact">
+                <label for="cashboxNoteInput">КОММЕНТАРИЙ</label>
+                <textarea id="cashboxNoteInput" maxlength="240" placeholder="Коротко опишите движение."></textarea>
+              </div>
+            </div>
+            <div class="cashbox-composer__actions">
               <button class="btn btn--accent" id="cashboxIncomeButton">+ ПОСТУПЛЕНИЕ</button>
               <button class="btn" id="cashboxExpenseButton">- СПИСАНИЕ</button>
             </div>
           </div>
-          <div class="panel-title">ДВИЖЕНИЯ</div>
-          <div class="cashbox-transactions" id="cashboxTransactions"></div>
+          <div class="cashbox-transactions-card">
+            <div class="cashbox-transactions-head">
+              <div class="panel-title">ДВИЖЕНИЯ</div>
+            </div>
+            <div class="cashbox-transactions" id="cashboxTransactions"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -3299,35 +3330,7 @@ BOARD_WEB_APP_HTML = "".join(
       }
     }
     function ensureCashboxesUi() {
-      const modal = document.getElementById('cashboxesModal');
-      if (!modal) return;
-      const detailPane = modal.querySelector('.cashbox-detail');
-      if (detailPane && !detailPane.querySelector('.cashbox-composer')) {
-        const composer = document.createElement('div');
-        composer.className = 'cashbox-composer';
-        const amountField = document.getElementById('cashboxAmountInput')?.closest('.field');
-        const noteField = document.getElementById('cashboxNoteInput')?.closest('.field');
-        const actions = document.getElementById('cashboxIncomeButton')?.closest('.dialog__foot');
-        if (amountField) composer.appendChild(amountField);
-        if (noteField) composer.appendChild(noteField);
-        if (actions) {
-          actions.classList.add('cashbox-composer__actions');
-          composer.appendChild(actions);
-        }
-        const stats = document.getElementById('cashboxStats');
-        if (stats && composer.childNodes.length) {
-          stats.insertAdjacentElement('afterend', composer);
-        }
-      }
-      const transactions = document.getElementById('cashboxTransactions');
-      if (transactions && !transactions.closest('.cashbox-transactions-card')) {
-        const card = document.createElement('div');
-        card.className = 'cashbox-transactions-card';
-        const title = detailPane?.querySelector('.panel-title:last-of-type');
-        if (title) card.appendChild(title);
-        card.appendChild(transactions);
-        detailPane?.appendChild(card);
-      }
+      return;
     }
 
     ensureRepairOrderPaymentsUi();
@@ -7246,7 +7249,7 @@ function renderCompactArchiveRows(cards) {
           + '<div class="cashbox-row__name">' + escapeHtml(item.name || '—') + '</div>'
           + '<div class="cashbox-row__balance" data-balance-sign="' + escapeHtml(balanceMinor < 0 ? 'negative' : 'positive') + '">' + escapeHtml(stats?.balance_display || cashboxFormatMinorAmount(balanceMinor)) + '</div>'
           + '</div>'
-          + '<div class="cashbox-row__meta">Движений: ' + escapeHtml(String(transactionsTotal)) + ' | Последнее: ' + escapeHtml(lastTransactionAt) + '</div>'
+          + '<div class="cashbox-row__meta">' + escapeHtml(String(transactionsTotal)) + ' движ. · ' + escapeHtml(lastTransactionAt) + '</div>'
           + '</button>';
       }).join('') : '<div class="cashboxes-empty">КАСС ПОКА НЕТ.</div>';
     }
@@ -7290,7 +7293,7 @@ function renderCompactArchiveRows(cards) {
       const stats = activeCashboxStatistics();
       const lastTransactionAt = stats?.last_transaction_at ? formatDate(stats.last_transaction_at) : '—';
       els.cashboxDetailTitle.textContent = cashbox.name || 'КАССА';
-      els.cashboxDetailMeta.textContent = 'ID: ' + (cashbox.short_id || cashbox.id || '—') + ' | Движений: ' + String(stats.transactions_total || 0) + ' | Последнее: ' + lastTransactionAt;
+      els.cashboxDetailMeta.textContent = (cashbox.short_id || cashbox.id || '—') + ' · ' + String(stats.transactions_total || 0) + ' движ. · ' + lastTransactionAt;
       els.cashboxDeleteButton.disabled = false;
       els.cashboxIncomeButton.disabled = false;
       els.cashboxExpenseButton.disabled = false;
