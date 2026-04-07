@@ -1376,6 +1376,9 @@ BOARD_WEB_APP_HTML = "".join(
     #repairOrderModal {
       z-index: 14;
     }
+    #repairOrderPaymentsModal {
+      z-index: 15;
+    }
     .vehicle-panel__repair-note {
       color: var(--text-soft);
       font-family: var(--mono);
@@ -1627,17 +1630,18 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 16px;
     }
     .repair-order-footer__totals {
-      display: flex;
-      align-items: flex-end;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(136px, max-content);
+      align-items: end;
       gap: 14px;
-      flex-wrap: wrap;
       flex: 1 1 auto;
       min-width: 0;
     }
     .repair-order-total {
       display: grid;
       gap: 3px;
-      min-width: 132px;
+      min-width: 0;
     }
     .repair-order-total.is-hidden {
       display: none;
@@ -3079,14 +3083,6 @@ BOARD_WEB_APP_HTML = "".join(
         <div class="dialog__foot repair-order-footer">
           <div class="repair-order-footer__totals">
             <div class="repair-order-total">
-              <span>ИТОГО РАБОТЫ</span>
-              <strong data-repair-order-total="works">0,00</strong>
-          </div>
-            <div class="repair-order-total">
-              <span>ИТОГО МАТЕРИАЛЫ</span>
-              <strong data-repair-order-total="materials">0,00</strong>
-            </div>
-            <div class="repair-order-total">
               <span>СТОИМОСТЬ НАРЯДА</span>
               <strong data-repair-order-total="subtotal">0,00</strong>
             </div>
@@ -3097,10 +3093,6 @@ BOARD_WEB_APP_HTML = "".join(
             <div class="repair-order-total">
               <span>ИТОГО ПО ЗАКАЗ-НАРЯДУ</span>
               <strong data-repair-order-total="grand">0,00</strong>
-            </div>
-            <div class="repair-order-total">
-              <span>ПРЕДОПЛАТА</span>
-              <strong data-repair-order-total="prepayment">0,00</strong>
             </div>
             <div class="repair-order-total repair-order-total--grand">
               <span>К ДОПЛАТЕ</span>
@@ -5350,8 +5342,9 @@ BOARD_WEB_APP_HTML = "".join(
       const payments = Array.isArray(state.repairOrderPayments) ? state.repairOrderPayments : [];
       const total = repairOrderPaymentsTotalValue(payments);
       if (els.repairOrderPaymentsMeta) {
+        const due = repairOrderRoundMoney(repairOrderRowsTotalValue(state.repairOrderWorks) + repairOrderRowsTotalValue(state.repairOrderMaterials) + repairOrderRoundMoney((repairOrderRowsTotalValue(state.repairOrderWorks) + repairOrderRowsTotalValue(state.repairOrderMaterials)) * repairOrderTaxRate(els.repairOrderPaymentMethod?.value || 'cash')) - total);
         els.repairOrderPaymentsMeta.textContent = payments.length
-          ? ('Оплат: ' + payments.length + ' | Внесено: ' + repairOrderFormatMoney(total))
+          ? ('Оплат: ' + payments.length + ' | Внесено: ' + repairOrderFormatMoney(total) + ' | К доплате: ' + repairOrderFormatMoney(due))
           : 'Пока нет оплат.';
       }
       if (els.repairOrderPaymentsList) {
@@ -5363,8 +5356,8 @@ BOARD_WEB_APP_HTML = "".join(
           const cashboxName = String(item?.cashbox_name || '').trim() || 'Касса не указана';
           return '<div class="repair-order-payment-row">'
             + '<div class="repair-order-payment-row__badge">' + escapeHtml(method) + '</div>'
-            + '<div class="repair-order-payment-row__meta">' + escapeHtml(paidAt + '\\n' + note) + '</div>'
-            + '<div class="repair-order-payment-row__meta">' + escapeHtml(actorName + '\\n' + cashboxName) + '</div>'
+            + '<div class="repair-order-payment-row__meta">' + escapeHtml('Когда: ' + paidAt + '\\n' + note) + '</div>'
+            + '<div class="repair-order-payment-row__meta">' + escapeHtml('Кем: ' + actorName + '\\nКасса: ' + cashboxName) + '</div>'
             + '<div class="repair-order-payment-row__amount">' + escapeHtml(repairOrderFormatMoney(item?.amount || 0)) + '</div>'
             + '<button class="btn btn--ghost repair-order-payment-row__remove" type="button" data-remove-repair-order-payment="' + escapeHtml(item.id) + '">×</button>'
             + '</div>';
@@ -8205,4 +8198,3 @@ function renderCompactArchiveRows(cards) {
 """,
     ]
 )
-
