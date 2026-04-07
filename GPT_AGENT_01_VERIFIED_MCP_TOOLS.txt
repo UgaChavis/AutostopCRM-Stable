@@ -1,0 +1,59 @@
+AUTOSTOP CRM / VERIFIED MCP TOOLS
+
+Verified on: 2026-04-07
+
+Read / diagnostics
+- ping_connector
+- bootstrap_context
+- get_connector_identity
+- get_runtime_status
+- get_board_context
+- get_board_snapshot
+- review_board
+- get_gpt_wall
+- get_cards
+- get_card
+- get_card_log
+- list_columns
+- list_archived_cards
+- list_overdue_cards
+- search_cards
+- autofill_vehicle_data
+- list_cashboxes
+- get_cashbox
+
+Write / board
+- create_column
+- rename_column
+- delete_column
+- create_card
+- update_card
+- move_card
+- bulk_move_cards
+- archive_card
+- restore_card
+- set_card_indicator
+- set_card_deadline
+- update_board_settings
+
+Write / sticky notes
+- create_sticky
+- update_sticky
+- move_sticky
+- delete_sticky
+
+Write / cashboxes
+- create_cashbox
+- delete_cashbox
+- create_cash_transaction
+
+Key usage notes
+- For broad operational context, call review_board first.
+- For full hidden board context and recent history, call get_gpt_wall.
+- For mass movement between columns, use bulk_move_cards, not many move_card calls.
+- rename_column changes only the label and keeps the same column id.
+- delete_column works only for empty columns.
+- create_cash_transaction is the main write operation for cashboxes.
+
+Critical working rule
+- This toolset is for the current AutoStop CRM board only.

@@ -438,7 +438,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('repair-order-card__grid repair-order-card__grid--document', BOARD_WEB_APP_HTML)
         self.assertIn('repair-order-card__grid repair-order-card__grid--client', BOARD_WEB_APP_HTML)
         self.assertIn('repair-order-card__grid repair-order-card__grid--vehicle', BOARD_WEB_APP_HTML)
-        self.assertIn('grid-template-columns: minmax(210px, 0.72fr) minmax(290px, 0.96fr) minmax(500px, 1.72fr);', BOARD_WEB_APP_HTML)
+        self.assertIn('grid-template-columns: minmax(188px, 0.62fr) minmax(308px, 1.02fr) minmax(500px, 1.72fr);', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderClient"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderPhone"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderVehicle"', BOARD_WEB_APP_HTML)
