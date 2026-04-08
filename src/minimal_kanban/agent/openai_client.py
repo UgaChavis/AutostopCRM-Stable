@@ -41,13 +41,14 @@ class OpenAIJsonAgentClient:
         instructions = f"{system_prompt.strip()}\n\nReturn only one JSON object that matches the requested schema."
         input_messages = []
         for message in messages:
+            message_text = str(message.get("content") or "")
             input_messages.append(
                 {
                     "role": str(message.get("role") or "user"),
                     "content": [
                         {
                             "type": "input_text",
-                            "text": str(message.get("content") or ""),
+                            "text": f"JSON mode. {message_text}",
                         }
                     ],
                 }
