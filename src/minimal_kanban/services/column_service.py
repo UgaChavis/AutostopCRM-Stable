@@ -51,7 +51,7 @@ class ColumnService:
                 actor_name=actor_name,
                 source=source,
                 action="column_created",
-                message=f"{actor_name} СЃРѕР·РґР°Р» СЃС‚РѕР»Р±РµС†",
+                message=f"{actor_name} создал столбец",
                 card_id=None,
                 details={"column_id": column.id, "label": column.label},
             )
@@ -71,7 +71,7 @@ class ColumnService:
             column_id = self._validated_column(payload.get("column_id") or payload.get("column"), columns)
             column = next((item for item in columns if item.id == column_id), None)
             if column is None:
-                self._fail("not_found", "РЈРєР°Р·Р°РЅРЅС‹Р№ СЃС‚РѕР»Р±РµС† РЅРµ РЅР°Р№РґРµРЅ.", status_code=404, details={"column_id": column_id})
+                self._fail("not_found", "Указанный столбец не найден.", status_code=404, details={"column_id": column_id})
             previous_label = column.label
             label = self._validated_column_label(payload.get("label"), columns, exclude_column_id=column_id)
             if label == previous_label:
@@ -89,7 +89,7 @@ class ColumnService:
                 actor_name=actor_name,
                 source=source,
                 action="column_renamed",
-                message=f"{actor_name} РїРµСЂРµРёРјРµРЅРѕРІР°Р» СЃС‚РѕР»Р±РµС†",
+                message=f"{actor_name} переименовал столбец",
                 card_id=None,
                 details={"column_id": column.id, "before": previous_label, "after": column.label},
             )
@@ -121,11 +121,11 @@ class ColumnService:
             column_id = self._validated_column(payload.get("column_id") or payload.get("column"), columns)
             column = next((item for item in columns if item.id == column_id), None)
             if column is None:
-                self._fail("not_found", "РЈРєР°Р·Р°РЅРЅС‹Р№ СЃС‚РѕР»Р±РµС† РЅРµ РЅР°Р№РґРµРЅ.", status_code=404, details={"column_id": column_id})
+                self._fail("not_found", "Указанный столбец не найден.", status_code=404, details={"column_id": column_id})
             if len(columns) <= 1:
                 self._fail(
                     "last_column",
-                    "РќРµР»СЊР·СЏ СѓРґР°Р»РёС‚СЊ РїРѕСЃР»РµРґРЅРёР№ СЃС‚РѕР»Р±РµС† РґРѕСЃРєРё.",
+                    "Нельзя удалить последний столбец доски.",
                     status_code=409,
                     details={"column_id": column_id},
                 )
@@ -133,7 +133,7 @@ class ColumnService:
             if bound_cards:
                 self._fail(
                     "column_not_empty",
-                    "РќРµР»СЊР·СЏ СѓРґР°Р»РёС‚СЊ РЅРµРїСѓСЃС‚РѕР№ СЃС‚РѕР»Р±РµС†. РЎРЅР°С‡Р°Р»Р° РїРµСЂРµРЅРµСЃРё РёР»Рё Р°СЂС…РёРІРёСЂСѓР№ СЃРІСЏР·Р°РЅРЅС‹Рµ РєР°СЂС‚РѕС‡РєРё.",
+                    "Нельзя удалить непустой столбец. Сначала перенесите или архивируйте связанные карточки.",
                     status_code=409,
                     details={
                         "column_id": column_id,
@@ -150,7 +150,7 @@ class ColumnService:
                 actor_name=actor_name,
                 source=source,
                 action="column_deleted",
-                message=f"{actor_name} СѓРґР°Р»РёР» СЃС‚РѕР»Р±РµС†",
+                message=f"{actor_name} удалил столбец",
                 card_id=None,
                 details={"column_id": column.id, "label": column.label},
             )
@@ -172,13 +172,13 @@ class ColumnService:
         if not label:
             self._fail(
                 "validation_error",
-                "РќСѓР¶РЅРѕ РїРµСЂРµРґР°С‚СЊ РЅРµРїСѓСЃС‚РѕР№ label РґР»СЏ РЅРѕРІРѕРіРѕ СЃС‚РѕР»Р±С†Р°.",
+                "Нужно передать непустой label для столбца.",
                 details={"field": "label"},
             )
         if len(label) > COLUMN_LABEL_LIMIT:
             self._fail(
                 "validation_error",
-                f"РџРѕР»Рµ label РЅРµ РґРѕР»Р¶РЅРѕ РїСЂРµРІС‹С€Р°С‚СЊ {COLUMN_LABEL_LIMIT} СЃРёРјРІРѕР»РѕРІ.",
+                f"Поле label не должно превышать {COLUMN_LABEL_LIMIT} символов.",
                 details={"field": "label"},
             )
         existing_labels = {
@@ -189,7 +189,7 @@ class ColumnService:
         if label.casefold() in existing_labels:
             self._fail(
                 "validation_error",
-                "РЎС‚РѕР»Р±РµС† СЃ С‚Р°РєРёРј РЅР°Р·РІР°РЅРёРµРј СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚.",
+                "Столбец с таким названием уже существует.",
                 details={"field": "label"},
             )
         return label

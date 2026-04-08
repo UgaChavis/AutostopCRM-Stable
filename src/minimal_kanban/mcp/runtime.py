@@ -154,7 +154,7 @@ class McpServerRuntime:
             time.sleep(0.15)
         raise McpRuntimeStartupError(
             "Ошибка запуска MCP сервера. Endpoint /mcp не отвечает.",
-            f"MCP endpoint {self.base_url} не прошёл readiness probe. Последняя деталь: {detail}",
+            f"MCP endpoint {self.base_url} не прошел readiness probe. Последняя деталь: {detail}",
         )
 
     def _probe_endpoint_once(self) -> tuple[bool, int | None, str]:
@@ -205,7 +205,7 @@ class McpServerRuntime:
     def _share_app_handlers_with_uvicorn(self) -> str:
         handlers = self._collect_effective_handlers()
         if not handlers:
-            raise RuntimeError("У основного logger нет доступных handlers.")
+            raise RuntimeError("У основного логгера нет доступных обработчиков.")
 
         for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
             target = logging.getLogger(logger_name)

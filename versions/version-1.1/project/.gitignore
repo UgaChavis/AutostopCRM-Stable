@@ -1,6 +1,0 @@
-.venv/
-build/
-dist/
-installer-output/
-__pycache__/
-*.pyc
