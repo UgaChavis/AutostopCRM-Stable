@@ -45,6 +45,16 @@ def _clean_url(value: str | None) -> str:
     return str(value or "").strip().rstrip("/")
 
 
+def _fallback_http_url(url: str) -> str:
+    parts = urlsplit(_clean_url(url))
+    if parts.scheme.lower() != "https" or not parts.netloc:
+        return ""
+    path = parts.path or ""
+    if parts.query:
+        path = f"{path}?{parts.query}"
+    return f"http://{parts.netloc}{path}"
+
+
 def _resolve_local_api_url(settings: IntegrationSettings, override: str | None, token: str | None) -> str:
     if override:
         return _clean_url(override)
@@ -170,6 +180,7 @@ def check_site(site_url: str, *, expect_https: bool = False) -> dict[str, Any]:
         "title": "",
         "contains_autostop": False,
         "contains_login_route": False,
+        "probe_url": site_url,
         "error": None,
     }
     if not site_url:
@@ -180,45 +191,50 @@ def check_site(site_url: str, *, expect_https: bool = False) -> dict[str, Any]:
         result["error"] = "site_url_is_not_https"
         return result
 
-    request = urllib.request.Request(
-        site_url,
-        method="GET",
-        headers={
-            "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-            "User-Agent": "AutoStopCRM-check/1.0",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10.0) as response:
-            body = response.read().decode("utf-8", errors="replace")
-            final_url = response.geturl()
-            title = ""
-            title_start = body.lower().find("<title>")
-            title_end = body.lower().find("</title>")
-            if title_start != -1 and title_end != -1 and title_end > title_start:
-                title = body[title_start + 7 : title_end].strip()
-            result["final_url"] = final_url
-            result["status_code"] = int(response.status)
-            result["content_type"] = str(response.headers.get("Content-Type") or "")
-            result["title"] = title
-            result["contains_autostop"] = "AUTOSTOP" in body.upper()
-            result["contains_login_route"] = "/api/login_operator" in body
-            result["ok"] = bool(
-                response.status == 200
-                and result["contains_autostop"]
-                and result["contains_login_route"]
-                and (not expect_https or final_url.lower().startswith("https://"))
-            )
-            if not result["ok"]:
-                result["error"] = "site_surface_incomplete"
-            return result
-    except urllib.error.HTTPError as exc:
-        result["status_code"] = exc.code
-        result["error"] = f"http_error_{exc.code}"
-        return result
-    except Exception as exc:  # pragma: no cover
-        result["error"] = str(exc)
-        return result
+    candidate_urls = [site_url]
+    fallback_http = _fallback_http_url(site_url)
+    if fallback_http:
+        candidate_urls.append(fallback_http)
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+        "User-Agent": "AutoStopCRM-check/1.0",
+    }
+    last_error = ""
+    for probe_url in candidate_urls:
+        request = urllib.request.Request(probe_url, method="GET", headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=10.0) as response:
+                body = response.read().decode("utf-8", errors="replace")
+                final_url = response.geturl()
+                title = ""
+                title_start = body.lower().find("<title>")
+                title_end = body.lower().find("</title>")
+                if title_start != -1 and title_end != -1 and title_end > title_start:
+                    title = body[title_start + 7 : title_end].strip()
+                result["probe_url"] = probe_url
+                result["final_url"] = final_url
+                result["status_code"] = int(response.status)
+                result["content_type"] = str(response.headers.get("Content-Type") or "")
+                result["title"] = title
+                result["contains_autostop"] = "AUTOSTOP" in body.upper()
+                result["contains_login_route"] = "/api/login_operator" in body
+                result["ok"] = bool(
+                    response.status == 200
+                    and result["contains_autostop"]
+                    and result["contains_login_route"]
+                    and (not expect_https or final_url.lower().startswith("https://"))
+                )
+                if not result["ok"]:
+                    result["error"] = "site_surface_incomplete"
+                return result
+        except urllib.error.HTTPError as exc:
+            result["probe_url"] = probe_url
+            result["status_code"] = exc.code
+            last_error = f"http_error_{exc.code}"
+        except Exception as exc:  # pragma: no cover
+            last_error = str(exc)
+    result["error"] = last_error or "site_probe_failed"
+    return result
 
 
 def check_api_surface(base_url: str, *, bearer_token: str | None = None) -> dict[str, Any]:
@@ -387,6 +403,7 @@ def check_public_write_protection(site_url: str) -> dict[str, Any]:
         "error_message": "",
         "unexpected_write_succeeded": False,
         "cleanup_ok": False,
+        "probe_url": site_url,
         "error": None,
     }
     if not site_url:
@@ -394,24 +411,38 @@ def check_public_write_protection(site_url: str) -> dict[str, Any]:
         return result
 
     marker = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    try:
-        create_status, create_payload = _api_request(
-            _clean_url(site_url),
-            "/api/create_sticky",
-            method="POST",
-            payload={
-                "text": f"AUDIT TEMP {marker}",
-                "x": 1,
-                "y": 1,
-                "deadline": {"days": 0, "hours": 1},
-            },
-        )
-    except urllib.error.URLError as exc:
-        result["error"] = f"public_write_probe_unreachable: {exc}"
+    candidate_urls = [_clean_url(site_url)]
+    fallback_http = _fallback_http_url(site_url)
+    if fallback_http:
+        candidate_urls.append(_clean_url(fallback_http))
+    last_error = ""
+    create_status = 0
+    create_payload: dict[str, Any] | None = None
+    probe_base_url = candidate_urls[0]
+    for candidate in candidate_urls:
+        try:
+            create_status, create_payload = _api_request(
+                candidate,
+                "/api/create_sticky",
+                method="POST",
+                payload={
+                    "text": f"AUDIT TEMP {marker}",
+                    "x": 1,
+                    "y": 1,
+                    "deadline": {"days": 0, "hours": 1},
+                },
+            )
+            probe_base_url = candidate
+            break
+        except urllib.error.URLError as exc:
+            last_error = f"public_write_probe_unreachable: {exc}"
+        except Exception as exc:  # pragma: no cover
+            last_error = str(exc)
+    else:
+        result["error"] = last_error or "public_write_probe_failed"
         return result
-    except Exception as exc:  # pragma: no cover
-        result["error"] = str(exc)
-        return result
+
+    result["probe_url"] = probe_base_url
     result["status_code"] = create_status
     error_payload = ((create_payload or {}).get("error") or {}) if isinstance(create_payload, dict) else {}
     result["error_code"] = str(error_payload.get("code") or "")
@@ -426,7 +457,7 @@ def check_public_write_protection(site_url: str) -> dict[str, Any]:
     if sticky_id:
         result["unexpected_write_succeeded"] = True
         delete_status, delete_payload = _api_request(
-            _clean_url(site_url),
+            probe_base_url,
             "/api/delete_sticky",
             method="POST",
             payload={"sticky_id": sticky_id},
