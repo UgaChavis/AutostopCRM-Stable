@@ -17,30 +17,13 @@ from .config import (
     get_agent_openai_model,
     get_agent_poll_interval_seconds,
 )
+from .instructions import build_default_system_prompt
 from .openai_client import AgentModelError, OpenAIJsonAgentClient
 from .storage import AgentStorage
 from .tools import AgentToolExecutor
 
 
-DEFAULT_SYSTEM_PROMPT = """You are the server-side AUTOSTOP CRM operator agent.
-You work inside the AutoStop CRM environment.
-Your job is to complete tasks using available tools and then return a final result.
-
-Rules:
-- Be concise and operational.
-- Use tools instead of guessing.
-- If a task needs board context, prefer review_board, search_cards, get_card, get_card_context, list_repair_orders, get_repair_order, list_cashboxes, get_cashbox.
-- If a task needs a write action, do it directly when the task clearly asks for it.
-- Never invent ids. Use tool results.
-- Return exactly one JSON object.
-
-Response schema:
-1. Tool call:
-{"type":"tool","tool":"tool_name","args":{...},"reason":"short reason"}
-
-2. Final answer:
-{"type":"final","summary":"one-line outcome","result":"detailed user-facing result"}
-"""
+DEFAULT_SYSTEM_PROMPT = build_default_system_prompt()
 
 
 class AgentRunner:
@@ -153,14 +136,17 @@ class AgentRunner:
     def _execute_task(self, task: dict[str, Any], *, run_id: str) -> tuple[str, str, int]:
         prompt_override = self._storage.read_prompt_text().strip()
         memory_text = self._storage.read_memory_text().strip()
-        system_prompt = prompt_override or DEFAULT_SYSTEM_PROMPT
+        system_prompt = DEFAULT_SYSTEM_PROMPT
+        if prompt_override and prompt_override != DEFAULT_SYSTEM_PROMPT:
+            system_prompt = f"{system_prompt}\n\nLocal instructions:\n{prompt_override}"
         if memory_text:
             system_prompt = f"{system_prompt}\n\nPersistent memory:\n{memory_text}"
         system_prompt = f"{system_prompt}\n\nAvailable tools:\n{self._tools.describe_for_prompt()}"
+        metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
         messages: list[dict[str, str]] = [
             {
                 "role": "user",
-                "content": f"Task id: {task['id']}\nTask:\n{task['task_text']}",
+                "content": self._build_user_task_message(task, metadata),
             }
         ]
         tool_calls = 0
@@ -219,6 +205,25 @@ class AgentRunner:
         if len(text) <= self._max_tool_result_chars:
             return text
         return f"{text[: self._max_tool_result_chars]}... [truncated]"
+
+    def _build_user_task_message(self, task: dict[str, Any], metadata: dict[str, Any]) -> str:
+        lines = [
+            f"Task id: {task['id']}",
+            f"Mode: {task.get('mode', 'manual')}",
+            f"Source: {task.get('source', 'manual')}",
+        ]
+        requested_by = str(metadata.get("requested_by", "") or "").strip()
+        if requested_by:
+            lines.append(f"Requested by: {requested_by}")
+        context = metadata.get("context") if isinstance(metadata.get("context"), dict) else {}
+        if context:
+            lines.append("Context metadata:")
+            lines.append(json.dumps(context, ensure_ascii=False, indent=2))
+            if str(context.get("kind", "")).strip().lower() == "card":
+                lines.append("This task was opened from a card. Work with this card first and inside this card first.")
+        lines.append("Task:")
+        lines.append(str(task.get("task_text", "") or "").strip())
+        return "\n".join(lines)
 
 
 def build_board_api_client(*, logger: logging.Logger) -> BoardApiClient:

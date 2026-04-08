@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 from typing import Any, Callable
 
+from .automotive_tools import AutomotiveLookupService
 from ..mcp.client import BoardApiClient
 
 
@@ -18,6 +19,7 @@ class AgentToolExecutor:
     def __init__(self, board_api: BoardApiClient, *, actor_name: str = "SERVER_AGENT") -> None:
         self._board_api = board_api
         self._actor_name = actor_name
+        self._automotive = AutomotiveLookupService()
         self._tools: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
             "ping_connector": self._ping_connector,
             "review_board": self._review_board,
@@ -42,6 +44,12 @@ class AgentToolExecutor:
             "create_cashbox": self._create_cashbox,
             "delete_cashbox": self._delete_cashbox,
             "create_cash_transaction": self._create_cash_transaction,
+            "decode_vin": self._decode_vin,
+            "search_part_numbers": self._search_part_numbers,
+            "lookup_part_prices": self._lookup_part_prices,
+            "estimate_maintenance": self._estimate_maintenance,
+            "search_web": self._search_web,
+            "fetch_page_excerpt": self._fetch_page_excerpt,
         }
 
     @property
@@ -165,6 +173,51 @@ class AgentToolExecutor:
                     "amount": "required number/string",
                     "note": "optional string",
                 },
+            ),
+            AgentToolDefinition(
+                "decode_vin",
+                "Decode a VIN using external trusted sources.",
+                {"vin": "required string"},
+            ),
+            AgentToolDefinition(
+                "search_part_numbers",
+                "Search OEM/catalog part numbers for a vehicle and requested part.",
+                {
+                    "part_query": "required string",
+                    "vehicle_context": "optional object",
+                    "limit": "optional int",
+                },
+            ),
+            AgentToolDefinition(
+                "lookup_part_prices",
+                "Search market prices for a part number or part query.",
+                {
+                    "part_number_or_query": "required string",
+                    "vehicle_context": "optional object",
+                    "limit": "optional int",
+                },
+            ),
+            AgentToolDefinition(
+                "estimate_maintenance",
+                "Build a preliminary maintenance plan for a vehicle.",
+                {
+                    "service_type": "optional string",
+                    "vehicle_context": "optional object",
+                },
+            ),
+            AgentToolDefinition(
+                "search_web",
+                "Search trusted web sources by free-text query.",
+                {
+                    "query": "required string",
+                    "limit": "optional int",
+                    "allowed_domains": "optional array",
+                },
+            ),
+            AgentToolDefinition(
+                "fetch_page_excerpt",
+                "Fetch and clean a web page excerpt.",
+                {"url": "required string", "max_chars": "optional int"},
             ),
         ]
 
@@ -326,6 +379,42 @@ class AgentToolExecutor:
             amount=amount,
             note=self._maybe_text(args.get("note")) or "",
             actor_name=self._actor_name,
+        )
+
+    def _decode_vin(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._automotive.decode_vin(self._required_text(args, "vin"))
+
+    def _search_part_numbers(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._automotive.search_part_numbers(
+            vehicle_context=self._maybe_dict(args.get("vehicle_context")),
+            part_query=self._required_text(args, "part_query"),
+            limit=self._maybe_int(args.get("limit")) or 8,
+        )
+
+    def _lookup_part_prices(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._automotive.lookup_part_prices(
+            vehicle_context=self._maybe_dict(args.get("vehicle_context")),
+            part_number_or_query=self._required_text(args, "part_number_or_query"),
+            limit=self._maybe_int(args.get("limit")) or 8,
+        )
+
+    def _estimate_maintenance(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._automotive.estimate_maintenance(
+            vehicle_context=self._maybe_dict(args.get("vehicle_context")),
+            service_type=self._maybe_text(args.get("service_type")) or "ТО",
+        )
+
+    def _search_web(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._automotive.search_web(
+            query=self._required_text(args, "query"),
+            limit=self._maybe_int(args.get("limit")) or 5,
+            allowed_domains=self._maybe_list(args.get("allowed_domains")),
+        )
+
+    def _fetch_page_excerpt(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._automotive.fetch_page_excerpt(
+            url=self._required_text(args, "url"),
+            max_chars=self._maybe_int(args.get("max_chars")) or 2500,
         )
 
     def _required_text(self, args: dict[str, Any], key: str) -> str:

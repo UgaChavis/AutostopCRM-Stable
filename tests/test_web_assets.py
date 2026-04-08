@@ -115,6 +115,21 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("els.stickyModal.addEventListener('click', handleStickyModalOverlayClick);", BOARD_WEB_APP_HTML)
         self.assertIn("if (applyStickySnapshot(data?.stickies || [])) {", BOARD_WEB_APP_HTML)
 
+    def test_agent_ui_exposes_board_and_card_entry_points_with_contextual_modal(self) -> None:
+        self.assertIn('class="agent-dock__button" id="agentDockButton"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="cardAgentButton"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="agentModal"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="agentContextLabel">КОНТЕКСТ: ДОСКА</div>', BOARD_WEB_APP_HTML)
+        self.assertIn('id="agentTaskInput"', BOARD_WEB_APP_HTML)
+        self.assertIn("function boardAgentContext()", BOARD_WEB_APP_HTML)
+        self.assertIn("function cardAgentContext()", BOARD_WEB_APP_HTML)
+        self.assertIn("return 'КОНТЕКСТ: КАРТОЧКА · ' + heading;", BOARD_WEB_APP_HTML)
+        self.assertIn("function openAgentModal(kind = 'board')", BOARD_WEB_APP_HTML)
+        self.assertIn("els.agentDockButton?.addEventListener('click', () => openAgentModal('board'));", BOARD_WEB_APP_HTML)
+        self.assertIn("els.cardAgentButton?.addEventListener('click', () => openAgentModal('card'));", BOARD_WEB_APP_HTML)
+        self.assertIn("els.agentRunButton?.addEventListener('click', enqueueAgentTask);", BOARD_WEB_APP_HTML)
+        self.assertIn("els.agentModal.addEventListener('click', handleAgentModalOverlayClick);", BOARD_WEB_APP_HTML)
+
     def test_card_description_textarea_allows_extended_text(self) -> None:
         self.assertIn('id="cardDescription" maxlength="20000"', BOARD_WEB_APP_HTML)
         self.assertIn(".field--description textarea {", BOARD_WEB_APP_HTML)

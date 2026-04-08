@@ -34,8 +34,10 @@ class _FakeModelClient:
     def __init__(self, decisions: list[dict]) -> None:
         self._decisions = list(decisions)
         self.model = "fake-model"
+        self.calls: list[dict[str, object]] = []
 
     def next_step(self, *, system_prompt: str, messages: list[dict[str, str]]) -> dict:
+        self.calls.append({"system_prompt": system_prompt, "messages": list(messages)})
         return self._decisions.pop(0)
 
 
@@ -102,6 +104,52 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertEqual(task["summary"], "Board reviewed")
             self.assertEqual(len(storage.list_actions(limit=10)), 1)
 
+    def test_runner_includes_card_context_in_model_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Расшифруй VIN",
+                metadata={
+                    "requested_by": "operator",
+                    "context": {
+                        "kind": "card",
+                        "card_id": "card-1",
+                        "title": "Диагностика",
+                        "vin": "MMCJJKL10NH019836",
+                    },
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.context")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            model = _FakeModelClient([{"type": "final", "summary": "done", "result": "ok"}])
+            runner = AgentRunner(
+                storage=storage,
+                board_api=_FakeBoardApi(),
+                model_client=model,
+                logger=logger,
+            )
+            processed = runner.run_once()
+            self.assertTrue(processed)
+            call = model.calls[0]
+            self.assertIn("decode_vin", str(call["system_prompt"]))
+            self.assertIn("This task was opened from a card.", call["messages"][0]["content"])
+            self.assertIn('"card_id": "card-1"', call["messages"][0]["content"])
+
+    def test_tool_executor_exposes_automotive_internet_tools(self) -> None:
+        executor = AgentRunner(
+            storage=AgentStorage(base_dir=Path(tempfile.mkdtemp())),
+            board_api=_FakeBoardApi(),
+            model_client=_FakeModelClient([{"type": "final", "summary": "done", "result": "ok"}]),
+            logger=logging.getLogger("test.agent.runner.tools"),
+        )._tools
+        tool_names = {item.name for item in executor.definitions}
+        self.assertIn("decode_vin", tool_names)
+        self.assertIn("search_part_numbers", tool_names)
+        self.assertIn("lookup_part_prices", tool_names)
+        self.assertIn("estimate_maintenance", tool_names)
+
 
 class AgentApiTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -148,8 +196,16 @@ class AgentApiTests(unittest.TestCase):
         with urllib.request.urlopen(request, timeout=5) as response:
             return json.loads(response.read().decode("utf-8"))
 
-    def test_agent_routes_require_admin_and_enqueue_task(self) -> None:
-        login = self._request("/api/login_operator", {"username": "admin", "password": "admin"})
+    def test_agent_routes_allow_operator_session_and_enqueue_task(self) -> None:
+        admin_login = self._request("/api/login_operator", {"username": "admin", "password": "admin"})
+        admin_token = admin_login["data"]["session"]["token"]
+        admin_headers = {"X-Operator-Session": admin_token}
+        self._request(
+            "/api/save_operator_user",
+            {"username": "worker", "password": "worker-pass"},
+            headers=admin_headers,
+        )
+        login = self._request("/api/login_operator", {"username": "worker", "password": "worker-pass"})
         token = login["data"]["session"]["token"]
         headers = {"X-Operator-Session": token}
         queued = self._request("/api/agent_enqueue_task", {"task_text": "Review board"}, headers=headers)

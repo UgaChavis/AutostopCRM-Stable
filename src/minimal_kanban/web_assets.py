@@ -204,10 +204,10 @@ BOARD_WEB_APP_HTML = "".join(
       fill: none;
     }
     .sticky-dock {
-      position: fixed;
-      left: 28px;
-      bottom: 34px;
-      z-index: 12;
+        position: fixed;
+        left: 28px;
+        bottom: 34px;
+        z-index: 12;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -232,12 +232,50 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .sticky-dock__button:hover { border-color: var(--accent); transform: translateY(-1px); }
     .sticky-dock__button svg {
-      width: 34px;
-      height: 34px;
-      stroke: currentColor;
-      stroke-width: 1.8;
-      fill: rgba(214, 194, 117, 0.18);
-    }
+        width: 34px;
+        height: 34px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        fill: rgba(214, 194, 117, 0.18);
+      }
+      .agent-dock {
+        position: fixed;
+        left: 28px;
+        bottom: 114px;
+        z-index: 12;
+      }
+      .agent-dock__button {
+        width: 52px;
+        height: 52px;
+        padding: 0;
+        border: 1px solid rgba(165, 176, 122, 0.66);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.06), transparent 24%),
+          rgba(18, 24, 19, 0.94);
+        color: var(--text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 15px;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+      }
+      .agent-dock__button:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+      }
+      .agent-dock__button[data-state="busy"] {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px rgba(200, 210, 166, 0.22);
+      }
+      .card-agent-button {
+        min-width: 42px;
+        padding: 7px 10px;
+        font-family: var(--mono);
+        letter-spacing: 0.08em;
+      }
     .board-scroll {
       overflow: auto;
       padding: 0;
@@ -1786,12 +1824,114 @@ BOARD_WEB_APP_HTML = "".join(
       line-height: 1;
     }
     .dialog--repair-order-payments {
-      width: min(780px, calc(100% - 20px));
-      max-height: min(82vh, 760px);
-      padding: 0;
-      gap: 0;
-      overflow: hidden;
-    }
+        width: min(780px, calc(100% - 20px));
+        max-height: min(82vh, 760px);
+        padding: 0;
+        gap: 0;
+        overflow: hidden;
+      }
+      .dialog--agent {
+        width: min(460px, calc(100% - 20px));
+        max-height: min(78vh, 640px);
+        padding: 0;
+        gap: 0;
+        overflow: hidden;
+      }
+      .dialog--agent .dialog__head {
+        padding: 11px 12px 9px;
+        margin: 0;
+        border-bottom: 1px solid rgba(115, 126, 105, 0.18);
+        background: rgba(0, 0, 0, 0.08);
+      }
+      .agent-shell {
+        display: grid;
+        gap: 10px;
+        min-height: 0;
+        padding: 12px;
+        overflow: auto;
+      }
+      .agent-headline {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .agent-context {
+        color: var(--text-soft);
+      }
+      .agent-status {
+        color: var(--muted);
+      }
+      .agent-status[data-state="online"] { color: var(--accent); }
+      .agent-status[data-state="busy"] { color: var(--text); }
+      .agent-status[data-state="error"] { color: #e0a19c; }
+      .agent-field textarea {
+        min-height: 76px;
+        height: 76px;
+        resize: vertical;
+      }
+      .agent-actions-row {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .agent-actions-row .btn {
+        min-width: 132px;
+      }
+      .agent-result {
+        min-height: 84px;
+        padding: 10px 11px;
+        border: 1px solid rgba(116, 126, 106, 0.18);
+        background: rgba(0, 0, 0, 0.08);
+        white-space: pre-wrap;
+        line-height: 1.45;
+      }
+      .agent-result[data-state="empty"] {
+        color: var(--muted);
+      }
+      .agent-details {
+        border: 1px solid rgba(116, 126, 106, 0.18);
+        background: rgba(0, 0, 0, 0.06);
+      }
+      .agent-details summary {
+        padding: 8px 10px;
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+      .agent-actions-list {
+        display: grid;
+        gap: 6px;
+        padding: 0 10px 10px;
+      }
+      .agent-action-row {
+        padding: 8px 9px;
+        border: 1px solid rgba(116, 126, 106, 0.16);
+        background: rgba(0, 0, 0, 0.08);
+      }
+      .agent-action-row__tool {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+      .agent-action-row__reason {
+        margin-top: 2px;
+        line-height: 1.35;
+      }
+      .agent-action-row__meta {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
     .dialog--repair-order-payments .dialog__head {
       padding: 12px 14px 9px;
       margin: 0;
@@ -3438,6 +3578,11 @@ BOARD_WEB_APP_HTML = "".join(
       repairOrderTags: [],
       repairOrderPayments: [],
       repairOrderTagColor: 'green',
+      agentContext: { kind: 'board' },
+      agentRefreshTimer: null,
+      agentTaskId: '',
+      agentTaskStatus: '',
+      agentSyncedTaskId: '',
     };
 
     const SNAPSHOT_POLL_INTERVAL_MS = 5000;
@@ -3554,11 +3699,60 @@ BOARD_WEB_APP_HTML = "".join(
         );
       }
     }
+    function ensureAgentUi() {
+      if (!document.getElementById('agentDock')) {
+        document.body.insertAdjacentHTML(
+          'beforeend',
+          '<div class="agent-dock" id="agentDock">'
+            + '<button class="agent-dock__button" id="agentDockButton" type="button" aria-label="Агент доски" title="Агент доски">AI</button>'
+          + '</div>'
+        );
+      }
+      const cardDangerGroup = document.querySelector('#cardModal .dialog__foot-group--danger');
+      if (cardDangerGroup && !document.getElementById('cardAgentButton')) {
+        cardDangerGroup.insertAdjacentHTML(
+          'beforeend',
+          '<button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Агент по карточке" aria-label="Агент по карточке">AI</button>'
+        );
+      }
+      if (!document.getElementById('agentModal')) {
+        document.body.insertAdjacentHTML(
+          'beforeend',
+          '<div class="modal" id="agentModal">'
+            + '<div class="dialog dialog--agent">'
+              + '<div class="dialog__head">'
+                + '<div class="dialog__title">АГЕНТ</div>'
+                + '<button class="btn" data-close="agent">ЗАКРЫТЬ</button>'
+              + '</div>'
+              + '<div class="agent-shell">'
+                + '<div class="agent-headline">'
+                  + '<div class="agent-context" id="agentContextLabel">КОНТЕКСТ: ДОСКА</div>'
+                  + '<div class="agent-status" id="agentStatusLabel" data-state="idle">OFFLINE</div>'
+                + '</div>'
+                + '<div class="field field--compact agent-field">'
+                  + '<label for="agentTaskInput">ЗАПРОС</label>'
+                  + '<textarea id="agentTaskInput" maxlength="1600" placeholder="Сделай обзор доски"></textarea>'
+                + '</div>'
+                + '<div class="agent-actions-row">'
+                  + '<button class="btn btn--accent" id="agentRunButton" type="button">ВЫПОЛНИТЬ</button>'
+                + '</div>'
+                + '<div class="agent-result" id="agentResultPanel" data-state="empty">Введите запрос.</div>'
+                + '<details class="agent-details" id="agentDetails">'
+                  + '<summary>ДЕЙСТВИЯ</summary>'
+                  + '<div class="agent-actions-list" id="agentActionsList"><div class="cashboxes-empty">Действий пока нет.</div></div>'
+                + '</details>'
+              + '</div>'
+            + '</div>'
+          + '</div>'
+        );
+      }
+    }
     function ensureCashboxesUi() {
       return;
     }
 
     ensureRepairOrderPaymentsUi();
+    ensureAgentUi();
     ensureCashboxesUi();
 
     const els = {
@@ -3568,6 +3762,7 @@ BOARD_WEB_APP_HTML = "".join(
       boardSettingsButton: document.getElementById('boardSettingsButton'),
       topbarStatusHost: document.getElementById('topbarStatusHost'),
       stickyDockButton: document.getElementById('stickyDockButton'),
+      agentDockButton: document.getElementById('agentDockButton'),
       operatorButton: document.getElementById('operatorButton'),
       archiveButton: document.getElementById('archiveButton'),
       repairOrdersButton: document.getElementById('repairOrdersButton'),
@@ -3633,6 +3828,14 @@ BOARD_WEB_APP_HTML = "".join(
       gptWallBoardTab: document.getElementById('gptWallBoardTab'),
       gptWallEventsTab: document.getElementById('gptWallEventsTab'),
       gptWallRefresh: document.getElementById('gptWallRefresh'),
+      agentModal: document.getElementById('agentModal'),
+      agentContextLabel: document.getElementById('agentContextLabel'),
+      agentStatusLabel: document.getElementById('agentStatusLabel'),
+      agentTaskInput: document.getElementById('agentTaskInput'),
+      agentRunButton: document.getElementById('agentRunButton'),
+      agentResultPanel: document.getElementById('agentResultPanel'),
+      agentActionsList: document.getElementById('agentActionsList'),
+      agentDetails: document.getElementById('agentDetails'),
 """,
         r"""
       cardModal: document.getElementById('cardModal'),
@@ -3698,6 +3901,7 @@ BOARD_WEB_APP_HTML = "".join(
       saveCardButton: document.getElementById('saveCardButton'),
       archiveAction: document.getElementById('archiveAction'),
       restoreAction: document.getElementById('restoreAction'),
+      cardAgentButton: document.getElementById('cardAgentButton'),
       fileDropzone: document.getElementById('fileDropzone'),
       fileDropMeta: document.getElementById('fileDropMeta'),
       fileInput: document.getElementById('fileInput'),
@@ -4071,6 +4275,7 @@ BOARD_WEB_APP_HTML = "".join(
         archive: () => els.archiveModal.classList.remove('is-open'),
         'repair-orders': () => els.repairOrdersModal.classList.remove('is-open'),
         cashboxes: () => els.cashboxesModal.classList.remove('is-open'),
+        agent: () => closeAgentModal(),
         wall: () => els.gptWallModal.classList.remove('is-open'),
         settings: () => els.boardSettingsModal.classList.remove('is-open'),
         sticky: () => closeStickyModal(),
@@ -4096,6 +4301,273 @@ BOARD_WEB_APP_HTML = "".join(
         maybeOpenModal(modalEl, openModal);
         setStatus(error.message, true);
         return null;
+      }
+    }
+
+    function boardAgentContext() {
+      const columns = Array.isArray(state.snapshot?.columns) ? state.snapshot.columns : [];
+      const cards = Array.isArray(state.snapshot?.cards) ? state.snapshot.cards : [];
+      const archive = Array.isArray(state.snapshot?.archive) ? state.snapshot.archive : [];
+      return {
+        kind: 'board',
+        revision: String(state.snapshot?.revision || ''),
+        active_cards: cards.length,
+        archived_cards: archive.length,
+        columns: columns.map((column) => ({ id: column.id, label: column.label })),
+      };
+    }
+
+    function cardAgentContext() {
+      const payload = currentCardPayload();
+      const vehicleProfile = readVehicleProfileForm();
+      const cardId = String(state.editingId || state.activeCard?.id || '').trim();
+      const repairOrder = els.repairOrderModal?.classList.contains('is-open')
+        ? readRepairOrderFromForm()
+        : repairOrderCardDraft(state.activeCard, state.activeCard?.repair_order || {});
+      return {
+        kind: 'card',
+        card_id: cardId,
+        title: payload.title,
+        vehicle: payload.vehicle,
+        description: payload.description,
+        column: payload.column,
+        tags: payload.tags,
+        vin: String(vehicleProfile?.vin || repairOrder?.vin || '').trim(),
+        vehicle_profile: vehicleProfile,
+        repair_order: repairOrder,
+      };
+    }
+
+    function buildAgentContext(kind) {
+      return String(kind || '').trim().toLowerCase() === 'card' ? cardAgentContext() : boardAgentContext();
+    }
+
+    function formatAgentContextLabel(context) {
+      const normalized = context && typeof context === 'object' ? context : { kind: 'board' };
+      if (String(normalized.kind || '').trim().toLowerCase() === 'card') {
+        const heading = String(normalized.title || normalized.vehicle || normalized.card_id || 'карточка').trim();
+        return 'КОНТЕКСТ: КАРТОЧКА · ' + heading;
+      }
+      return 'КОНТЕКСТ: ДОСКА';
+    }
+
+    function agentPlaceholder(context) {
+      if (String(context?.kind || '').trim().toLowerCase() === 'card') {
+        return 'Расшифруй VIN этой карточки';
+      }
+      return 'Сделай обзор доски';
+    }
+
+    function renderAgentStatus(statusPayload) {
+      const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
+      const status = payload.status && typeof payload.status === 'object' ? payload.status : {};
+      const queue = payload.queue && typeof payload.queue === 'object' ? payload.queue : {};
+      let stateLabel = 'OFFLINE';
+      let stateValue = 'idle';
+      if (payload.agent?.enabled) {
+        stateLabel = 'ONLINE';
+        stateValue = 'online';
+      }
+      if (status.running) {
+        stateLabel = 'ВЫПОЛНЯЕТ';
+        stateValue = 'busy';
+      } else if (status.last_error) {
+        stateLabel = 'ОШИБКА';
+        stateValue = 'error';
+      }
+      if (els.agentStatusLabel) {
+        const pendingTotal = Number(queue.pending_total || 0);
+        els.agentStatusLabel.textContent = pendingTotal > 0 ? (stateLabel + ' · ' + pendingTotal) : stateLabel;
+        els.agentStatusLabel.dataset.state = stateValue;
+      }
+      if (els.agentDockButton) els.agentDockButton.dataset.state = stateValue;
+      if (els.cardAgentButton) els.cardAgentButton.dataset.state = stateValue;
+      if (els.agentRunButton) {
+        const busy = Boolean(status.running);
+        els.agentRunButton.disabled = busy;
+        els.agentRunButton.textContent = busy ? 'ВЫПОЛНЯЕТСЯ' : 'ВЫПОЛНИТЬ';
+      }
+    }
+
+    function renderAgentActions(actions) {
+      const items = Array.isArray(actions) ? actions : [];
+      if (!els.agentActionsList) return;
+      if (!items.length) {
+        els.agentActionsList.innerHTML = '<div class="cashboxes-empty">Действий пока нет.</div>';
+        return;
+      }
+      els.agentActionsList.innerHTML = items.map((item) => {
+        const tool = String(item?.tool || '').trim() || 'tool';
+        const reason = String(item?.reason || '').trim() || 'Без пояснения';
+        const finishedAt = String(item?.finished_at || '').trim() || 'нет времени';
+        return '<div class="agent-action-row">'
+          + '<div class="agent-action-row__tool">' + escapeHtml(tool) + '</div>'
+          + '<div class="agent-action-row__reason">' + escapeHtml(reason) + '</div>'
+          + '<div class="agent-action-row__meta">' + escapeHtml(finishedAt) + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    function renderAgentTask(task) {
+      if (!els.agentResultPanel) return;
+      if (!task) {
+        els.agentResultPanel.dataset.state = 'empty';
+        els.agentResultPanel.textContent = 'Введите запрос.';
+        renderAgentActions([]);
+        if (els.agentDetails) els.agentDetails.open = false;
+        return;
+      }
+      const status = String(task.status || '').trim().toLowerCase();
+      if (status === 'running' || status === 'pending') {
+        els.agentResultPanel.dataset.state = 'active';
+        els.agentResultPanel.textContent = 'Задача принята и выполняется.';
+        return;
+      }
+      if (status === 'failed') {
+        els.agentResultPanel.dataset.state = 'active';
+        els.agentResultPanel.textContent = String(task.error || 'Агент завершил задачу с ошибкой.');
+        return;
+      }
+      const summary = String(task.summary || '').trim();
+      const result = String(task.result || '').trim();
+      els.agentResultPanel.dataset.state = summary || result ? 'filled' : 'empty';
+      els.agentResultPanel.textContent = [summary, result].filter(Boolean).join('\n\n') || 'Ответ агента пока пуст.';
+    }
+
+    function selectAgentTask(tasks) {
+      const items = Array.isArray(tasks) ? tasks : [];
+      if (!items.length) return null;
+      if (state.agentTaskId) {
+        const exact = items.find((item) => item?.id === state.agentTaskId);
+        if (exact) return exact;
+      }
+      const context = state.agentContext && typeof state.agentContext === 'object' ? state.agentContext : { kind: 'board' };
+      if (String(context.kind || '').trim().toLowerCase() === 'card') {
+        const cardId = String(context.card_id || '').trim();
+        const contextual = items.find((item) => String(item?.metadata?.context?.card_id || '').trim() === cardId);
+        if (contextual) return contextual;
+      }
+      return items[0];
+    }
+
+    async function syncAgentTaskEffects(task) {
+      if (!task || task.status !== 'completed' || state.agentSyncedTaskId === task.id) return;
+      state.agentSyncedTaskId = task.id;
+      const context = task.metadata && typeof task.metadata === 'object' ? task.metadata.context : null;
+      const cardId = String(context?.card_id || '').trim();
+      try {
+        await refreshSnapshot(false);
+      } catch (_) {}
+      if (cardId && state.editingId === cardId && els.cardModal?.classList.contains('is-open')) {
+        try {
+          const data = await api('/api/get_card?card_id=' + encodeURIComponent(cardId));
+          if (data?.card) applyCardModalState(data.card);
+        } catch (_) {}
+      }
+    }
+
+    function scheduleAgentRefresh(delay = 3000) {
+      if (state.agentRefreshTimer) window.clearTimeout(state.agentRefreshTimer);
+      if (!els.agentModal?.classList.contains('is-open')) return;
+      state.agentRefreshTimer = window.setTimeout(refreshAgentModalState, delay);
+    }
+
+    async function refreshAgentModalState() {
+      if (!els.agentModal?.classList.contains('is-open')) return;
+      try {
+        const [statusData, tasksData] = await Promise.all([
+          api('/api/agent_status'),
+          api('/api/agent_tasks?limit=10'),
+        ]);
+        renderAgentStatus(statusData);
+        const task = selectAgentTask(tasksData?.tasks || []);
+        if (task) {
+          state.agentTaskId = String(task.id || state.agentTaskId || '');
+          state.agentTaskStatus = String(task.status || '');
+        }
+        renderAgentTask(task);
+        if (task?.id) {
+          const actionsData = await api('/api/agent_actions?limit=25&task_id=' + encodeURIComponent(task.id));
+          renderAgentActions(actionsData?.actions || []);
+          await syncAgentTaskEffects(task);
+        } else {
+          renderAgentActions([]);
+        }
+        scheduleAgentRefresh(task && (task.status === 'pending' || task.status === 'running') ? 1200 : 3500);
+      } catch (error) {
+        renderAgentStatus({ agent: { enabled: false }, status: { running: false, last_error: error.message }, queue: { pending_total: 0 } });
+        if (els.agentResultPanel) {
+          els.agentResultPanel.dataset.state = 'active';
+          els.agentResultPanel.textContent = error.message;
+        }
+        scheduleAgentRefresh(5000);
+      }
+    }
+
+    function openAgentModal(kind = 'board') {
+      if (!requireOperatorSession()) return;
+      state.agentContext = buildAgentContext(kind);
+      state.agentTaskId = '';
+      state.agentTaskStatus = '';
+      if (els.agentContextLabel) els.agentContextLabel.textContent = formatAgentContextLabel(state.agentContext);
+      if (els.agentTaskInput) {
+        els.agentTaskInput.placeholder = agentPlaceholder(state.agentContext);
+        if (!String(els.agentTaskInput.value || '').trim()) els.agentTaskInput.value = '';
+      }
+      if (els.agentResultPanel) {
+        els.agentResultPanel.dataset.state = 'empty';
+        els.agentResultPanel.textContent = 'Введите запрос.';
+      }
+      renderAgentActions([]);
+      if (els.agentDetails) els.agentDetails.open = false;
+      els.agentModal.classList.add('is-open');
+      refreshAgentModalState();
+      window.setTimeout(() => els.agentTaskInput?.focus(), 0);
+    }
+
+    function closeAgentModal() {
+      els.agentModal.classList.remove('is-open');
+      if (state.agentRefreshTimer) {
+        window.clearTimeout(state.agentRefreshTimer);
+        state.agentRefreshTimer = null;
+      }
+    }
+
+    async function enqueueAgentTask() {
+      if (!requireOperatorSession()) return;
+      const taskText = String(els.agentTaskInput?.value || '').trim();
+      if (!taskText) {
+        setStatus('Введите задачу для агента.', true);
+        els.agentTaskInput?.focus();
+        return;
+      }
+      const context = buildAgentContext(state.agentContext?.kind || 'board');
+      state.agentContext = context;
+      if (els.agentContextLabel) els.agentContextLabel.textContent = formatAgentContextLabel(context);
+      try {
+        const data = await api('/api/agent_enqueue_task', {
+          method: 'POST',
+          body: {
+            source: 'ui_agent',
+            mode: 'manual',
+            task_text: taskText,
+            metadata: { context },
+          },
+        });
+        state.agentTaskId = String(data?.task?.id || '');
+        state.agentTaskStatus = String(data?.task?.status || '');
+        if (els.agentResultPanel) {
+          els.agentResultPanel.dataset.state = 'active';
+          els.agentResultPanel.textContent = 'Задача принята и выполняется.';
+        }
+        if (els.agentDetails) els.agentDetails.open = false;
+        refreshAgentModalState();
+      } catch (error) {
+        if (els.agentResultPanel) {
+          els.agentResultPanel.dataset.state = 'active';
+          els.agentResultPanel.textContent = error.message;
+        }
+        setStatus(error.message, true);
       }
     }
 
@@ -7805,6 +8277,11 @@ function renderCompactArchiveRows(cards) {
       if (event.target.classList.contains('modal')) closeRepairOrderPaymentsModal();
     }
 
+    function handleAgentModalOverlayClick(event) {
+      if (!(event.target instanceof HTMLElement)) return;
+      if (event.target.classList.contains('modal')) closeAgentModal();
+    }
+
     function handleOperatorProfileModalOverlayClick(event) {
       if (!(event.target instanceof HTMLElement)) return;
       if (event.target.classList.contains('modal')) els.operatorProfileModal.classList.remove('is-open');
@@ -8278,6 +8755,7 @@ function renderCompactArchiveRows(cards) {
     els.boardScaleReset.addEventListener('click', resetBoardScaleToDefault);
     els.columnButton.addEventListener('click', createColumnFromTopbar);
     els.cardButton.addEventListener('click', openDefaultNewCard);
+    els.agentDockButton?.addEventListener('click', () => openAgentModal('board'));
     [els.signalDays, els.signalHours].forEach((input) => {
       input.addEventListener('input', renderSignalPreview);
       input.addEventListener('change', renderSignalPreview);
@@ -8286,6 +8764,14 @@ function renderCompactArchiveRows(cards) {
     els.tagInput.addEventListener('keydown', handleTagInputKeydown);
     configureVehicleAutofillUi();
     els.cardDescription.addEventListener('input', syncCardDescriptionHeight);
+    els.cardAgentButton?.addEventListener('click', () => openAgentModal('card'));
+    els.agentRunButton?.addEventListener('click', enqueueAgentTask);
+    els.agentTaskInput?.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        enqueueAgentTask();
+      }
+    });
     els.vehicleAutofillButton.addEventListener('click', autofillVehicleProfile);
     els.repairOrderAddWorkRowButton.addEventListener('click', (event) => addRepairOrderRowFromButton('works', event));
     els.repairOrderAddMaterialRowButton.addEventListener('click', (event) => addRepairOrderRowFromButton('materials', event));
@@ -8331,6 +8817,7 @@ function renderCompactArchiveRows(cards) {
     els.fileDropzone.addEventListener('paste', handleFileDropzonePaste);
     els.repairOrdersList.addEventListener('keydown', handleRepairOrdersListKeydown);
     els.stickyModal.addEventListener('click', handleStickyModalOverlayClick);
+    els.agentModal.addEventListener('click', handleAgentModalOverlayClick);
     els.repairOrderModal.addEventListener('click', handleRepairOrderModalOverlayClick);
     els.repairOrderPaymentsModal.addEventListener('click', handleRepairOrderPaymentsModalOverlayClick);
     els.operatorProfileModal.addEventListener('click', handleOperatorProfileModalOverlayClick);

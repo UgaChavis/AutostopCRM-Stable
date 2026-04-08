@@ -35,11 +35,16 @@ class AgentControlService:
         task_text = str(payload.get("task_text", "") or "").strip()
         if not task_text:
             raise ValueError("task_text is required")
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        session = payload.get("_operator_session") if isinstance(payload.get("_operator_session"), dict) else {}
+        if session:
+            metadata = dict(metadata)
+            metadata.setdefault("requested_by", str(session.get("username", "") or "").strip())
         task = self._storage.enqueue_task(
             task_text=task_text,
-            source=str(payload.get("source", "manual") or "manual"),
+            source=str(payload.get("source", "ui_agent") or "ui_agent"),
             mode=str(payload.get("mode", "manual") or "manual"),
-            metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None,
+            metadata=metadata or None,
         )
         return {"task": task}
 

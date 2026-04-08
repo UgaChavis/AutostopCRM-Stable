@@ -228,25 +228,16 @@ class ApiServer:
             "/api/delete_operator_user",
             "/api/get_operator_user_report",
         }
+        agent_routes: set[str] = set()
         if agent_service is not None:
-            routes.update(
-                {
-                    "/api/agent_status": agent_service.agent_status,
-                    "/api/agent_enqueue_task": agent_service.agent_enqueue_task,
-                    "/api/agent_runs": agent_service.agent_runs,
-                    "/api/agent_actions": agent_service.agent_actions,
-                    "/api/agent_tasks": agent_service.agent_tasks,
-                }
-            )
-            admin_only_routes.update(
-                {
-                    "/api/agent_status",
-                    "/api/agent_enqueue_task",
-                    "/api/agent_runs",
-                    "/api/agent_actions",
-                    "/api/agent_tasks",
-                }
-            )
+            agent_routes = {
+                "/api/agent_status",
+                "/api/agent_enqueue_task",
+                "/api/agent_runs",
+                "/api/agent_actions",
+                "/api/agent_tasks",
+            }
+            routes.update({route: getattr(agent_service, route.removeprefix("/api/")) for route in agent_routes})
         if operator_service is not None:
             routes.update(
                 {
@@ -261,6 +252,7 @@ class ApiServer:
                 }
             )
             operator_session_routes.update(admin_only_routes)
+            operator_session_routes.update(agent_routes)
 
         class RequestHandler(BaseHTTPRequestHandler):
             ROUTES = routes
