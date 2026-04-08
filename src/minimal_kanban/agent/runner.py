@@ -86,6 +86,7 @@ class AgentRunner:
                     "result": result,
                     "tool_calls": tool_calls,
                     "model": self._model_client.model,
+                    "metadata": task.get("metadata", {}),
                 }
             )
             self._storage.update_status(
@@ -120,6 +121,7 @@ class AgentRunner:
                     "error": str(exc),
                     "tool_calls": tool_calls,
                     "model": self._model_client.model,
+                    "metadata": task.get("metadata", {}),
                 }
             )
             self._storage.update_status(

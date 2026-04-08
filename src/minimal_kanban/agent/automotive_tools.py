@@ -140,7 +140,14 @@ class AutomotiveLookupService:
             "Материалы и работы являются предварительным списком.",
             "Для точной цены по материалам используйте lookup_part_prices после уточнения каталожных номеров.",
         ]
-        if "то" in lower or "service" in lower or "oil" in lower:
+        is_to_request = (
+            lower == "то"
+            or "техобслуж" in lower
+            or "техническ" in lower
+            or "service" in lower
+            or "oil" in lower
+        )
+        if is_to_request:
             works.extend(
                 [
                     {"name": "Замена моторного масла", "quantity": "1"},

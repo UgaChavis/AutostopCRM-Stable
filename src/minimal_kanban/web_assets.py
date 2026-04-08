@@ -245,8 +245,9 @@ BOARD_WEB_APP_HTML = "".join(
         z-index: 12;
       }
       .agent-dock__button {
-        width: 52px;
-        height: 52px;
+        position: relative;
+        width: 56px;
+        height: 56px;
         padding: 0;
         border: 1px solid rgba(165, 176, 122, 0.66);
         background:
@@ -257,28 +258,67 @@ BOARD_WEB_APP_HTML = "".join(
         align-items: center;
         justify-content: center;
         font-family: var(--mono);
-        font-size: 15px;
-        letter-spacing: 0.08em;
+        font-size: 14px;
+        letter-spacing: 0.12em;
         cursor: pointer;
-        transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          0 0 0 1px rgba(0,0,0,0.18),
+          0 8px 20px rgba(0,0,0,0.22);
+        transition: border-color 120ms ease, transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
       }
       .agent-dock__button:hover {
         border-color: var(--accent);
         transform: translateY(-1px);
       }
+      .agent-dock__button::after {
+        content: "";
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(144, 155, 121, 0.56);
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.18);
+      }
       .agent-dock__button[data-state="busy"] {
         border-color: var(--accent);
-        box-shadow: 0 0 0 1px rgba(200, 210, 166, 0.22);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          0 0 0 1px rgba(200, 210, 166, 0.22),
+          0 10px 24px rgba(0,0,0,0.24);
       }
+      .agent-dock__button[data-state="online"]::after { background: rgba(115, 182, 107, 0.92); }
+      .agent-dock__button[data-state="busy"]::after { background: rgba(214, 175, 55, 0.94); }
+      .agent-dock__button[data-state="error"]::after { background: rgba(207, 91, 75, 0.94); }
       .card-agent-button {
-        min-width: 48px;
-        padding: 7px 11px;
+        min-width: 94px;
+        padding: 7px 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
         font-family: var(--mono);
         letter-spacing: 0.08em;
         color: var(--text);
-        border-color: rgba(167, 178, 132, 0.38);
-        background: rgba(0,0,0,0.12);
+        border-color: rgba(167, 178, 132, 0.42);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.05), transparent 24%),
+          rgba(0,0,0,0.12);
       }
+      .card-agent-button::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(144, 155, 121, 0.56);
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.18);
+        flex: 0 0 auto;
+      }
+      .card-agent-button[data-state="online"]::before { background: rgba(115, 182, 107, 0.92); }
+      .card-agent-button[data-state="busy"]::before { background: rgba(214, 175, 55, 0.94); }
+      .card-agent-button[data-state="error"]::before { background: rgba(207, 91, 75, 0.94); }
     .board-scroll {
       overflow: auto;
       padding: 0;
@@ -1522,8 +1562,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-shell {
       display: grid;
-      gap: 8px;
-      padding: 10px 12px 12px;
+      gap: 7px;
+      padding: 9px 11px 11px;
       overflow: auto;
       min-height: 0;
       align-content: start;
@@ -1547,15 +1587,15 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-groups {
       display: grid;
-      grid-template-columns: minmax(188px, 0.62fr) minmax(308px, 1.02fr) minmax(500px, 1.72fr);
+      grid-template-columns: minmax(168px, 0.56fr) minmax(324px, 1.08fr) minmax(520px, 1.78fr);
       gap: 8px;
       align-items: stretch;
     }
     .repair-order-card,
     .repair-order-table-card {
       display: grid;
-      gap: 7px;
-      padding: 9px;
+      gap: 6px;
+      padding: 8px;
       border: 1px solid rgba(116, 126, 106, 0.15);
       background:
         linear-gradient(180deg, rgba(255,255,255,0.02), transparent 24%),
@@ -1564,10 +1604,10 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 7px;
+      gap: 6px;
     }
     .repair-order-card__grid--document {
-      grid-template-columns: 52px repeat(3, minmax(0, 1fr));
+      grid-template-columns: 46px repeat(3, minmax(0, 1fr));
       align-items: end;
     }
     .repair-order-card__grid--payment {
@@ -1575,11 +1615,11 @@ BOARD_WEB_APP_HTML = "".join(
       align-items: end;
     }
     .repair-order-card__grid--client {
-      grid-template-columns: minmax(0, 1.82fr) minmax(162px, 0.66fr);
+      grid-template-columns: minmax(0, 1.92fr) minmax(152px, 0.58fr);
       align-items: end;
     }
     .repair-order-card__grid--vehicle {
-      grid-template-columns: minmax(0, 1.46fr) minmax(124px, 0.54fr) minmax(0, 1.58fr) minmax(108px, 0.46fr);
+      grid-template-columns: minmax(0, 1.56fr) minmax(112px, 0.48fr) minmax(0, 1.42fr) minmax(94px, 0.36fr);
       align-items: end;
     }
     .repair-order-card__grid--document .field--compact input[type="text"],
@@ -1587,7 +1627,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid--payment .field--compact select,
     .repair-order-card__grid--client .field--compact input[type="text"],
     .repair-order-card__grid--vehicle .field--compact input[type="text"] {
-      min-height: 30px;
+      min-height: 29px;
       padding: 4px 7px;
       font-size: 12px;
     }
@@ -1612,11 +1652,11 @@ BOARD_WEB_APP_HTML = "".join(
       white-space: nowrap;
     }
     .repair-order-client-info textarea {
-      min-height: 124px;
-      height: 124px;
-      max-height: 176px;
-      line-height: 1.42;
-      padding: 8px 10px;
+      min-height: 112px;
+      height: 112px;
+      max-height: 168px;
+      line-height: 1.4;
+      padding: 7px 9px;
       font-size: 12.5px;
     }
     .repair-order-status {
@@ -1646,8 +1686,8 @@ BOARD_WEB_APP_HTML = "".join(
       flex-wrap: wrap;
     }
     .repair-order-section-bar .btn {
-      min-height: 32px;
-      padding: 6px 10px;
+      min-height: 30px;
+      padding: 5px 9px;
     }
     .repair-order-table-wrap {
       border: 1px solid rgba(116, 126, 106, 0.14);
@@ -1660,10 +1700,10 @@ BOARD_WEB_APP_HTML = "".join(
       table-layout: fixed;
     }
     .repair-order-table th {
-      padding: 7px 9px;
+      padding: 6px 8px;
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 9.5px;
+      font-size: 9.25px;
       font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -1672,7 +1712,7 @@ BOARD_WEB_APP_HTML = "".join(
       background: rgba(255, 255, 255, 0.02);
     }
     .repair-order-table td {
-      padding: 2px 5px;
+      padding: 2px 4px;
       vertical-align: middle;
       border-bottom: 1px solid rgba(116, 126, 106, 0.12);
     }
@@ -1683,7 +1723,7 @@ BOARD_WEB_APP_HTML = "".join(
       text-align: right;
     }
     .repair-order-table__action {
-      width: 52px;
+      width: 44px;
       text-align: center;
     }
     .repair-order-table__input {
@@ -1693,10 +1733,10 @@ BOARD_WEB_APP_HTML = "".join(
       border-bottom-color: rgba(116, 126, 106, 0.16);
       background: transparent;
       color: var(--text);
-      padding: 6px 8px;
-      min-height: 32px;
+      padding: 5px 7px;
+      min-height: 30px;
       outline: none;
-      font-size: 12.5px;
+      font-size: 12.25px;
     }
     .repair-order-table__input:focus {
       border-bottom-color: var(--accent);
@@ -1708,48 +1748,50 @@ BOARD_WEB_APP_HTML = "".join(
       font-family: var(--mono);
     }
     .repair-order-cell-total {
-      min-height: 32px;
+      min-height: 30px;
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      padding: 0 9px;
+      padding: 0 7px;
       color: var(--text);
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 11.5px;
       font-variant-numeric: tabular-nums;
     }
     .repair-order-cell-total[data-empty="true"] {
       color: rgba(200, 198, 187, 0.56);
     }
     .repair-order-row-remove {
-      width: 28px;
-      min-width: 28px;
-      height: 28px;
+      width: 24px;
+      min-width: 24px;
+      height: 24px;
       padding: 0;
-      font-size: 15px;
+      font-size: 13px;
       line-height: 1;
     }
     .repair-order-subtotal {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      padding: 6px 2px 0;
+      border-top: 1px solid rgba(116, 126, 106, 0.12);
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10.5px;
+      font-size: 10px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
     }
     .repair-order-subtotal strong {
-      min-width: 118px;
+      min-width: 124px;
       text-align: right;
       color: var(--text);
-      font-size: 15px;
+      font-size: 14px;
       letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
     }
     .repair-order-footer {
-      padding: 9px 12px 10px;
+      padding: 8px 11px 9px;
       margin: 0;
       border-top: 1px solid rgba(115, 126, 105, 0.18);
       background:
@@ -1758,14 +1800,14 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 10px;
+      gap: 9px;
     }
     .repair-order-footer__totals {
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(108px, max-content);
+      grid-auto-columns: minmax(96px, max-content);
       align-items: end;
-      gap: 10px;
+      gap: 8px;
       flex: 1 1 auto;
       min-width: 0;
     }
@@ -1780,37 +1822,46 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-total span {
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 9.5px;
+      font-size: 9.25px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
     .repair-order-total strong {
       color: var(--text);
-      font-size: 16px;
+      font-size: 15px;
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
     }
+    .repair-order-total--summary {
+      padding: 6px 9px;
+      border: 1px solid rgba(116, 126, 106, 0.2);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .repair-order-total--summary strong {
+      font-size: 17px;
+    }
     .repair-order-total--grand {
-      padding: 7px 10px;
+      padding: 8px 11px;
       border: 1px solid rgba(140, 151, 109, 0.34);
       background: rgba(140, 151, 109, 0.12);
     }
     .repair-order-total--grand strong {
-      font-size: 23px;
+      font-size: 24px;
       color: #f7f4e6;
     }
     .repair-order-footer__actions {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       flex-wrap: wrap;
       justify-content: flex-end;
       margin-left: auto;
       flex: 0 0 auto;
+      align-items: stretch;
     }
     .repair-order-footer__actions .btn {
-      min-width: 104px;
-      min-height: 38px;
-      padding: 8px 11px;
+      min-width: 100px;
+      min-height: 36px;
+      padding: 7px 10px;
     }
     .repair-order-hidden-fields {
       display: none !important;
@@ -1819,23 +1870,30 @@ BOARD_WEB_APP_HTML = "".join(
       display: none;
     }
     .repair-order-money-button {
-      min-width: 42px !important;
-      width: 42px;
+      min-width: 38px !important;
+      width: 38px;
       padding: 0;
-      font-size: 17px;
+      border-color: rgba(140, 151, 109, 0.3);
+      background: rgba(140, 151, 109, 0.08);
+      color: #f0eddf;
+      font-size: 16px;
       font-weight: 700;
       line-height: 1;
     }
+    .repair-order-money-button:hover {
+      border-color: rgba(167, 178, 132, 0.42);
+      background: rgba(140, 151, 109, 0.16);
+    }
     .dialog--repair-order-payments {
-        width: min(780px, calc(100% - 20px));
+        width: min(748px, calc(100% - 20px));
         max-height: min(82vh, 760px);
         padding: 0;
         gap: 0;
         overflow: hidden;
       }
       .dialog--agent {
-        width: min(460px, calc(100% - 20px));
-        max-height: min(78vh, 640px);
+        width: min(520px, calc(100% - 20px));
+        max-height: min(82vh, 700px);
         padding: 0;
         gap: 0;
         overflow: hidden;
@@ -1873,9 +1931,31 @@ BOARD_WEB_APP_HTML = "".join(
       .agent-status[data-state="online"] { color: var(--accent); }
       .agent-status[data-state="busy"] { color: var(--text); }
       .agent-status[data-state="error"] { color: #e0a19c; }
+      .agent-shortcuts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .agent-shortcut {
+        min-height: 28px;
+        padding: 5px 9px;
+        border: 1px solid rgba(116, 126, 106, 0.22);
+        background: rgba(0, 0, 0, 0.08);
+        color: var(--text-soft);
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .agent-shortcut:hover {
+        color: var(--text);
+        border-color: rgba(167, 178, 132, 0.42);
+        background: rgba(167, 178, 132, 0.08);
+      }
       .agent-field textarea {
-        min-height: 76px;
-        height: 76px;
+        min-height: 70px;
+        height: 70px;
         resize: vertical;
       }
       .agent-actions-row {
@@ -1895,6 +1975,60 @@ BOARD_WEB_APP_HTML = "".join(
       }
       .agent-result[data-state="empty"] {
         color: var(--muted);
+      }
+      .agent-runs {
+        display: grid;
+        gap: 6px;
+      }
+      .agent-runs__label {
+        color: var(--text-soft);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .agent-runs__list {
+        display: grid;
+        gap: 4px;
+      }
+      .agent-run-row {
+        width: 100%;
+        padding: 7px 8px;
+        border: 1px solid rgba(116, 126, 106, 0.18);
+        background: rgba(0, 0, 0, 0.06);
+        color: var(--text);
+        cursor: pointer;
+        text-align: left;
+        display: grid;
+        gap: 3px;
+      }
+      .agent-run-row:hover {
+        border-color: rgba(167, 178, 132, 0.42);
+        background: rgba(167, 178, 132, 0.07);
+      }
+      .agent-run-row[data-active="true"] {
+        border-color: rgba(167, 178, 132, 0.46);
+        background: rgba(167, 178, 132, 0.1);
+      }
+      .agent-run-row__top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .agent-run-row__status {
+        color: var(--text-soft);
+      }
+      .agent-run-row__summary {
+        line-height: 1.35;
+      }
+      .agent-run-row__meta {
+        color: var(--muted);
+        font-size: 11px;
       }
       .agent-details {
         border: 1px solid rgba(116, 126, 106, 0.18);
@@ -1936,25 +2070,25 @@ BOARD_WEB_APP_HTML = "".join(
         font-size: 12px;
       }
     .dialog--repair-order-payments .dialog__head {
-      padding: 12px 14px 9px;
+      padding: 11px 12px 8px;
       margin: 0;
       border-bottom: 1px solid rgba(115, 126, 105, 0.18);
       background: rgba(0, 0, 0, 0.08);
     }
     .repair-order-payments-layout {
       display: grid;
-      gap: 10px;
+      gap: 8px;
       min-height: 0;
-      padding: 12px 14px 14px;
+      padding: 11px 12px 12px;
       overflow: auto;
     }
     .repair-order-payments-head {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
     .repair-order-payments-summary {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
     .repair-order-payments-stats {
       display: grid;
@@ -1964,7 +2098,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-payments-stat {
       display: grid;
       gap: 2px;
-      padding: 8px 9px;
+      padding: 7px 8px;
       border: 1px solid rgba(116, 126, 106, 0.18);
       background: rgba(0, 0, 0, 0.08);
     }
@@ -1977,7 +2111,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payments-stat strong {
       color: var(--text);
-      font-size: 17px;
+      font-size: 16px;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }
@@ -1988,10 +2122,10 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payments-form {
       display: grid;
-      grid-template-columns: minmax(128px, 148px) minmax(158px, 204px) minmax(132px, 148px) auto;
-      gap: 7px 8px;
+      grid-template-columns: minmax(132px, 154px) minmax(136px, 152px) auto;
+      gap: 6px 7px;
       align-items: end;
-      padding: 9px 10px;
+      padding: 8px 9px;
       border: 1px solid rgba(116, 126, 106, 0.18);
       background: rgba(0, 0, 0, 0.08);
     }
@@ -2000,33 +2134,33 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payments-form .field--compact input[type="text"],
     .repair-order-payments-form .field--compact select {
-      min-height: 32px;
-      padding: 5px 8px;
+      min-height: 31px;
+      padding: 5px 7px;
     }
     .repair-order-payments-form .btn {
-      min-width: 112px;
-      min-height: 32px;
+      min-width: 104px;
+      min-height: 31px;
     }
     .repair-order-payments-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      max-height: 300px;
+      gap: 5px;
+      max-height: 288px;
       overflow: auto;
       padding: 4px 2px 0 0;
     }
     .repair-order-payment-row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto auto;
-      gap: 8px;
+      gap: 7px;
       align-items: center;
-      padding: 7px 9px;
+      padding: 6px 8px;
       border: 1px solid var(--line-soft);
       background: rgba(255,255,255,0.02);
     }
     .repair-order-payment-row__badge {
-      min-width: 74px;
-      padding: 3px 7px;
+      min-width: 68px;
+      padding: 3px 6px;
       border: 1px solid rgba(140, 151, 109, 0.28);
       text-align: center;
       color: var(--text-soft);
@@ -2042,8 +2176,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-payment-row__line {
       color: var(--text);
-      font-size: 12.5px;
-      line-height: 1.35;
+      font-size: 12px;
+      line-height: 1.3;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2056,14 +2190,14 @@ BOARD_WEB_APP_HTML = "".join(
       word-break: break-word;
     }
     .repair-order-payment-row__amount {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
     .repair-order-payment-row__remove {
-      min-width: 34px !important;
-      width: 34px;
+      min-width: 30px !important;
+      width: 30px;
       padding: 0;
     }
     .repair-order-save {
@@ -3325,7 +3459,7 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
         <div class="dialog__foot-group dialog__foot-group--main">
           <button class="btn" data-close="card">ОТМЕНА</button>
-          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Агент по карточке" aria-label="Агент по карточке">AI</button>
+          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Агент по карточке" aria-label="Агент по карточке">АГЕНТ</button>
           <button class="btn btn--accent" id="saveCardButton">СОХРАНИТЬ</button>
         </div>
       </div>
@@ -3456,9 +3590,9 @@ BOARD_WEB_APP_HTML = "".join(
             <table class="repair-order-table">
               <thead>
                 <tr>
-                  <th style="width:52%;">Наименование</th>
-                  <th class="repair-order-table__numeric" style="width:12%;">Кол-во</th>
-                  <th class="repair-order-table__numeric" style="width:16%;">Цена</th>
+                  <th style="width:55%;">Наименование</th>
+                  <th class="repair-order-table__numeric" style="width:10%;">Кол-во</th>
+                  <th class="repair-order-table__numeric" style="width:15%;">Цена</th>
                   <th class="repair-order-table__numeric" style="width:16%;">Сумма</th>
                   <th class="repair-order-table__action" style="width:4%;"></th>
                 </tr>
@@ -3477,9 +3611,9 @@ BOARD_WEB_APP_HTML = "".join(
             <table class="repair-order-table">
               <thead>
                 <tr>
-                  <th style="width:52%;">Наименование</th>
-                  <th class="repair-order-table__numeric" style="width:12%;">Кол-во</th>
-                  <th class="repair-order-table__numeric" style="width:16%;">Цена</th>
+                  <th style="width:55%;">Наименование</th>
+                  <th class="repair-order-table__numeric" style="width:10%;">Кол-во</th>
+                  <th class="repair-order-table__numeric" style="width:15%;">Цена</th>
                   <th class="repair-order-table__numeric" style="width:16%;">Сумма</th>
                   <th class="repair-order-table__action" style="width:4%;"></th>
                 </tr>
@@ -3500,7 +3634,7 @@ BOARD_WEB_APP_HTML = "".join(
               <span>НАЛОГИ И СБОРЫ</span>
               <strong data-repair-order-total="taxes">0,00</strong>
             </div>
-            <div class="repair-order-total">
+            <div class="repair-order-total repair-order-total--summary">
               <span>ИТОГО ПО ЗАКАЗ-НАРЯДУ</span>
               <strong data-repair-order-total="grand">0,00</strong>
             </div>
@@ -3715,11 +3849,11 @@ BOARD_WEB_APP_HTML = "".join(
           + '</div>'
         );
       }
-      const cardDangerGroup = document.querySelector('#cardModal .dialog__foot-group--danger');
-      if (cardDangerGroup && !document.getElementById('cardAgentButton')) {
-        cardDangerGroup.insertAdjacentHTML(
+      const cardMainGroup = document.querySelector('#cardModal .dialog__foot-group--main');
+      if (cardMainGroup && !document.getElementById('cardAgentButton')) {
+        cardMainGroup.insertAdjacentHTML(
           'beforeend',
-          '<button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Агент по карточке" aria-label="Агент по карточке">AI</button>'
+          '<button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Агент по карточке" aria-label="Агент по карточке">АГЕНТ</button>'
         );
       }
       if (!document.getElementById('agentModal')) {
@@ -3736,6 +3870,7 @@ BOARD_WEB_APP_HTML = "".join(
                   + '<div class="agent-context" id="agentContextLabel">КОНТЕКСТ: ДОСКА</div>'
                   + '<div class="agent-status" id="agentStatusLabel" data-state="idle">OFFLINE</div>'
                 + '</div>'
+                + '<div class="agent-shortcuts" id="agentQuickActions"></div>'
                 + '<div class="field field--compact agent-field">'
                   + '<label for="agentTaskInput">ЗАПРОС</label>'
                   + '<textarea id="agentTaskInput" maxlength="1600" placeholder="Сделай обзор доски"></textarea>'
@@ -3744,6 +3879,10 @@ BOARD_WEB_APP_HTML = "".join(
                   + '<button class="btn btn--accent" id="agentRunButton" type="button">ВЫПОЛНИТЬ</button>'
                 + '</div>'
                 + '<div class="agent-result" id="agentResultPanel" data-state="empty">Введите запрос.</div>'
+                + '<div class="agent-runs">'
+                  + '<div class="agent-runs__label">ПОСЛЕДНИЕ ЗАПУСКИ</div>'
+                  + '<div class="agent-runs__list" id="agentRunsList"><div class="cashboxes-empty">Запусков пока нет.</div></div>'
+                + '</div>'
                 + '<details class="agent-details" id="agentDetails">'
                   + '<summary>ДЕЙСТВИЯ</summary>'
                   + '<div class="agent-actions-list" id="agentActionsList"><div class="cashboxes-empty">Действий пока нет.</div></div>'
@@ -3838,13 +3977,13 @@ BOARD_WEB_APP_HTML = "".join(
       agentModal: document.getElementById('agentModal'),
       agentContextLabel: document.getElementById('agentContextLabel'),
       agentStatusLabel: document.getElementById('agentStatusLabel'),
+      agentQuickActions: document.getElementById('agentQuickActions'),
       agentTaskInput: document.getElementById('agentTaskInput'),
       agentRunButton: document.getElementById('agentRunButton'),
       agentResultPanel: document.getElementById('agentResultPanel'),
+      agentRunsList: document.getElementById('agentRunsList'),
       agentActionsList: document.getElementById('agentActionsList'),
       agentDetails: document.getElementById('agentDetails'),
-""",
-        r"""
       cardModal: document.getElementById('cardModal'),
       cardModalTitle: document.getElementById('cardModalTitle'),
       cardMetaLine: document.getElementById('cardMetaLine'),
@@ -4365,6 +4504,23 @@ BOARD_WEB_APP_HTML = "".join(
       return 'Сделай обзор доски';
     }
 
+    function quickAgentPrompts(context) {
+      if (String(context?.kind || '').trim().toLowerCase() === 'card') {
+        return [
+          { label: 'VIN', prompt: 'Расшифруй VIN этой карточки и предложи заполнение паспорта автомобиля.' },
+          { label: 'ЗАПЧАСТИ', prompt: 'Процени запчасти на этот автомобиль и подбери каталожные номера.' },
+          { label: 'ТО', prompt: 'Процени ТО на этот автомобиль.' },
+          { label: 'КАРТОЧКА', prompt: 'Заполни карточку по описанию и предложи структуру данных.' },
+        ];
+      }
+      return [
+        { label: 'ОБЗОР', prompt: 'Сделай обзор доски и покажи приоритетные проблемы.' },
+        { label: 'ПРОСРОЧКИ', prompt: 'Найди просроченные карточки и коротко перечисли их.' },
+        { label: 'ОПЛАТЫ', prompt: 'Проверь неоплаченные заказ-наряды и покажи краткую сводку.' },
+        { label: 'КАССЫ', prompt: 'Покажи краткую сводку по кассам и последним движениям.' },
+      ];
+    }
+
     function renderAgentStatus(statusPayload) {
       const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
       const status = payload.status && typeof payload.status === 'object' ? payload.status : {};
@@ -4415,6 +4571,41 @@ BOARD_WEB_APP_HTML = "".join(
       }).join('');
     }
 
+    function renderAgentQuickActions(context) {
+      if (!els.agentQuickActions) return;
+      const actions = quickAgentPrompts(context);
+      els.agentQuickActions.innerHTML = actions.map((item) =>
+        '<button class="agent-shortcut" type="button" data-agent-prompt="' + escapeHtml(item.prompt) + '">' + escapeHtml(item.label) + '</button>'
+      ).join('');
+    }
+
+    function renderAgentRuns(runs) {
+      if (!els.agentRunsList) return;
+      const items = Array.isArray(runs) ? runs : [];
+      const context = state.agentContext && typeof state.agentContext === 'object' ? state.agentContext : { kind: 'board' };
+      const cardId = String(context?.card_id || '').trim();
+      const filtered = cardId
+        ? items.filter((item) => String(item?.metadata?.context?.card_id || '').trim() === cardId)
+        : items;
+      const visible = (filtered.length ? filtered : items).slice(0, 4);
+      if (!visible.length) {
+        els.agentRunsList.innerHTML = '<div class="cashboxes-empty">Запусков пока нет.</div>';
+        return;
+      }
+      els.agentRunsList.innerHTML = visible.map((item) => {
+        const taskId = String(item?.task_id || '').trim();
+        const status = String(item?.status || '').trim().toLowerCase();
+        const statusLabel = status === 'completed' ? 'ГОТОВО' : (status === 'failed' ? 'ОШИБКА' : (status === 'running' ? 'В РАБОТЕ' : 'ОЖИДАЕТ'));
+        const summary = String(item?.summary || item?.task_text || 'Запуск агента').trim();
+        const meta = [formatDate(item?.finished_at || item?.started_at || ''), String(item?.model || '').trim()].filter(Boolean).join(' · ');
+        return '<button class="agent-run-row" type="button" data-agent-task-id="' + escapeHtml(taskId) + '" data-active="' + String(taskId && taskId === state.agentTaskId) + '">'
+          + '<div class="agent-run-row__top"><span class="agent-run-row__status">' + escapeHtml(statusLabel) + '</span><span>' + escapeHtml(taskId || 'RUN') + '</span></div>'
+          + '<div class="agent-run-row__summary">' + escapeHtml(summary) + '</div>'
+          + '<div class="agent-run-row__meta">' + escapeHtml(meta || 'Без времени') + '</div>'
+          + '</button>';
+      }).join('');
+    }
+
     function renderAgentTask(task) {
       if (!els.agentResultPanel) return;
       if (!task) {
@@ -4438,7 +4629,7 @@ BOARD_WEB_APP_HTML = "".join(
       const summary = String(task.summary || '').trim();
       const result = String(task.result || '').trim();
       els.agentResultPanel.dataset.state = summary || result ? 'filled' : 'empty';
-      els.agentResultPanel.textContent = [summary, result].filter(Boolean).join('\n\n') || 'Ответ агента пока пуст.';
+      els.agentResultPanel.textContent = [summary, result].filter(Boolean).join('\\n\\n') || 'Ответ агента пока пуст.';
     }
 
     function selectAgentTask(tasks) {
@@ -4487,6 +4678,7 @@ BOARD_WEB_APP_HTML = "".join(
           api('/api/agent_tasks?limit=10'),
         ]);
         renderAgentStatus(statusData);
+        renderAgentRuns(statusData?.recent_runs || []);
         const task = selectAgentTask(tasksData?.tasks || []);
         if (task) {
           state.agentTaskId = String(task.id || state.agentTaskId || '');
@@ -4517,6 +4709,7 @@ BOARD_WEB_APP_HTML = "".join(
       state.agentTaskId = '';
       state.agentTaskStatus = '';
       if (els.agentContextLabel) els.agentContextLabel.textContent = formatAgentContextLabel(state.agentContext);
+      renderAgentQuickActions(state.agentContext);
       if (els.agentTaskInput) {
         els.agentTaskInput.placeholder = agentPlaceholder(state.agentContext);
         if (!String(els.agentTaskInput.value || '').trim()) els.agentTaskInput.value = '';
@@ -4526,6 +4719,7 @@ BOARD_WEB_APP_HTML = "".join(
         els.agentResultPanel.textContent = 'Введите запрос.';
       }
       renderAgentActions([]);
+      renderAgentRuns([]);
       if (els.agentDetails) els.agentDetails.open = false;
       els.agentModal.classList.add('is-open');
       refreshAgentModalState();
@@ -4919,7 +5113,7 @@ BOARD_WEB_APP_HTML = "".join(
       const borderBottom = parseFloat(style.borderBottomWidth || '0');
       const chromeHeight = paddingTop + paddingBottom + borderTop + borderBottom;
       const text = String(textarea.value || '').trim();
-      const lineCount = text ? text.split(/\r?\n/).length : 0;
+      const lineCount = text ? text.split(/\\r?\\n/).length : 0;
       const minRows = text ? Math.max(6, Math.min(10, lineCount + 1)) : 6;
       const minHeight = Math.round(minRows * lineHeight + chromeHeight);
       const maxHeight = Math.max(minHeight, Math.min(window.innerHeight * 0.56, 720));
@@ -5177,7 +5371,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function clipboardTextAttachmentName() {
-      const stamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z').replace(/[:T]/g, '-');
+      const stamp = new Date().toISOString().replace(/[.]\\d+Z$/, 'Z').replace(/[:T]/g, '-');
       return 'clipboard-' + stamp + '.txt';
     }
 
@@ -5241,7 +5435,7 @@ BOARD_WEB_APP_HTML = "".join(
     function normalizeVehicleLinksInput(rawValue) {
       if (Array.isArray(rawValue)) return rawValue.map((item) => String(item || '').trim()).filter(Boolean);
       return String(rawValue || '')
-        .split(/[\n,]/)
+        .split(/[\\n,]/)
         .map((item) => item.trim())
         .filter(Boolean);
     }
@@ -5258,7 +5452,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function vinLooksSuspicious(value) {
-      const normalized = String(value || '').toUpperCase().replace(/\s+/g, '');
+      const normalized = String(value || '').toUpperCase().replace(/\\s+/g, '');
       if (!normalized) return false;
       if (normalized.length !== 17) return true;
       if (/[IOQ]/.test(normalized)) return true;
@@ -5553,9 +5747,9 @@ BOARD_WEB_APP_HTML = "".join(
     function repairOrderParseNumber(value) {
       const normalized = String(value ?? '')
         .trim()
-        .replace(/\s+/g, '')
+        .replace(/\\s+/g, '')
         .replace(',', '.')
-        .replace(/[^\d.\-]/g, '');
+        .replace(/[^0-9.-]/g, '');
       if (!normalized) return null;
       const parsed = Number(normalized);
       return Number.isFinite(parsed) ? parsed : null;
@@ -5568,7 +5762,7 @@ BOARD_WEB_APP_HTML = "".join(
     function repairOrderNumberToRaw(value) {
       const rounded = repairOrderRoundMoney(value);
       if (Math.abs(rounded % 1) < 0.000001) return String(Math.trunc(rounded));
-      return rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+      return rounded.toFixed(2).replace(/0+$/, '').replace(/\\.$/, '');
     }
 
     function repairOrderFormatMoney(value) {
@@ -5839,7 +6033,7 @@ BOARD_WEB_APP_HTML = "".join(
     function repairOrderCanonicalDateValue(value) {
       const normalized = String(value ?? '').trim();
       if (!normalized) return '';
-      const inlineMatch = normalized.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})(?:[,\s]+(\d{2}):(\d{2})(?::\d{2})?)?$/);
+      const inlineMatch = normalized.match(/^(\\d{2})\\.(\\d{2})\\.(\\d{2}|\\d{4})(?:[,\\s]+(\\d{2}):(\\d{2})(?::\\d{2})?)?$/);
       if (inlineMatch) {
         const yearValue = Number(inlineMatch[3]);
         const resolvedYear = inlineMatch[3].length === 2
@@ -5865,7 +6059,7 @@ BOARD_WEB_APP_HTML = "".join(
     function repairOrderFormDateDisplayValue(value) {
       const canonical = repairOrderCanonicalDateValue(value);
       if (!canonical) return '';
-      return canonical.replace(/^(\d{2}\.\d{2}\.)\d{2}(\d{2}\s+\d{2}:\d{2})$/, '$1$2');
+      return canonical.replace(/^(\\d{2}\\.\\d{2}\\.)\\d{2}(\\d{2}\\s+\\d{2}:\\d{2})$/, '$1$2');
     }
 
     function currentRepairOrderDateTime() {
@@ -6349,7 +6543,7 @@ BOARD_WEB_APP_HTML = "".join(
       const grandTotal = repairOrderRoundMoney(subtotal + taxesTotal);
       const prepayment = repairOrderRoundMoney(repairOrderParseNumber(normalized.prepayment) ?? 0);
       const dueTotal = repairOrderRoundMoney(grandTotal - prepayment);
-      const comment = escapeHtml(normalized.comment).replace(/\n/g, '<br>');
+      const comment = escapeHtml(normalized.comment).replace(/\\n/g, '<br>');
       return [
         '<!doctype html>',
         '<html lang="ru"><head><meta charset="utf-8"><title>Заказ-наряд</title><style>',
@@ -6800,7 +6994,7 @@ BOARD_WEB_APP_HTML = "".join(
       els.archiveList.innerHTML = cards.length
         ? cards.map((card) => {
             const heading = cardHeading(card);
-            const compactDescription = String(card.description || 'Описание не указано').replace(/\s+/g, ' ').trim();
+            const compactDescription = String(card.description || 'Описание не указано').replace(/\\s+/g, ' ').trim();
             const summary = compactDescription.length > 180 ? compactDescription.slice(0, 177) + '...' : compactDescription;
             return '<div class="archive-row archive-row--compact"><div class="archive-row__main"><div class="archive-row__title" title="' + escapeHtml(heading) + '">' + escapeHtml(heading) + '</div><div class="archive-row__summary" title="' + escapeHtml(compactDescription || 'Описание не указано') + '">' + escapeHtml(summary || 'Описание не указано') + '</div></div><div class="archive-row__side"><div class="archive-row__meta">АРХИВ: ' + escapeHtml(formatDate(card.updated_at)) + '</div><button class="btn" data-restore-card="' + escapeHtml(card.id) + '">ВЕРНУТЬ</button></div></div>';
           }).join('')
@@ -6810,7 +7004,7 @@ BOARD_WEB_APP_HTML = "".join(
 function renderCompactArchiveRows(cards) {
       return cards.map((card) => {
         const heading = cardHeading(card);
-        const compactDescription = String(card.description || 'Описание не указано').replace(/\s+/g, ' ').trim();
+        const compactDescription = String(card.description || 'Описание не указано').replace(/\\s+/g, ' ').trim();
         const summary = compactDescription.length > 180 ? compactDescription.slice(0, 177) + '...' : compactDescription;
         return '<div class="archive-row archive-row--compact"><div class="archive-row__main"><div class="archive-row__title" title="' + escapeHtml(heading) + '">' + escapeHtml(heading) + '</div><div class="archive-row__summary" title="' + escapeHtml(compactDescription || 'Описание не указано') + '">' + escapeHtml(summary || 'Описание не указано') + '</div></div><div class="archive-row__side"><div class="archive-row__meta">АРХИВ: ' + escapeHtml(formatDate(card.updated_at)) + '</div><button class="btn" data-restore-card="' + escapeHtml(card.id) + '">ВЕРНУТЬ</button></div></div>';
       }).join('');
@@ -6865,7 +7059,7 @@ function renderCompactArchiveRows(cards) {
         const cardRef = event?.card_short_id || event?.card_id || '';
         if (cardRef) lines.push('card: ' + cardRef);
         if (event?.card_heading) lines.push('heading: ' + event.card_heading);
-        if (event?.details_text) lines.push('details: ' + String(event.details_text).replace(/\r?\n/g, ' / '));
+        if (event?.details_text) lines.push('details: ' + String(event.details_text).replace(/\\r?\\n/g, ' / '));
         return lines.join('\\n');
       }).join('\\n\\n');
     }
@@ -8289,6 +8483,28 @@ function renderCompactArchiveRows(cards) {
       if (event.target.classList.contains('modal')) closeAgentModal();
     }
 
+    function handleAgentQuickActionClick(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-agent-prompt]');
+      if (!(button instanceof HTMLElement)) return;
+      const prompt = String(button.dataset.agentPrompt || '').trim();
+      if (!prompt || !els.agentTaskInput) return;
+      els.agentTaskInput.value = prompt;
+      els.agentTaskInput.focus();
+    }
+
+    function handleAgentRunSelection(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const row = target.closest('[data-agent-task-id]');
+      if (!(row instanceof HTMLElement)) return;
+      const taskId = String(row.dataset.agentTaskId || '').trim();
+      if (!taskId) return;
+      state.agentTaskId = taskId;
+      refreshAgentModalState();
+    }
+
     function handleOperatorProfileModalOverlayClick(event) {
       if (!(event.target instanceof HTMLElement)) return;
       if (event.target.classList.contains('modal')) els.operatorProfileModal.classList.remove('is-open');
@@ -8772,6 +8988,8 @@ function renderCompactArchiveRows(cards) {
     configureVehicleAutofillUi();
     els.cardDescription.addEventListener('input', syncCardDescriptionHeight);
     els.cardAgentButton?.addEventListener('click', () => openAgentModal('card'));
+    els.agentQuickActions?.addEventListener('click', handleAgentQuickActionClick);
+    els.agentRunsList?.addEventListener('click', handleAgentRunSelection);
     els.agentRunButton?.addEventListener('click', enqueueAgentTask);
     els.agentTaskInput?.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
