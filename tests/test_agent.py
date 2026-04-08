@@ -16,6 +16,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from minimal_kanban.agent.control import AgentControlService
+from minimal_kanban.agent.automotive_tools import AutomotiveLookupService
 from minimal_kanban.agent.runner import AgentRunner
 from minimal_kanban.agent.storage import AgentStorage
 from minimal_kanban.api.server import ApiServer
@@ -149,6 +150,85 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertIn("search_part_numbers", tool_names)
         self.assertIn("lookup_part_prices", tool_names)
         self.assertIn("estimate_maintenance", tool_names)
+
+
+class AutomotiveLookupServiceTests(unittest.TestCase):
+    class _FakeSearch:
+        def __init__(self, *, search_results: list | None = None, excerpts: dict[str, dict] | None = None) -> None:
+            self._search_results = list(search_results or [])
+            self._excerpts = dict(excerpts or {})
+
+        def search(self, query: str, *, limit: int = 5, allowed_domains: list[str] | None = None) -> list:
+            return self._search_results[:limit]
+
+        def fetch_page_excerpt(self, url: str, *, max_chars: int = 2500) -> dict:
+            return self._excerpts.get(url, {"url": url, "domain": "", "excerpt": ""})
+
+    class _FakeResult:
+        def __init__(self, *, title: str, url: str, snippet: str, domain: str) -> None:
+            self.title = title
+            self.url = url
+            self.snippet = snippet
+            self.domain = domain
+
+        def to_dict(self) -> dict[str, str]:
+            return {
+                "title": self.title,
+                "url": self.url,
+                "snippet": self.snippet,
+                "domain": self.domain,
+            }
+
+    def test_estimate_maintenance_returns_readable_russian_plan(self) -> None:
+        service = AutomotiveLookupService()
+        result = service.estimate_maintenance(
+            vehicle_context={"make": "Mitsubishi", "model": "L200", "year": "2022", "vin": "MMCJJKL10NH019836"},
+            service_type="ТО и тормоза",
+        )
+        self.assertEqual(result["service_type"], "ТО и тормоза")
+        self.assertIn("Замена моторного масла", {item["name"] for item in result["works"]})
+        self.assertIn("Осмотр тормозной системы", {item["name"] for item in result["works"]})
+        self.assertIn("Тормозная жидкость", {item["name"] for item in result["materials"]})
+        self.assertTrue(any("VIN доступен" in note for note in result["notes"]))
+
+    def test_lookup_part_prices_extracts_price_from_snippet_before_fetch(self) -> None:
+        service = AutomotiveLookupService()
+        service._search = self._FakeSearch(
+            search_results=[
+                self._FakeResult(
+                    title="Амортизатор KYB 12 500 ₽",
+                    url="https://example.test/part",
+                    snippet="В наличии, цена 12 500 ₽",
+                    domain="example.test",
+                )
+            ]
+        )
+        result = service.lookup_part_prices(
+            vehicle_context={"make": "Mitsubishi", "model": "L200", "year": "2022"},
+            part_number_or_query="KYB 344123",
+        )
+        self.assertEqual(result["query"], "KYB 344123")
+        self.assertEqual(result["results"][0]["prices"][0]["amount"], "12 500")
+        self.assertEqual(result["results"][0]["prices"][0]["currency"], "₽")
+
+    def test_search_part_numbers_uses_vin_query_when_available(self) -> None:
+        calls: list[str] = []
+
+        class _RecordingSearch(self._FakeSearch):
+            def search(self, query: str, *, limit: int = 5, allowed_domains: list[str] | None = None) -> list:
+                calls.append(query)
+                return []
+
+        service = AutomotiveLookupService()
+        service._search = _RecordingSearch()
+        result = service.search_part_numbers(
+            vehicle_context={"make": "Mitsubishi", "model": "L200", "year": "2022", "vin": "MMCJJKL10NH019836"},
+            part_query="рычаг передний нижний",
+            limit=3,
+        )
+        self.assertEqual(result["vehicle_context"]["vehicle"], "Mitsubishi L200 2022")
+        self.assertTrue(calls)
+        self.assertIn("MMCJJKL10NH019836", calls[0])
 
 
 class AgentApiTests(unittest.TestCase):

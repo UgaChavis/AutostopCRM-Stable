@@ -11,6 +11,11 @@ from .web_tools import DuckDuckGoSearchClient, InternetToolError
 
 
 _PRICE_PATTERN = re.compile(r"(\d[\d\s]{2,}(?:[.,]\d{1,2})?)\s*(₽|руб(?:\.|лей|ля)?|KZT|₸|\$|€)", re.I)
+_DEFAULT_SERVICE_TYPE = "ТО"
+_MAINTENANCE_HINTS = ("то", "техобслуж", "техническ", "service", "oil")
+_BRAKE_HINTS = ("торм", "brake")
+_SUSPENSION_HINTS = ("подвес", "ходов", "suspension")
+_SPARK_HINTS = ("свеч", "spark")
 
 
 class AutomotiveLookupService:
@@ -62,6 +67,8 @@ class AutomotiveLookupService:
             self._build_vehicle_query(context, normalized_query, suffix="OEM part number"),
             self._build_vehicle_query(context, normalized_query, suffix="catalog"),
         ]
+        if context.get("vin"):
+            queries.insert(0, f'{context["vin"]} {normalized_query} OEM part number')
         results = self._search_domains(
             queries,
             allowed_domains=trusted_domains(kind="catalog"),
@@ -124,10 +131,10 @@ class AutomotiveLookupService:
         self,
         *,
         vehicle_context: dict[str, Any] | None,
-        service_type: str = "ТО",
+        service_type: str = _DEFAULT_SERVICE_TYPE,
     ) -> dict[str, Any]:
         context = self._normalize_vehicle_context(vehicle_context)
-        normalized_service = str(service_type or "ТО").strip() or "ТО"
+        normalized_service = str(service_type or _DEFAULT_SERVICE_TYPE).strip() or _DEFAULT_SERVICE_TYPE
         lower = normalized_service.casefold()
         works = [
             {"name": "Диагностика и осмотр автомобиля", "quantity": "1"},
@@ -140,36 +147,31 @@ class AutomotiveLookupService:
             "Материалы и работы являются предварительным списком.",
             "Для точной цены по материалам используйте lookup_part_prices после уточнения каталожных номеров.",
         ]
-        is_to_request = (
-            lower == "то"
-            or "техобслуж" in lower
-            or "техническ" in lower
-            or "service" in lower
-            or "oil" in lower
-        )
-        if is_to_request:
-            works.extend(
+        if lower == "то" or self._contains_any(lower, _MAINTENANCE_HINTS):
+            self._append_unique_rows(
+                works,
                 [
                     {"name": "Замена моторного масла", "quantity": "1"},
                     {"name": "Замена масляного фильтра", "quantity": "1"},
                     {"name": "Контроль технических жидкостей", "quantity": "1"},
-                ]
+                ],
             )
-            materials.extend(
+            self._append_unique_rows(
+                materials,
                 [
                     {"name": "Прокладка сливной пробки", "quantity": "1"},
                     {"name": "Фильтр салона", "quantity": "1"},
                     {"name": "Воздушный фильтр двигателя", "quantity": "1"},
-                ]
+                ],
             )
-        if "торм" in lower or "brake" in lower:
-            works.append({"name": "Осмотр тормозной системы", "quantity": "1"})
-            materials.append({"name": "Тормозная жидкость", "quantity": "1"})
-        if "подвес" in lower or "ходов" in lower or "suspension" in lower:
-            works.append({"name": "Диагностика подвески", "quantity": "1"})
-        if "свеч" in lower or "spark" in lower:
-            materials.append({"name": "Комплект свечей зажигания", "quantity": "1"})
-            works.append({"name": "Замена свечей зажигания", "quantity": "1"})
+        if self._contains_any(lower, _BRAKE_HINTS):
+            self._append_unique_rows(works, [{"name": "Осмотр тормозной системы", "quantity": "1"}])
+            self._append_unique_rows(materials, [{"name": "Тормозная жидкость", "quantity": "1"}])
+        if self._contains_any(lower, _SUSPENSION_HINTS):
+            self._append_unique_rows(works, [{"name": "Диагностика подвески", "quantity": "1"}])
+        if self._contains_any(lower, _SPARK_HINTS):
+            self._append_unique_rows(materials, [{"name": "Комплект свечей зажигания", "quantity": "1"}])
+            self._append_unique_rows(works, [{"name": "Замена свечей зажигания", "quantity": "1"}])
         if context.get("vin"):
             notes.append("VIN доступен: можно выполнить точный подбор расходников и каталожных номеров.")
         return {
@@ -198,13 +200,19 @@ class AutomotiveLookupService:
 
     def _normalize_vehicle_context(self, vehicle_context: dict[str, Any] | None) -> dict[str, Any]:
         payload = vehicle_context if isinstance(vehicle_context, dict) else {}
+        make = self._text(payload.get("make") or payload.get("make_display"))
+        model = self._text(payload.get("model") or payload.get("model_display"))
+        year = self._text(payload.get("year") or payload.get("production_year"))
+        vehicle = self._text(payload.get("vehicle"))
+        if not vehicle:
+            vehicle = " ".join(part for part in (make, model, year) if part).strip()
         return {
-            "make": self._text(payload.get("make") or payload.get("make_display")),
-            "model": self._text(payload.get("model") or payload.get("model_display")),
-            "year": self._text(payload.get("year") or payload.get("production_year")),
+            "make": make,
+            "model": model,
+            "year": year,
             "engine": self._text(payload.get("engine") or payload.get("engine_model")),
             "vin": self._text(payload.get("vin")),
-            "vehicle": self._text(payload.get("vehicle")),
+            "vehicle": vehicle,
         }
 
     def _build_vehicle_query(self, context: dict[str, Any], item_query: str, *, suffix: str = "") -> str:
@@ -259,5 +267,21 @@ class AutomotiveLookupService:
         return str(value or "").strip()
 
     def _join_values(self, *values: Any) -> str:
-        parts = [self._text(value) for value in values if self._text(value)]
+        parts: list[str] = []
+        for value in values:
+            text = self._text(value)
+            if text:
+                parts.append(text)
         return " / ".join(parts)
+
+    def _contains_any(self, haystack: str, needles: tuple[str, ...]) -> bool:
+        return any(needle in haystack for needle in needles)
+
+    def _append_unique_rows(self, rows: list[dict[str, str]], additions: list[dict[str, str]]) -> None:
+        existing = {str(item.get("name") or "").strip().casefold() for item in rows}
+        for item in additions:
+            name = str(item.get("name") or "").strip()
+            if not name or name.casefold() in existing:
+                continue
+            rows.append(item)
+            existing.add(name.casefold())
