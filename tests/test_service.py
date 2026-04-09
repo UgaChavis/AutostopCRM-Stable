@@ -79,6 +79,64 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated["card"]["title"], "Задача 2")
         self.assertEqual(updated["card"]["description"], "Новый текст")
         self.assertEqual(updated["card"]["status"], "ok")
+        self.assertTrue(updated["meta"]["changed"])
+        self.assertEqual(set(updated["meta"]["changed_fields"]), {"vehicle", "title", "description", "deadline"})
+
+        archived = self.service.archive_card({"card_id": card_id})
+        self.assertTrue(archived["card"]["archived"])
+
+    def test_archive_card_rejects_open_repair_order(self) -> None:
+        created = self.service.create_card(
+            {
+                "vehicle": "KIA RIO",
+                "title": "Открытый заказ-наряд",
+                "description": "Проверить подвеску",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+        self.service.update_card(
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "number": "18",
+                    "status": "open",
+                    "client": "Иван Иванов",
+                    "vehicle": "KIA RIO",
+                    "works": [{"name": "Диагностика", "quantity": "1", "price": "2000"}],
+                },
+            }
+        )
+
+        with self.assertRaises(ServiceError) as raised:
+            self.service.archive_card({"card_id": card_id})
+
+        self.assertEqual(raised.exception.code, "repair_order_open_archive_blocked")
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("открыт заказ-наряд", raised.exception.message)
+
+    def test_archive_card_allows_closed_repair_order(self) -> None:
+        created = self.service.create_card(
+            {
+                "vehicle": "KIA RIO",
+                "title": "Закрытый заказ-наряд",
+                "description": "Выдать автомобиль",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+        self.service.update_card(
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "number": "19",
+                    "status": "closed",
+                    "client": "Иван Иванов",
+                    "vehicle": "KIA RIO",
+                    "works": [{"name": "Диагностика", "quantity": "1", "price": "2000"}],
+                },
+            }
+        )
 
         archived = self.service.archive_card({"card_id": card_id})
         self.assertTrue(archived["card"]["archived"])

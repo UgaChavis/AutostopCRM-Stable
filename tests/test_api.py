@@ -778,6 +778,35 @@ class ApiServerTests(unittest.TestCase):
         self.assertTrue(card["data"]["card"]["archived"])
         self.assertEqual(card["data"]["card"]["column"], "inbox")
 
+    def test_archive_card_route_rejects_open_repair_order(self) -> None:
+        status, created = self.request(
+            "/api/create_card",
+            {"vehicle": "KIA RIO", "title": "Open order", "description": "Проверить подвеску", "deadline": {"hours": 2}},
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, updated = self.request(
+            "/api/update_card",
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "number": "18",
+                    "status": "open",
+                    "client": "Иван Иванов",
+                    "vehicle": "KIA RIO",
+                    "works": [{"name": "Диагностика", "quantity": "1", "price": "2000"}],
+                },
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["data"]["card"]["repair_order"]["status"], "open")
+
+        status, blocked = self.request("/api/archive_card", {"card_id": card_id})
+        self.assertEqual(status, 409)
+        self.assertEqual(blocked["error"]["code"], "repair_order_open_archive_blocked")
+        self.assertIn("открыт заказ-наряд", blocked["error"]["message"])
+
     def test_rename_column_route_updates_label_and_preserves_id(self) -> None:
         status, created_column = self.request("/api/create_column", {"label": "OLD LABEL"})
         self.assertEqual(status, 200)

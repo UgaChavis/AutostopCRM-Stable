@@ -145,16 +145,22 @@ class AgentRunner:
             system_prompt = f"{system_prompt}\n\nLocal instructions:\n{prompt_override}"
         if memory_text:
             system_prompt = f"{system_prompt}\n\nPersistent memory:\n{memory_text}"
-        system_prompt = f"{system_prompt}\n\nAvailable tools:\n{self._tools.describe_for_prompt()}"
         metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
-        cleanup_task = self._is_card_cleanup_task(task, metadata)
+        task_type = self._classify_task(task, metadata)
+        context_kind = self._context_kind(metadata)
+        system_prompt = (
+            f"{system_prompt}\n\nAvailable tools:\n"
+            f"{self._tools.describe_for_prompt(task_type=task_type, context_kind=context_kind)}"
+        )
+        cleanup_task = task_type == "card_cleanup"
         cleanup_card_id = self._cleanup_card_id(metadata)
         cleanup_update_applied = False
         cleanup_apply_prompt_sent = False
+        applied_updates: list[str] = []
         messages: list[dict[str, str]] = [
             {
                 "role": "user",
-                "content": self._build_user_task_message(task, metadata),
+                "content": self._build_user_task_message(task, metadata, task_type=task_type),
             }
         ]
         tool_calls = 0
@@ -163,6 +169,21 @@ class AgentRunner:
             decision = self._model_client.next_step(system_prompt=system_prompt, messages=messages)
             decision_type = str(decision.get("type", "") or "").strip().lower()
             if decision_type == "final":
+                apply_args = self._extract_card_update_apply(decision, cleanup_card_id=cleanup_card_id)
+                if apply_args is not None:
+                    tool_calls += 1
+                    apply_result = self._tools.execute("update_card", apply_args)
+                    cleanup_update_applied = True
+                    applied_updates.extend(self._summarize_applied_update(apply_args, apply_result))
+                    self._record_action(
+                        task_id=task["id"],
+                        run_id=run_id,
+                        step=step,
+                        tool_name="update_card",
+                        args=apply_args,
+                        reason="Runner applied structured card update from final response",
+                        result_payload=apply_result,
+                    )
                 if cleanup_task and cleanup_card_id and not cleanup_update_applied and not cleanup_apply_prompt_sent:
                     messages.append(
                         {
@@ -175,6 +196,7 @@ class AgentRunner:
                 summary = str(decision.get("summary", "") or "").strip() or "Task completed."
                 result = str(decision.get("result", "") or "").strip() or summary
                 display = self._normalize_display_payload(decision, summary=summary, result=result)
+                display = self._append_applied_updates(display, applied_updates)
                 return summary, result, display, tool_calls
             if decision_type != "tool":
                 raise AgentModelError("Agent model returned neither a tool call nor a final answer.")
@@ -184,24 +206,18 @@ class AgentRunner:
                 args = {}
             reason = str(decision.get("reason", "") or "").strip()
             tool_calls += 1
-            started_at = utc_now_iso()
             result_payload = self._tools.execute(tool_name, args)
             if cleanup_task and tool_name == "update_card" and str(args.get("card_id", "") or "").strip() == cleanup_card_id:
                 cleanup_update_applied = True
-            finished_at = utc_now_iso()
-            self._storage.append_action(
-                {
-                    "id": f"agact_{uuid.uuid4().hex[:12]}",
-                    "task_id": task["id"],
-                    "run_id": run_id,
-                    "step": step,
-                    "tool": tool_name,
-                    "args": args,
-                    "reason": reason,
-                    "started_at": started_at,
-                    "finished_at": finished_at,
-                    "result_preview": self._preview_payload(result_payload),
-                }
+                applied_updates.extend(self._summarize_applied_update(args, result_payload))
+            self._record_action(
+                task_id=task["id"],
+                run_id=run_id,
+                step=step,
+                tool_name=tool_name,
+                args=args,
+                reason=reason,
+                result_payload=result_payload,
             )
             messages.append(
                 {
@@ -215,7 +231,7 @@ class AgentRunner:
             messages.append(
                 {
                     "role": "user",
-                    "content": f"TOOL RESULT {tool_name}:\n{self._preview_payload(result_payload)}",
+                    "content": f"TOOL RESULT {tool_name}:\n{self._tool_result_for_model(tool_name, result_payload)}",
                 }
             )
         raise AgentModelError(f"Agent exceeded max steps ({self._max_steps}) without returning a final answer.")
@@ -295,11 +311,140 @@ class AgentRunner:
             return text
         return f"{text[: self._max_tool_result_chars]}... [truncated]"
 
-    def _build_user_task_message(self, task: dict[str, Any], metadata: dict[str, Any]) -> str:
+    def _record_action(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        step: int,
+        tool_name: str,
+        args: dict[str, Any],
+        reason: str,
+        result_payload: dict[str, Any],
+    ) -> None:
+        started_at = utc_now_iso()
+        finished_at = utc_now_iso()
+        self._storage.append_action(
+            {
+                "id": f"agact_{uuid.uuid4().hex[:12]}",
+                "task_id": task_id,
+                "run_id": run_id,
+                "step": step,
+                "tool": tool_name,
+                "args": args,
+                "reason": reason,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "result_preview": self._preview_payload(result_payload),
+            }
+        )
+
+    def _tool_result_for_model(self, tool_name: str, payload: dict[str, Any]) -> str:
+        compact = payload if isinstance(payload, dict) else {}
+        if tool_name == "review_board":
+            summary = compact.get("summary") if isinstance(compact.get("summary"), dict) else compact.get("data", {}).get("summary", {})
+            alerts = compact.get("alerts") if isinstance(compact.get("alerts"), list) else compact.get("data", {}).get("alerts", [])
+            priorities = compact.get("priority_cards") if isinstance(compact.get("priority_cards"), list) else compact.get("data", {}).get("priority_cards", [])
+            return self._preview_payload(
+                {
+                    "summary": summary,
+                    "alerts": alerts[:5],
+                    "priority_cards": priorities[:5],
+                    "text": compact.get("text", ""),
+                }
+            )
+        if tool_name == "get_card_context":
+            card = compact.get("card") if isinstance(compact.get("card"), dict) else compact
+            vehicle_profile = card.get("vehicle_profile") if isinstance(card.get("vehicle_profile"), dict) else {}
+            repair_order = card.get("repair_order") if isinstance(card.get("repair_order"), dict) else {}
+            return self._preview_payload(
+                {
+                    "card": {
+                        "id": card.get("id"),
+                        "vehicle": card.get("vehicle"),
+                        "title": card.get("title"),
+                        "description": card.get("description"),
+                        "column": card.get("column"),
+                        "tags": card.get("tags"),
+                        "vin": vehicle_profile.get("vin") or repair_order.get("vin"),
+                    },
+                    "vehicle_profile": vehicle_profile,
+                    "repair_order": {
+                        "number": repair_order.get("number"),
+                        "status": repair_order.get("status"),
+                        "works_total": len(repair_order.get("works") or []),
+                        "materials_total": len(repair_order.get("materials") or []),
+                    },
+                    "events_total": len(compact.get("events") or []),
+                }
+            )
+        if tool_name == "search_cards":
+            cards = compact.get("cards") if isinstance(compact.get("cards"), list) else []
+            return self._preview_payload(
+                {
+                    "count": len(cards),
+                    "cards": [
+                        {
+                            "id": item.get("id"),
+                            "vehicle": item.get("vehicle"),
+                            "title": item.get("title"),
+                            "column": item.get("column"),
+                            "indicator": item.get("indicator"),
+                        }
+                        for item in cards[:8]
+                        if isinstance(item, dict)
+                    ],
+                }
+            )
+        if tool_name in {"search_part_numbers", "lookup_part_prices"}:
+            results = compact.get("results") if isinstance(compact.get("results"), list) else []
+            normalized_results: list[dict[str, Any]] = []
+            for item in results[:6]:
+                if not isinstance(item, dict):
+                    continue
+                normalized_results.append(
+                    {
+                        "title": item.get("title"),
+                        "domain": item.get("domain"),
+                        "url": item.get("url"),
+                        "snippet": item.get("snippet"),
+                        "prices": item.get("prices"),
+                    }
+                )
+            return self._preview_payload(
+                {
+                    "query": compact.get("part_query") or compact.get("query"),
+                    "vehicle_context": compact.get("vehicle_context"),
+                    "results": normalized_results,
+                }
+            )
+        if tool_name == "estimate_maintenance":
+            return self._preview_payload(
+                {
+                    "service_type": compact.get("service_type"),
+                    "vehicle_context": compact.get("vehicle_context"),
+                    "works": compact.get("works"),
+                    "materials": compact.get("materials"),
+                    "notes": compact.get("notes"),
+                }
+            )
+        if tool_name == "update_card":
+            return self._preview_payload(
+                {
+                    "card_id": compact.get("card_id") or compact.get("card", {}).get("id"),
+                    "changed": compact.get("changed"),
+                    "changed_fields": compact.get("meta", {}).get("changed_fields") if isinstance(compact.get("meta"), dict) else compact.get("changed"),
+                    "card": compact.get("card") if isinstance(compact.get("card"), dict) else {},
+                }
+            )
+        return self._preview_payload(compact)
+
+    def _build_user_task_message(self, task: dict[str, Any], metadata: dict[str, Any], *, task_type: str) -> str:
         lines = [
             f"Task id: {task['id']}",
             f"Mode: {task.get('mode', 'manual')}",
             f"Source: {task.get('source', 'manual')}",
+            f"Task type: {task_type}",
         ]
         requested_by = str(metadata.get("requested_by", "") or "").strip()
         if requested_by:
@@ -320,21 +465,161 @@ class AgentRunner:
             return ""
         return str(context.get("card_id", "") or "").strip()
 
+    def _context_kind(self, metadata: dict[str, Any]) -> str:
+        context = metadata.get("context") if isinstance(metadata.get("context"), dict) else {}
+        return str(context.get("kind", "") or "board").strip().lower() or "board"
+
+    def _classify_task(self, task: dict[str, Any], metadata: dict[str, Any]) -> str:
+        text = self._normalized_task_text(str(task.get("task_text", "") or ""))
+        if self._is_card_cleanup_task(task, metadata):
+            return "card_cleanup"
+        if "vin" in text or "расшифру" in text:
+            return "vin_decode"
+        if "запчаст" in text or "каталож" in text or "part number" in text or "oem" in text:
+            return "parts_lookup"
+        if "техобслуж" in text or "maintenance" in text or "service" in text or "процени то" in text or "то на" in text:
+            return "maintenance_estimate"
+        if "касс" in text or "оплат" in text or "cash" in text or "payment" in text:
+            return "cash_review"
+        if "обзор" in text or "просроч" in text or "review board" in text:
+            return "board_review"
+        return "general"
+
     def _is_card_cleanup_task(self, task: dict[str, Any], metadata: dict[str, Any]) -> bool:
         if not self._cleanup_card_id(metadata):
             return False
-        text = str(task.get("task_text", "") or "").strip().lower()
+        text = self._normalized_task_text(str(task.get("task_text", "") or ""))
         cleanup_markers = (
             "наведи порядок",
             "порядок в карточке",
-            "структурируй",
-            "заполни карточку",
+            "структурир",
+            "заполни карточ",
             "cleanup",
             "clean up",
             "tidy up",
             "structure the card",
         )
-        return any(marker in text for marker in cleanup_markers)
+        for marker in cleanup_markers:
+            if marker in text:
+                return True
+        return ("карточ" in text or "card" in text) and ("структур" in text or "заполни" in text or "поряд" in text)
+
+    def _normalized_task_text(self, value: str) -> str:
+        text = " ".join(str(value or "").strip().lower().split())
+        if not text:
+            return ""
+        repaired = self._repair_mojibake_text(text)
+        return repaired if self._task_text_score(repaired) > self._task_text_score(text) else text
+
+    def _repair_mojibake_text(self, text: str) -> str:
+        candidates = [text]
+        for encoding in ("latin1", "cp1251", "cp866"):
+            try:
+                repaired = text.encode(encoding).decode("utf-8")
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                continue
+            candidates.append(" ".join(repaired.lower().split()))
+        best = text
+        best_score = self._task_text_score(text)
+        for candidate in candidates[1:]:
+            score = self._task_text_score(candidate)
+            if score > best_score:
+                best = candidate
+                best_score = score
+        return best
+
+    def _task_text_score(self, text: str) -> int:
+        normalized = str(text or "").lower()
+        keywords = (
+            "наведи",
+            "поряд",
+            "карточ",
+            "структур",
+            "заполни",
+            "vin",
+            "расшифр",
+            "запчаст",
+            "каталож",
+            "касс",
+            "оплат",
+            "обзор",
+            "просроч",
+            "техобслуж",
+            "maintenance",
+            "service",
+        )
+        score = sum(8 for keyword in keywords if keyword in normalized)
+        score += sum(1 for char in normalized if ("а" <= char <= "я") or char == "ё")
+        score -= normalized.count("?") * 4
+        score -= normalized.count("�") * 6
+        return score
+
+    def _extract_card_update_apply(self, decision: dict[str, Any], *, cleanup_card_id: str) -> dict[str, Any] | None:
+        payload = decision.get("apply")
+        if not isinstance(payload, dict):
+            return None
+        if str(payload.get("type", "") or "").strip().lower() != "update_card":
+            return None
+        card_id = str(payload.get("card_id", "") or "").strip() or cleanup_card_id
+        if not card_id:
+            return None
+        update_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
+        normalized_payload: dict[str, Any] = {"card_id": card_id}
+        for field_name in ("vehicle", "title", "description", "deadline", "tags", "vehicle_profile", "repair_order"):
+            if field_name in update_payload:
+                normalized_payload[field_name] = update_payload[field_name]
+        return normalized_payload if len(normalized_payload) > 1 else None
+
+    def _summarize_applied_update(self, args: dict[str, Any], result_payload: dict[str, Any]) -> list[str]:
+        changed_payload = result_payload.get("changed")
+        if not isinstance(changed_payload, list):
+            meta = result_payload.get("meta") if isinstance(result_payload.get("meta"), dict) else {}
+            changed_payload = meta.get("changed_fields")
+        changed_fields = (
+            [str(item or "").strip() for item in changed_payload if str(item or "").strip()]
+            if isinstance(changed_payload, list)
+            else []
+        )
+        if not changed_fields:
+            changed_fields = [
+                field_name
+                for field_name in ("vehicle", "title", "description", "deadline", "tags", "vehicle_profile", "repair_order")
+                if field_name in args
+            ]
+        labels = {
+            "vehicle": "автомобиль",
+            "title": "краткая суть",
+            "description": "описание",
+            "deadline": "сигнал",
+            "tags": "метки",
+            "vehicle_profile": "паспорт автомобиля",
+            "repair_order": "заказ-наряд",
+        }
+        return [labels.get(item, item) for item in changed_fields]
+
+    def _append_applied_updates(self, display: dict[str, Any], applied_updates: list[str]) -> dict[str, Any]:
+        unique_updates: list[str] = []
+        seen: set[str] = set()
+        for item in applied_updates:
+            value = str(item or "").strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            unique_updates.append(value)
+        if not unique_updates:
+            return display
+        payload = dict(display)
+        sections = list(payload.get("sections") or [])
+        sections.insert(
+            0,
+            {
+                "title": "Применено",
+                "body": "",
+                "items": [f"Обновлено поле: {item}" for item in unique_updates],
+            },
+        )
+        payload["sections"] = sections[:6]
+        return payload
 
     def _card_cleanup_apply_instruction(self, card_id: str) -> str:
         return (

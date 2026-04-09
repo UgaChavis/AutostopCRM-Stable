@@ -1279,35 +1279,51 @@ class CardService:
             actor_name, source = self._audit_identity(payload, default_source="api")
 
             changed = False
+            changed_fields: list[str] = []
             if "vehicle" in payload:
-                changed = self._update_vehicle(card, payload.get("vehicle", ""), events, actor_name, source) or changed
+                vehicle_changed = self._update_vehicle(card, payload.get("vehicle", ""), events, actor_name, source)
+                changed = vehicle_changed or changed
+                if vehicle_changed:
+                    changed_fields.append("vehicle")
             if "vehicle_profile" in payload:
-                changed = (
-                    self._update_vehicle_profile(card, payload.get("vehicle_profile"), events, actor_name, source)
-                    or changed
-                )
+                profile_changed = self._update_vehicle_profile(card, payload.get("vehicle_profile"), events, actor_name, source)
+                changed = profile_changed or changed
+                if profile_changed:
+                    changed_fields.append("vehicle_profile")
             if "title" in payload:
-                changed = self._update_title(card, payload.get("title"), events, actor_name, source) or changed
+                title_changed = self._update_title(card, payload.get("title"), events, actor_name, source)
+                changed = title_changed or changed
+                if title_changed:
+                    changed_fields.append("title")
             if "description" in payload:
-                changed = self._update_description(card, payload.get("description", ""), events, actor_name, source) or changed
+                description_changed = self._update_description(card, payload.get("description", ""), events, actor_name, source)
+                changed = description_changed or changed
+                if description_changed:
+                    changed_fields.append("description")
             if "deadline" in payload:
-                changed = self._update_deadline(card, payload.get("deadline"), events, actor_name, source) or changed
+                deadline_changed = self._update_deadline(card, payload.get("deadline"), events, actor_name, source)
+                changed = deadline_changed or changed
+                if deadline_changed:
+                    changed_fields.append("deadline")
             if "tags" in payload:
-                changed = self._update_tags(card, payload.get("tags"), events, actor_name, source) or changed
+                tags_changed = self._update_tags(card, payload.get("tags"), events, actor_name, source)
+                changed = tags_changed or changed
+                if tags_changed:
+                    changed_fields.append("tags")
             if "repair_order" in payload:
-                changed = (
-                    self._update_repair_order(
-                        card,
-                        cards,
-                        payload.get("repair_order"),
-                        events,
-                        actor_name,
-                        source,
-                        cashboxes=bundle["cashboxes"],
-                        cash_transactions=bundle["cash_transactions"],
-                    )
-                    or changed
+                repair_order_changed = self._update_repair_order(
+                    card,
+                    cards,
+                    payload.get("repair_order"),
+                    events,
+                    actor_name,
+                    source,
+                    cashboxes=bundle["cashboxes"],
+                    cash_transactions=bundle["cash_transactions"],
                 )
+                changed = repair_order_changed or changed
+                if repair_order_changed:
+                    changed_fields.append("repair_order")
 
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
@@ -1335,7 +1351,11 @@ class CardService:
                     events,
                     column_labels=self._column_labels(bundle["columns"]),
                     include_removed_attachments=True,
-                )
+                ),
+                "meta": {
+                    "changed": changed or numbering_changed,
+                    "changed_fields": changed_fields,
+                },
             }
 
     def autofill_repair_order(self, payload: dict) -> dict:
@@ -1483,6 +1503,7 @@ class CardService:
             events = bundle["events"]
             card = self._find_card(cards, payload.get("card_id"))
             self._ensure_not_archived(card)
+            self._ensure_card_can_be_archived(card)
             actor_name, source = self._audit_identity(payload, default_source="api")
             card.archived = True
             self._touch_card(card, actor_name)
@@ -4103,6 +4124,21 @@ class CardService:
 
     def _card_has_repair_order(self, card: Card) -> bool:
         return not card.repair_order.is_empty()
+
+    def _card_has_open_repair_order(self, card: Card) -> bool:
+        return self._card_has_repair_order(card) and card.repair_order.status != REPAIR_ORDER_STATUS_CLOSED
+
+    def _ensure_card_can_be_archived(self, card: Card) -> None:
+        if not self._card_has_open_repair_order(card):
+            return
+        repair_order_number = str(card.repair_order.number or "").strip()
+        number_suffix = f" №{repair_order_number}" if repair_order_number else ""
+        self._fail(
+            "repair_order_open_archive_blocked",
+            f"Нельзя отправить карточку в архив: по ней открыт заказ-наряд{number_suffix}. Сначала закройте заказ-наряд или снимите его с карточки.",
+            status_code=409,
+            details={"card_id": card.id, "repair_order_number": repair_order_number},
+        )
 
     def _validated_repair_order_status(
         self,

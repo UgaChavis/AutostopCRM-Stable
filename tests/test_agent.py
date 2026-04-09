@@ -57,7 +57,12 @@ class _FakeBoardApi:
 
     def update_card(self, **kwargs) -> dict:
         self.calls.append(("update_card", kwargs))
-        return {"ok": True, "card_id": kwargs.get("card_id"), "changed": ["title", "description"]}
+        return {
+            "ok": True,
+            "card_id": kwargs.get("card_id"),
+            "changed": ["title", "description"],
+            "meta": {"changed": True, "changed_fields": ["title", "description"]},
+        }
 
 
 class AgentStorageTests(unittest.TestCase):
@@ -241,6 +246,53 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertEqual(update_call[1]["tags"], ["диагностика", "подвеска"])
             self.assertEqual(len(model.calls), 3)
             self.assertIn("Apply confident changes to card card-1 with update_card before the final answer.", model.calls[1]["messages"][-1]["content"])
+
+    def test_runner_applies_structured_card_update_from_final_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Наведи порядок в этой карточке.",
+                metadata={"context": {"kind": "card", "card_id": "card-1", "title": "Черновик"}},
+            )
+            logger = logging.getLogger("test.agent.runner.apply")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _FakeBoardApi()
+            model = _FakeModelClient(
+                [
+                    {
+                        "type": "final",
+                        "summary": "Карточка приведена в порядок",
+                        "result": "Изменения применены.",
+                        "display": {"title": "Карточка обновлена", "summary": "Нормализованы поля."},
+                        "apply": {
+                            "type": "update_card",
+                            "card_id": "card-1",
+                            "payload": {
+                                "title": "Mitsubishi L200 / диагностика",
+                                "description": "Структурированное описание.",
+                                "tags": ["диагностика"],
+                            },
+                        },
+                    }
+                ]
+            )
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=model,
+                logger=logger,
+            )
+            self.assertTrue(runner.run_once())
+            task = storage.list_tasks(limit=1)[0]
+            self.assertEqual(task["status"], "completed")
+            update_call = next(call for call in board_api.calls if call[0] == "update_card")
+            self.assertEqual(update_call[1]["card_id"], "card-1")
+            self.assertEqual(update_call[1]["title"], "Mitsubishi L200 / диагностика")
+            applied_section = task["display"]["sections"][0]
+            self.assertEqual(applied_section["title"], "Применено")
+            self.assertTrue(any("краткая суть" in item for item in applied_section["items"]))
 
     def test_tool_executor_exposes_automotive_internet_tools(self) -> None:
         executor = AgentRunner(

@@ -26,7 +26,7 @@ Response schema:
 {"type":"tool","tool":"tool_name","args":{...},"reason":"short reason"}
 
 2. Final answer:
-{"type":"final","summary":"one-line outcome","result":"fallback detailed user-facing result","display":{"emoji":"optional short emoji","title":"short heading","summary":"short lead paragraph","tone":"info|success|warning|error","sections":[{"title":"section heading","body":"optional short paragraph","items":["bullet 1","bullet 2"]}],"actions":["short follow-up action 1","short follow-up action 2"]}}
+{"type":"final","summary":"one-line outcome","result":"fallback detailed user-facing result","display":{"emoji":"optional short emoji","title":"short heading","summary":"short lead paragraph","tone":"info|success|warning|error","sections":[{"title":"section heading","body":"optional short paragraph","items":["bullet 1","bullet 2"]}],"actions":["short follow-up action 1","short follow-up action 2"]},"apply":{"type":"update_card","card_id":"current card id","payload":{"title":"optional","description":"optional","tags":["optional"],"vehicle":"optional","vehicle_profile":{"optional":"object"}},"changed_fields":["title","description"]}}
 """
 
 
@@ -53,6 +53,7 @@ CARD_CLEANUP_RULES = """Card cleanup rules:
 - Fill missing card fields only when the current card data supports them confidently.
 - Separate confirmed updates from guessed or missing data.
 - In cleanup tasks opened from a card, default behavior is to apply confident changes with update_card before the final answer.
+- In cleanup tasks, prefer returning a final answer with an apply.update_card payload so the runner can validate and apply the card update deterministically.
 - Do not stop at analysis only if the request clearly asks to tidy up, structure, or fill the card.
 - If no safe changes can be applied, say explicitly that no card fields were changed and why.
 - In cleanup tasks, prefer applying a normalized card payload with clearer title, description, tags, and vehicle profile.

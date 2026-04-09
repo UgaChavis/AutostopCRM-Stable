@@ -221,9 +221,16 @@ class AgentToolExecutor:
             ),
         ]
 
-    def describe_for_prompt(self) -> str:
+    def describe_for_prompt(
+        self,
+        *,
+        task_type: str | None = None,
+        context_kind: str | None = None,
+    ) -> str:
         lines: list[str] = []
         for item in self.definitions:
+            if not self._definition_allowed(item.name, task_type=task_type, context_kind=context_kind):
+                continue
             lines.append(f"- {item.name}: {item.description}")
             lines.append(f"  args: {json.dumps(item.args_schema, ensure_ascii=False)}")
         return "\n".join(lines)
@@ -452,3 +459,81 @@ class AgentToolExecutor:
 
     def _maybe_list(self, value: Any) -> list[Any] | None:
         return value if isinstance(value, list) else None
+
+    def _definition_allowed(self, tool_name: str, *, task_type: str | None, context_kind: str | None) -> bool:
+        normalized_type = str(task_type or "").strip().lower()
+        normalized_context = str(context_kind or "").strip().lower()
+        all_tools = {item.name for item in self.definitions}
+        core_board = {
+            "ping_connector",
+            "review_board",
+            "list_columns",
+            "get_board_snapshot",
+            "search_cards",
+            "get_card",
+            "get_card_context",
+            "list_repair_orders",
+            "get_repair_order",
+            "list_cashboxes",
+            "get_cashbox",
+        }
+        card_update = {
+            "get_card",
+            "get_card_context",
+            "update_card",
+            "move_card",
+            "archive_card",
+            "restore_card",
+        }
+        repair_order = {
+            "get_repair_order",
+            "update_repair_order",
+            "replace_repair_order_works",
+            "replace_repair_order_materials",
+            "set_repair_order_status",
+        }
+        cashboxes = {
+            "list_cashboxes",
+            "get_cashbox",
+            "create_cashbox",
+            "delete_cashbox",
+            "create_cash_transaction",
+        }
+        automotive = {
+            "decode_vin",
+            "search_part_numbers",
+            "lookup_part_prices",
+            "estimate_maintenance",
+            "search_web",
+            "fetch_page_excerpt",
+        }
+
+        if normalized_type == "board_review":
+            allowed = core_board
+        elif normalized_type == "card_cleanup":
+            allowed = core_board | card_update | repair_order | automotive
+        elif normalized_type == "vin_decode":
+            allowed = card_update | {"get_repair_order"} | {"decode_vin", "search_web", "fetch_page_excerpt"}
+        elif normalized_type == "parts_lookup":
+            allowed = card_update | {"get_repair_order"} | {
+                "decode_vin",
+                "search_part_numbers",
+                "lookup_part_prices",
+                "search_web",
+                "fetch_page_excerpt",
+            }
+        elif normalized_type == "maintenance_estimate":
+            allowed = card_update | {"get_repair_order"} | {
+                "estimate_maintenance",
+                "search_part_numbers",
+                "lookup_part_prices",
+                "decode_vin",
+            }
+        elif normalized_type == "cash_review":
+            allowed = core_board | cashboxes
+        else:
+            allowed = all_tools
+
+        if normalized_context == "card":
+            allowed |= {"get_card_context", "update_card", "get_repair_order"}
+        return tool_name in allowed

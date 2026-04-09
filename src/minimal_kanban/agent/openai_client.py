@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import httpx
@@ -58,15 +59,7 @@ class OpenAIJsonAgentClient:
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
-        try:
-            with httpx.Client(timeout=self._timeout_seconds) as client:
-                response = client.post(f"{self._base_url}/responses", headers=headers, json=payload)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            message = self._extract_error_message(exc.response)
-            raise AgentModelError(f"Agent model request failed: {message}") from exc
-        except httpx.HTTPError as exc:
-            raise AgentModelError(f"Agent model request failed: {exc}") from exc
+        response = self._post_with_retry(headers=headers, payload=payload)
         try:
             payload = response.json()
             message = self._extract_output_text(payload)
@@ -138,3 +131,26 @@ class OpenAIJsonAgentClient:
         if not isinstance(payload, dict):
             raise AgentModelError("Agent model returned a non-object JSON payload.")
         return payload
+
+    def _post_with_retry(self, *, headers: dict[str, str], payload: dict[str, Any]) -> httpx.Response:
+        last_error: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                with httpx.Client(timeout=self._timeout_seconds) as client:
+                    response = client.post(f"{self._base_url}/responses", headers=headers, json=payload)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                if not self._should_retry_status(exc.response.status_code) or attempt >= 3:
+                    message = self._extract_error_message(exc.response)
+                    raise AgentModelError(f"Agent model request failed: {message}") from exc
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt >= 3:
+                    raise AgentModelError(f"Agent model request failed: {exc}") from exc
+            time.sleep(0.6 * attempt)
+        raise AgentModelError(f"Agent model request failed: {last_error}")
+
+    def _should_retry_status(self, status_code: int) -> bool:
+        return status_code in {408, 409, 429, 500, 502, 503, 504}

@@ -12,7 +12,7 @@ from .web_tools import DuckDuckGoSearchClient, InternetToolError
 
 _PRICE_PATTERN = re.compile(r"(\d[\d\s]{2,}(?:[.,]\d{1,2})?)\s*(₽|руб(?:\.|лей|ля)?|KZT|₸|\$|€)", re.I)
 _DEFAULT_SERVICE_TYPE = "ТО"
-_MAINTENANCE_HINTS = ("то", "техобслуж", "техническ", "service", "oil")
+_MAINTENANCE_HINTS = ("то", "техобслуж", "техничес", "service", "oil")
 _BRAKE_HINTS = ("торм", "brake")
 _SUSPENSION_HINTS = ("подвес", "ходов", "suspension")
 _SPARK_HINTS = ("свеч", "spark")
@@ -134,17 +134,15 @@ class AutomotiveLookupService:
         service_type: str = _DEFAULT_SERVICE_TYPE,
     ) -> dict[str, Any]:
         context = self._normalize_vehicle_context(vehicle_context)
-        normalized_service = str(service_type or _DEFAULT_SERVICE_TYPE).strip() or _DEFAULT_SERVICE_TYPE
+        normalized_service = self._normalize_service_type(service_type)
         lower = normalized_service.casefold()
-        works = [
-            {"name": "Диагностика и осмотр автомобиля", "quantity": "1"},
-        ]
+        works = [{"name": "Диагностика и осмотр автомобиля", "quantity": "1"}]
         materials = [
-            {"name": "Масло моторное", "quantity": "1"},
+            {"name": "Моторное масло", "quantity": "1"},
             {"name": "Масляный фильтр", "quantity": "1"},
         ]
         notes = [
-            "Материалы и работы являются предварительным списком.",
+            "Список работ и материалов предварительный.",
             "Для точной цены по материалам используйте lookup_part_prices после уточнения каталожных номеров.",
         ]
         if lower == "то" or self._contains_any(lower, _MAINTENANCE_HINTS):
@@ -262,6 +260,12 @@ class AutomotiveLookupService:
             seen.add(key)
             prices.append({"amount": amount.strip(), "currency": currency.strip()})
         return prices[:5]
+
+    def _normalize_service_type(self, value: str) -> str:
+        text = str(value or "").strip()
+        if text in {"РўРћ", "Ð¢Ðž"}:
+            return "ТО"
+        return text or _DEFAULT_SERVICE_TYPE
 
     def _text(self, value: Any) -> str:
         return str(value or "").strip()

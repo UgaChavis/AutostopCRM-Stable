@@ -8624,6 +8624,8 @@ function renderCompactArchiveRows(cards) {
         if (data?.card && applyArchivedCardPatch(data.card)) return;
         await refreshSnapshot(true);
       } catch (error) {
+        const message = String(error?.message || '').trim();
+        if (message.includes('открыт заказ-наряд')) window.alert(message);
         setStatus(error.message, true);
       }
     }
@@ -8652,23 +8654,19 @@ function renderCompactArchiveRows(cards) {
     }
 
     function handleStickyModalOverlayClick(event) {
-      if (!(event.target instanceof HTMLElement)) return;
-      if (event.target.classList.contains('modal')) closeStickyModal();
+      return;
     }
 
     function handleRepairOrderModalOverlayClick(event) {
-      if (!(event.target instanceof HTMLElement)) return;
-      if (event.target.classList.contains('modal')) closeRepairOrderModal();
+      return;
     }
 
     function handleRepairOrderPaymentsModalOverlayClick(event) {
-      if (!(event.target instanceof HTMLElement)) return;
-      if (event.target.classList.contains('modal')) closeRepairOrderPaymentsModal();
+      return;
     }
 
     function handleAgentModalOverlayClick(event) {
-      if (!(event.target instanceof HTMLElement)) return;
-      if (event.target.classList.contains('modal')) closeAgentModal();
+      return;
     }
 
     function handleAgentQuickActionClick(event) {
@@ -8695,13 +8693,11 @@ function renderCompactArchiveRows(cards) {
     }
 
     function handleOperatorProfileModalOverlayClick(event) {
-      if (!(event.target instanceof HTMLElement)) return;
-      if (event.target.classList.contains('modal')) els.operatorProfileModal.classList.remove('is-open');
+      return;
     }
 
     function handleOperatorAdminModalOverlayClick(event) {
-      if (!(event.target instanceof HTMLElement)) return;
-      if (event.target.classList.contains('modal')) els.operatorAdminModal.classList.remove('is-open');
+      return;
     }
 
     function buildStickyPayload() {
