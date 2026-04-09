@@ -4,6 +4,7 @@ import base64
 import json
 from datetime import datetime, timedelta, timezone
 import logging
+from datetime import datetime as dt
 import sys
 import tempfile
 import unittest
@@ -140,6 +141,59 @@ class CardServiceTests(unittest.TestCase):
 
         archived = self.service.archive_card({"card_id": card_id})
         self.assertTrue(archived["card"]["archived"])
+
+    def test_closing_repair_order_accrues_employee_salary(self) -> None:
+        employee = self.service.save_employee(
+            {
+                "name": "Иван Мастер",
+                "position": "Механик",
+                "salary_mode": "salary_plus_percent",
+                "base_salary": "50000",
+                "work_percent": "30",
+            }
+        )["employee"]
+        created = self.service.create_card(
+            {
+                "vehicle": "Mitsubishi L200",
+                "title": "Начисление зарплаты",
+                "description": "Проверка закрытия наряда",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+        updated = self.service.update_card(
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "number": "27",
+                    "status": "open",
+                    "client": "Витя Покровский",
+                    "vehicle": "Mitsubishi L200",
+                    "works": [
+                        {
+                            "name": "Диагностика",
+                            "quantity": "1",
+                            "price": "5000",
+                            "executor_id": employee["id"],
+                        }
+                    ],
+                },
+            }
+        )
+        self.assertEqual(updated["card"]["repair_order"]["works"][0]["executor_id"], employee["id"])
+
+        closed = self.service.set_repair_order_status({"card_id": card_id, "status": "closed"})
+        closed_row = closed["repair_order"]["works"][0]
+        self.assertEqual(closed_row["executor_name"], "Иван Мастер")
+        self.assertEqual(closed_row["salary_amount"], "1500")
+
+        closed_month = dt.strptime(closed["repair_order"]["closed_at"], "%d.%m.%Y %H:%M").strftime("%Y-%m")
+        report = self.service.get_payroll_report({"month": closed_month})
+        summary = next(item for item in report["summary"] if item["employee_id"] == employee["id"])
+        self.assertEqual(summary["works_count"], 1)
+        self.assertEqual(summary["accrued_total"], "1500")
+        self.assertEqual(summary["base_salary"], "50000")
+        self.assertEqual(summary["total_salary"], "51500")
 
     def test_supports_large_card_description(self) -> None:
         large_description = "А" * 12000

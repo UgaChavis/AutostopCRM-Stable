@@ -3173,6 +3173,111 @@ BOARD_WEB_APP_HTML = "".join(
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .employees-layout {
+      display: grid;
+      grid-template-columns: 304px minmax(0, 1fr);
+      gap: 14px;
+      min-height: 620px;
+    }
+    .employees-pane {
+      display: grid;
+      gap: 12px;
+      min-height: 0;
+    }
+    .employees-list {
+      display: grid;
+      gap: 8px;
+      max-height: 560px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .employees-row {
+      border: 1px solid var(--line);
+      background: rgba(21, 29, 23, 0.68);
+      padding: 10px 12px;
+      cursor: pointer;
+      display: grid;
+      gap: 4px;
+    }
+    .employees-row.is-active {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(182, 177, 116, 0.16);
+    }
+    .employees-row__title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .employees-row__meta {
+      font-size: 11px;
+      opacity: 0.78;
+    }
+    .employees-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .employees-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+    }
+    .employees-form-grid .field--wide {
+      grid-column: 1 / -1;
+    }
+    .employees-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+    .employees-table-wrap {
+      overflow: auto;
+      max-height: 300px;
+      border: 1px solid var(--line);
+      background: rgba(18, 24, 20, 0.6);
+    }
+    .employees-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .employees-table th,
+    .employees-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(164, 173, 138, 0.1);
+      text-align: left;
+      vertical-align: top;
+    }
+    .employees-table th {
+      position: sticky;
+      top: 0;
+      background: rgba(31, 39, 33, 0.98);
+      z-index: 1;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(231, 226, 193, 0.72);
+    }
+    .employees-table td.is-num,
+    .employees-table th.is-num {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .repair-order-table__select {
+      width: 100%;
+      min-height: 36px;
+      background: rgba(18, 24, 20, 0.84);
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
   </style>
 </head>
 <body>
@@ -3197,6 +3302,7 @@ BOARD_WEB_APP_HTML = "".join(
         <button class="btn" id="archiveButton">АРХИВ</button>
         <button class="btn" id="repairOrdersButton">ЗАКАЗ-НАРЯДЫ</button>
         <button class="btn" id="cashboxesButton">КАССЫ</button>
+        <button class="btn" id="employeesButton">СОТРУДНИКИ</button>
         <button class="btn btn--ghost" id="gptWallButton">СТЕНА</button>
         <button class="btn" id="columnButton">+ СТОЛБЕЦ</button>
         <button class="btn btn--accent" id="cardButton">+ КАРТОЧКА</button>
@@ -3708,10 +3814,11 @@ BOARD_WEB_APP_HTML = "".join(
             <table class="repair-order-table">
               <thead>
                 <tr>
-                  <th style="width:55%;">Наименование</th>
-                  <th class="repair-order-table__numeric" style="width:10%;">Кол-во</th>
-                  <th class="repair-order-table__numeric" style="width:15%;">Цена</th>
-                  <th class="repair-order-table__numeric" style="width:16%;">Сумма</th>
+                  <th style="width:40%;">Наименование</th>
+                  <th style="width:18%;">Исполнитель</th>
+                  <th class="repair-order-table__numeric" style="width:9%;">Кол-во</th>
+                  <th class="repair-order-table__numeric" style="width:14%;">Цена</th>
+                  <th class="repair-order-table__numeric" style="width:15%;">Сумма</th>
                   <th class="repair-order-table__action" style="width:4%;"></th>
                 </tr>
               </thead>
@@ -3834,6 +3941,10 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxes: [],
       activeCashboxId: '',
       activeCashbox: null,
+      employees: [],
+      activeEmployeeId: '',
+      payrollMonth: '',
+      payrollReport: null,
       repairOrderTags: [],
       repairOrderPayments: [],
       repairOrderTagColor: 'green',
@@ -4015,9 +4126,65 @@ BOARD_WEB_APP_HTML = "".join(
       return;
     }
 
+    function ensureEmployeesUi() {
+      if (document.getElementById('employeesModal')) return;
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        ''
+          + '<div class="modal" id="employeesModal">'
+            + '<div class="dialog" style="width:min(1320px,100%);">'
+              + '<div class="dialog__head">'
+                + '<div class="dialog__title">СОТРУДНИКИ</div>'
+                + '<button class="btn" data-close="employees">ЗАКРЫТЬ</button>'
+              + '</div>'
+              + '<div class="employees-layout">'
+                + '<div class="subpanel employees-pane">'
+                  + '<div class="panel-title">СПИСОК</div>'
+                  + '<div class="employees-actions">'
+                    + '<button class="btn" id="employeesCreateButton" type="button">+ СОТРУДНИК</button>'
+                    + '<input class="repair-orders-search" id="employeesMonthInput" type="month">'
+                  + '</div>'
+                  + '<div class="employees-list" id="employeesList"></div>'
+                + '</div>'
+                + '<div class="employees-pane">'
+                  + '<div class="subpanel">'
+                    + '<div class="panel-title">КАРТОЧКА</div>'
+                    + '<div class="employees-form-grid">'
+                      + '<div class="field"><label for="employeeNameInput">ИМЯ</label><input id="employeeNameInput" type="text" maxlength="80"></div>'
+                      + '<div class="field"><label for="employeePositionInput">ДОЛЖНОСТЬ</label><input id="employeePositionInput" type="text" maxlength="80"></div>'
+                      + '<div class="field"><label for="employeeSalaryModeInput">СХЕМА</label><select id="employeeSalaryModeInput"><option value="salary_plus_percent">ОКЛАД + %</option><option value="percent_only">% ОТ РАБОТ</option><option value="salary_only">ТОЛЬКО ОКЛАД</option></select></div>'
+                      + '<div class="field"><label for="employeeBaseSalaryInput">ОКЛАД</label><input id="employeeBaseSalaryInput" type="text" inputmode="decimal" maxlength="40"></div>'
+                      + '<div class="field"><label for="employeeWorkPercentInput">ПРОЦЕНТ</label><input id="employeeWorkPercentInput" type="text" inputmode="decimal" maxlength="40"></div>'
+                      + '<div class="field field--wide"><label for="employeeNoteInput">ЗАМЕТКА</label><input id="employeeNoteInput" type="text" maxlength="240"></div>'
+                      + '<label class="employees-check field--wide"><input id="employeeActiveInput" type="checkbox" checked> АКТИВЕН</label>'
+                    + '</div>'
+                    + '<div class="employees-actions" style="margin-top:12px;">'
+                      + '<div class="cashboxes-meta" id="employeesMeta">ВНУТРЕННИЙ МОДУЛЬ НАЧИСЛЕНИЙ.</div>'
+                      + '<div style="display:flex; gap:8px;">'
+                        + '<button class="btn btn--ghost" id="employeeToggleButton" type="button">ВКЛ/ВЫКЛ</button>'
+                        + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
+                      + '</div>'
+                    + '</div>'
+                  + '</div>'
+                  + '<div class="subpanel">'
+                    + '<div class="panel-title">НАЧИСЛЕНИЯ</div>'
+                    + '<div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>СОТРУДНИК</th><th>ДОЛЖНОСТЬ</th><th class="is-num">РАБОТ</th><th class="is-num">ПО РАБОТАМ</th><th class="is-num">ОКЛАД</th><th class="is-num">ИТОГ</th></tr></thead><tbody id="employeesSummaryTable"></tbody></table></div>'
+                  + '</div>'
+                  + '<div class="subpanel">'
+                    + '<div class="panel-title">СТРОКИ</div>'
+                    + '<div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>ДАТА</th><th>НАРЯД</th><th>АВТО</th><th>РАБОТА</th><th class="is-num">СУММА</th><th class="is-num">НАЧИСЛЕНО</th></tr></thead><tbody id="employeesDetailTable"></tbody></table></div>'
+                  + '</div>'
+                + '</div>'
+              + '</div>'
+            + '</div>'
+          + '</div>'
+      );
+    }
+
     ensureRepairOrderPaymentsUi();
     ensureAgentUi();
     ensureCashboxesUi();
+    ensureEmployeesUi();
 
     const els = {
       boardScroll: document.querySelector('.board-scroll'),
@@ -4031,6 +4198,7 @@ BOARD_WEB_APP_HTML = "".join(
       archiveButton: document.getElementById('archiveButton'),
       repairOrdersButton: document.getElementById('repairOrdersButton'),
       cashboxesButton: document.getElementById('cashboxesButton'),
+      employeesButton: document.getElementById('employeesButton'),
       repairOrdersSearchInput: document.getElementById('repairOrdersSearchInput'),
       repairOrdersSortBy: document.getElementById('repairOrdersSortBy'),
       repairOrdersSortDir: document.getElementById('repairOrdersSortDir'),
@@ -4068,6 +4236,22 @@ BOARD_WEB_APP_HTML = "".join(
       archiveList: document.getElementById('archiveList'),
       repairOrdersModal: document.getElementById('repairOrdersModal'),
       cashboxesModal: document.getElementById('cashboxesModal'),
+      employeesModal: document.getElementById('employeesModal'),
+      employeesList: document.getElementById('employeesList'),
+      employeesMonthInput: document.getElementById('employeesMonthInput'),
+      employeesMeta: document.getElementById('employeesMeta'),
+      employeesSummaryTable: document.getElementById('employeesSummaryTable'),
+      employeesDetailTable: document.getElementById('employeesDetailTable'),
+      employeesCreateButton: document.getElementById('employeesCreateButton'),
+      employeeNameInput: document.getElementById('employeeNameInput'),
+      employeePositionInput: document.getElementById('employeePositionInput'),
+      employeeSalaryModeInput: document.getElementById('employeeSalaryModeInput'),
+      employeeBaseSalaryInput: document.getElementById('employeeBaseSalaryInput'),
+      employeeWorkPercentInput: document.getElementById('employeeWorkPercentInput'),
+      employeeNoteInput: document.getElementById('employeeNoteInput'),
+      employeeActiveInput: document.getElementById('employeeActiveInput'),
+      employeeToggleButton: document.getElementById('employeeToggleButton'),
+      employeeSaveButton: document.getElementById('employeeSaveButton'),
       cashboxesMeta: document.getElementById('cashboxesMeta'),
       cashboxesList: document.getElementById('cashboxesList'),
       cashboxNameInput: document.getElementById('cashboxNameInput'),
@@ -4540,6 +4724,7 @@ BOARD_WEB_APP_HTML = "".join(
         archive: () => els.archiveModal.classList.remove('is-open'),
         'repair-orders': () => els.repairOrdersModal.classList.remove('is-open'),
         cashboxes: () => els.cashboxesModal.classList.remove('is-open'),
+        employees: () => els.employeesModal.classList.remove('is-open'),
         agent: () => closeAgentModal(),
         wall: () => els.gptWallModal.classList.remove('is-open'),
         settings: () => els.boardSettingsModal.classList.remove('is-open'),
@@ -4567,6 +4752,207 @@ BOARD_WEB_APP_HTML = "".join(
         setStatus(error.message, true);
         return null;
       }
+    }
+
+    function currentPayrollMonthValue() {
+      const now = new Date();
+      return String(now.getFullYear()) + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    }
+
+    function selectedEmployeeRecord() {
+      return (state.employees || []).find((item) => item.id === state.activeEmployeeId) || null;
+    }
+
+    function fillEmployeeForm(employee) {
+      const current = employee || null;
+      els.employeeNameInput.value = current?.name || '';
+      els.employeePositionInput.value = current?.position || '';
+      els.employeeSalaryModeInput.value = current?.salary_mode || 'salary_plus_percent';
+      els.employeeBaseSalaryInput.value = current?.base_salary || '';
+      els.employeeWorkPercentInput.value = current?.work_percent || '';
+      els.employeeNoteInput.value = current?.note || '';
+      els.employeeActiveInput.checked = current ? Boolean(current.is_active) : true;
+      els.employeeToggleButton.disabled = !current;
+    }
+
+    function readEmployeeFormPayload() {
+      return {
+        employee_id: state.activeEmployeeId || '',
+        name: els.employeeNameInput.value,
+        position: els.employeePositionInput.value,
+        salary_mode: els.employeeSalaryModeInput.value,
+        base_salary: els.employeeBaseSalaryInput.value,
+        work_percent: els.employeeWorkPercentInput.value,
+        note: els.employeeNoteInput.value,
+        is_active: Boolean(els.employeeActiveInput.checked),
+        actor_name: state.actor,
+        source: 'ui',
+      };
+    }
+
+    function renderEmployeesList() {
+      const employees = Array.isArray(state.employees) ? state.employees : [];
+      if (!employees.length) {
+        els.employeesList.innerHTML = '<div class="cashboxes-empty">Сотрудников пока нет.</div>';
+        return;
+      }
+      els.employeesList.innerHTML = employees.map((employee) => {
+        const isActive = employee.id === state.activeEmployeeId;
+        const modeLabel = employee.salary_mode === 'salary_only'
+          ? 'ОКЛАД'
+          : (employee.salary_mode === 'percent_only' ? '% ОТ РАБОТ' : 'ОКЛАД + %');
+        const meta = [
+          employee.position || 'Без должности',
+          employee.base_salary ? ('Оклад ' + employee.base_salary) : '',
+          employee.work_percent ? (employee.work_percent + '%') : '',
+          modeLabel,
+          employee.is_active ? '' : 'Отключен',
+        ].filter(Boolean).join(' · ');
+        return '<button class="employees-row' + (isActive ? ' is-active' : '') + '" type="button" data-employee-id="' + escapeHtml(employee.id) + '"><div class="employees-row__title">' + escapeHtml(employee.name) + '</div><div class="employees-row__meta">' + escapeHtml(meta) + '</div></button>';
+      }).join('');
+    }
+
+    function renderEmployeesSummary() {
+      const rows = Array.isArray(state.payrollReport?.summary) ? state.payrollReport.summary : [];
+      if (!rows.length) {
+        els.employeesSummaryTable.innerHTML = '<tr><td colspan="6">Начислений нет.</td></tr>';
+        return;
+      }
+      els.employeesSummaryTable.innerHTML = rows.map((row) => {
+        return '<tr data-employee-id="' + escapeHtml(row.employee_id) + '">' +
+          '<td>' + escapeHtml(row.employee_name || '-') + '</td>' +
+          '<td>' + escapeHtml(row.position || '-') + '</td>' +
+          '<td class="is-num">' + escapeHtml(row.works_count || 0) + '</td>' +
+          '<td class="is-num">' + escapeHtml(row.accrued_total || '0') + '</td>' +
+          '<td class="is-num">' + escapeHtml(row.base_salary || '0') + '</td>' +
+          '<td class="is-num">' + escapeHtml(row.total_salary || '0') + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function renderEmployeesDetails() {
+      const selectedId = String(state.activeEmployeeId || '').trim();
+      const rows = Array.isArray(state.payrollReport?.detail_rows) ? state.payrollReport.detail_rows : [];
+      const visibleRows = selectedId ? rows.filter((item) => String(item.employee_id || '').trim() === selectedId) : rows;
+      if (!visibleRows.length) {
+        els.employeesDetailTable.innerHTML = '<tr><td colspan="6">Строк начисления нет.</td></tr>';
+        return;
+      }
+      els.employeesDetailTable.innerHTML = visibleRows.map((row) => {
+        return '<tr>' +
+          '<td>' + escapeHtml(row.closed_at || '-') + '</td>' +
+          '<td>' + escapeHtml(row.repair_order_number || '-') + '</td>' +
+          '<td>' + escapeHtml(row.vehicle || '-') + '</td>' +
+          '<td>' + escapeHtml(row.work_name || '-') + '</td>' +
+          '<td class="is-num">' + escapeHtml(row.work_total || '0') + '</td>' +
+          '<td class="is-num">' + escapeHtml(row.salary_amount || '0') + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function renderEmployeesWorkspace() {
+      const employees = Array.isArray(state.employees) ? state.employees : [];
+      if (!state.activeEmployeeId && employees.length) {
+        state.activeEmployeeId = employees[0].id;
+      }
+      if (state.activeEmployeeId && !employees.some((item) => item.id === state.activeEmployeeId)) {
+        state.activeEmployeeId = employees[0]?.id || '';
+      }
+      if (els.employeesMonthInput) {
+        els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
+      }
+      fillEmployeeForm(selectedEmployeeRecord());
+      renderEmployeesList();
+      renderEmployeesSummary();
+      renderEmployeesDetails();
+      const summaryRows = Array.isArray(state.payrollReport?.summary) ? state.payrollReport.summary : [];
+      const selectedSummary = summaryRows.find((item) => item.employee_id === state.activeEmployeeId) || null;
+      els.employeesMeta.textContent = selectedSummary
+        ? ('МЕСЯЦ ' + (state.payrollMonth || currentPayrollMonthValue()) + ' · ИТОГ ' + (selectedSummary.total_salary || '0'))
+        : ('МЕСЯЦ ' + (state.payrollMonth || currentPayrollMonthValue()));
+    }
+
+    async function loadEmployeesReference() {
+      const month = state.payrollMonth || currentPayrollMonthValue();
+      const data = await api('/api/list_employees?month=' + encodeURIComponent(month));
+      state.employees = Array.isArray(data?.employees) ? data.employees : [];
+      if (!state.activeEmployeeId && state.employees.length) {
+        state.activeEmployeeId = state.employees[0].id;
+      }
+      return data;
+    }
+
+    async function loadPayrollReport() {
+      const month = state.payrollMonth || currentPayrollMonthValue();
+      state.payrollReport = await api('/api/get_payroll_report?month=' + encodeURIComponent(month));
+      return state.payrollReport;
+    }
+
+    function refreshRepairOrderEmployeeSelects() {
+      if (!els.repairOrderModal?.classList.contains('is-open')) return;
+      renderRepairOrderRows('works', readRepairOrderRows('works'));
+    }
+
+    async function loadEmployeesWorkspace(openModal = false) {
+      state.payrollMonth = (els.employeesMonthInput?.value || state.payrollMonth || currentPayrollMonthValue());
+      await loadEmployeesReference();
+      await loadPayrollReport();
+      renderEmployeesWorkspace();
+      refreshRepairOrderEmployeeSelects();
+      if (openModal) els.employeesModal.classList.add('is-open');
+    }
+
+    function resetEmployeeForm() {
+      state.activeEmployeeId = '';
+      fillEmployeeForm(null);
+      renderEmployeesList();
+      renderEmployeesDetails();
+    }
+
+    function openEmployeesModal() {
+      if (els.employeesMonthInput && !els.employeesMonthInput.value) {
+        els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
+      }
+      loadEmployeesWorkspace(true).catch((error) => setStatus(error.message, true));
+    }
+
+    async function saveEmployee() {
+      try {
+        const data = await api('/api/save_employee', { method: 'POST', body: readEmployeeFormPayload() });
+        state.employees = Array.isArray(data?.employees) ? data.employees : [];
+        state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
+        await loadPayrollReport();
+        renderEmployeesWorkspace();
+        refreshRepairOrderEmployeeSelects();
+        setStatus('СОТРУДНИК СОХРАНЕН.', false);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    async function toggleEmployee() {
+      if (!state.activeEmployeeId) return;
+      try {
+        const data = await api('/api/toggle_employee', {
+          method: 'POST',
+          body: { employee_id: state.activeEmployeeId, actor_name: state.actor, source: 'ui' },
+        });
+        state.employees = Array.isArray(data?.employees) ? data.employees : [];
+        await loadPayrollReport();
+        renderEmployeesWorkspace();
+        refreshRepairOrderEmployeeSelects();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    function handleEmployeesListClick(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const row = target.closest('[data-employee-id]');
+      if (!(row instanceof HTMLElement)) return;
+      state.activeEmployeeId = String(row.dataset.employeeId || '').trim();
+      renderEmployeesWorkspace();
     }
 
     function boardAgentContext() {
@@ -6057,7 +6443,19 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function emptyRepairOrderRow() {
-      return { name: '', quantity: '', price: '', total: '' };
+      return {
+        name: '',
+        quantity: '',
+        price: '',
+        total: '',
+        executor_id: '',
+        executor_name: '',
+        salary_mode_snapshot: '',
+        base_salary_snapshot: '',
+        work_percent_snapshot: '',
+        salary_amount: '',
+        salary_accrued_at: '',
+      };
     }
 
     function repairOrderParseNumber(value) {
@@ -6270,6 +6668,13 @@ BOARD_WEB_APP_HTML = "".join(
         quantity: String(source.quantity ?? '').trim(),
         price: String(source.price ?? '').trim(),
         total: totalValue === null ? fallbackTotal : repairOrderNumberToRaw(totalValue),
+        executor_id: String(source.executor_id ?? source.employee_id ?? '').trim(),
+        executor_name: String(source.executor_name ?? source.employee_name ?? '').trim(),
+        salary_mode_snapshot: String(source.salary_mode_snapshot ?? '').trim(),
+        base_salary_snapshot: String(source.base_salary_snapshot ?? '').trim(),
+        work_percent_snapshot: String(source.work_percent_snapshot ?? '').trim(),
+        salary_amount: String(source.salary_amount ?? '').trim(),
+        salary_accrued_at: String(source.salary_accrued_at ?? '').trim(),
       };
     }
 
@@ -6523,12 +6928,34 @@ BOARD_WEB_APP_HTML = "".join(
       return '<input class="repair-order-table__input' + (isNumeric ? ' repair-order-table__input--num' : '') + '" type="text"' + (isNumeric ? ' inputmode="decimal"' : '') + ' data-repair-order-cell="' + escapeHtml(fieldName) + '" value="' + escapeHtml(value) + '" placeholder="' + escapeHtml(placeholder) + '">';
     }
 
+    function repairOrderExecutorOptionsHtml(selectedId, selectedName = '') {
+      const options = ['<option value="">—</option>'];
+      const employees = Array.isArray(state.employees) ? state.employees.filter((item) => item && item.is_active) : [];
+      const rendered = new Set();
+      employees.forEach((employee) => {
+        const employeeId = String(employee.id || '').trim();
+        if (!employeeId || rendered.has(employeeId)) return;
+        rendered.add(employeeId);
+        options.push(
+          '<option value="' + escapeHtml(employeeId) + '"' + (employeeId === selectedId ? ' selected' : '') + '>' + escapeHtml(employee.name || 'Сотрудник') + '</option>'
+        );
+      });
+      if (selectedId && !rendered.has(selectedId)) {
+        options.push('<option value="' + escapeHtml(selectedId) + '" selected>' + escapeHtml(selectedName || 'Сотрудник') + '</option>');
+      }
+      return options.join('');
+    }
+
     function repairOrderRowHtml(section, row, index) {
       const normalized = normalizeRepairOrderRow(row);
       const totalValue = repairOrderResolvedRowTotalValue(normalized);
       const hasDisplayTotal = totalValue !== null || Boolean(normalized.total);
-      return '<tr data-repair-order-row="' + escapeHtml(section) + '" data-repair-order-total-raw="' + escapeHtml(normalized.total) + '">' +
+      const executorCell = section === 'works'
+        ? '<td><select class="repair-order-table__select" data-repair-order-cell="executor_id">' + repairOrderExecutorOptionsHtml(normalized.executor_id, normalized.executor_name) + '</select></td>'
+        : '';
+      return '<tr data-repair-order-row="' + escapeHtml(section) + '" data-repair-order-total-raw="' + escapeHtml(normalized.total) + '" data-repair-order-salary-mode="' + escapeHtml(normalized.salary_mode_snapshot) + '" data-repair-order-base-salary="' + escapeHtml(normalized.base_salary_snapshot) + '" data-repair-order-work-percent="' + escapeHtml(normalized.work_percent_snapshot) + '" data-repair-order-salary-amount="' + escapeHtml(normalized.salary_amount) + '" data-repair-order-salary-accrued-at="' + escapeHtml(normalized.salary_accrued_at) + '">' +
         '<td>' + repairOrderRowInputHtml('name', normalized.name, 'Наименование') + '</td>' +
+        executorCell +
         '<td class="repair-order-table__numeric">' + repairOrderRowInputHtml('quantity', normalized.quantity, '1') + '</td>' +
         '<td class="repair-order-table__numeric">' + repairOrderRowInputHtml('price', normalized.price, '0') + '</td>' +
         '<td class="repair-order-table__numeric"><div class="repair-order-cell-total" data-repair-order-row-total data-empty="' + (hasDisplayTotal ? 'false' : 'true') + '">' + escapeHtml(hasDisplayTotal ? repairOrderFormatMoney(totalValue ?? normalized.total) : '-') + '</div></td>' +
@@ -6543,11 +6970,20 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function readRepairOrderRowElement(row) {
+      const executorSelect = row.querySelector('[data-repair-order-cell="executor_id"]');
+      const selectedOption = executorSelect instanceof HTMLSelectElement ? executorSelect.options[executorSelect.selectedIndex] : null;
       return normalizeRepairOrderRow({
         name: row.querySelector('[data-repair-order-cell="name"]')?.value,
         quantity: row.querySelector('[data-repair-order-cell="quantity"]')?.value,
         price: row.querySelector('[data-repair-order-cell="price"]')?.value,
         total: row.dataset.repairOrderTotalRaw || '',
+        executor_id: executorSelect instanceof HTMLSelectElement ? executorSelect.value : '',
+        executor_name: selectedOption ? selectedOption.textContent : '',
+        salary_mode_snapshot: row.dataset.repairOrderSalaryMode || '',
+        base_salary_snapshot: row.dataset.repairOrderBaseSalary || '',
+        work_percent_snapshot: row.dataset.repairOrderWorkPercent || '',
+        salary_amount: row.dataset.repairOrderSalaryAmount || '',
+        salary_accrued_at: row.dataset.repairOrderSalaryAccruedAt || '',
       });
     }
 
@@ -6803,7 +7239,12 @@ BOARD_WEB_APP_HTML = "".join(
       els.repairOrderButton.textContent = repairOrderHeading(order.number);
     }
 
-    function openRepairOrderModal() {
+    async function openRepairOrderModal() {
+      try {
+        await loadEmployeesReference();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
       const order = repairOrderCardDraft(state.activeCard, state.activeCard?.repair_order || {});
       applyRepairOrderToForm(order);
       els.repairOrderModal.classList.add('is-open');
@@ -8669,6 +9110,10 @@ function renderCompactArchiveRows(cards) {
       return;
     }
 
+    function handleEmployeesModalOverlayClick(event) {
+      return;
+    }
+
     function handleAgentQuickActionClick(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -8869,6 +9314,16 @@ function renderCompactArchiveRows(cards) {
     function handleRepairOrderModalInput(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
+      if (target.matches('[data-repair-order-cell="executor_id"]')) {
+        const row = target.closest('tr[data-repair-order-row]');
+        if (row instanceof HTMLElement) {
+          row.dataset.repairOrderSalaryMode = '';
+          row.dataset.repairOrderBaseSalary = '';
+          row.dataset.repairOrderWorkPercent = '';
+          row.dataset.repairOrderSalaryAmount = '';
+          row.dataset.repairOrderSalaryAccruedAt = '';
+        }
+      }
       if (target.closest('tr[data-repair-order-row]')) syncRepairOrderTotals();
     }
 
@@ -9110,6 +9565,7 @@ function renderCompactArchiveRows(cards) {
     remountElement('operatorAdminButton');
     remountElement('adminSaveUserButton');
     remountElement('cashboxesButton');
+    remountElement('employeesButton');
     remountElement('cashboxCreateButton');
     remountElement('cashboxDeleteButton');
     remountElement('cashboxIncomeButton');
@@ -9131,6 +9587,7 @@ function renderCompactArchiveRows(cards) {
     els.archiveButton.addEventListener('click', openArchiveModal);
     els.repairOrdersButton.addEventListener('click', openRepairOrdersModal);
     els.cashboxesButton.addEventListener('click', openCashboxesModal);
+    els.employeesButton.addEventListener('click', openEmployeesModal);
     els.repairOrdersOpenTab.addEventListener('click', () => setRepairOrdersFilter('open'));
     els.repairOrdersClosedTab.addEventListener('click', () => setRepairOrdersFilter('closed'));
     els.repairOrdersSearchInput.addEventListener('input', handleRepairOrdersSearchInput);
@@ -9155,6 +9612,12 @@ function renderCompactArchiveRows(cards) {
       }
     });
     els.gptWallButton.addEventListener('click', openGptWallModal);
+    els.employeesCreateButton?.addEventListener('click', resetEmployeeForm);
+    els.employeeSaveButton?.addEventListener('click', saveEmployee);
+    els.employeeToggleButton?.addEventListener('click', toggleEmployee);
+    els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
+    els.employeesList?.addEventListener('click', handleEmployeesListClick);
+    els.employeesSummaryTable?.addEventListener('click', handleEmployeesListClick);
     els.gptWallBoardTab.addEventListener('click', () => setGptWallView('board_content'));
     els.gptWallEventsTab.addEventListener('click', () => setGptWallView('event_log'));
     els.gptWallRefresh.addEventListener('click', refreshGptWallView);
@@ -9234,6 +9697,7 @@ function renderCompactArchiveRows(cards) {
     els.repairOrderPaymentsModal.addEventListener('click', handleRepairOrderPaymentsModalOverlayClick);
     els.operatorProfileModal.addEventListener('click', handleOperatorProfileModalOverlayClick);
     els.operatorAdminModal.addEventListener('click', handleOperatorAdminModalOverlayClick);
+    els.employeesModal?.addEventListener('click', handleEmployeesModalOverlayClick);
 
     const CARD_VEHICLE_FIELD_LABEL = 'Марка / модель';
     const CARD_TITLE_FIELD_LABEL = 'Краткая суть';

@@ -807,6 +807,54 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(blocked["error"]["code"], "repair_order_open_archive_blocked")
         self.assertIn("открыт заказ-наряд", blocked["error"]["message"])
 
+    def test_employee_routes_and_payroll_report(self) -> None:
+        status, saved_employee = self.request(
+            "/api/save_employee",
+            {
+                "name": "Иван Мастер",
+                "position": "Механик",
+                "salary_mode": "salary_plus_percent",
+                "base_salary": "50000",
+                "work_percent": "30",
+            },
+        )
+        self.assertEqual(status, 200)
+        employee_id = saved_employee["data"]["employee"]["id"]
+
+        status, employees = self.request("/api/list_employees", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(any(item["id"] == employee_id for item in employees["data"]["employees"]))
+
+        status, created = self.request(
+            "/api/create_card",
+            {"vehicle": "Mitsubishi L200", "title": "Payroll API", "deadline": {"hours": 2}},
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, _ = self.request(
+            "/api/update_card",
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "number": "31",
+                    "status": "open",
+                    "client": "Клиент",
+                    "vehicle": "Mitsubishi L200",
+                    "works": [{"name": "Диагностика", "quantity": "1", "price": "5000", "executor_id": employee_id}],
+                },
+            },
+        )
+        self.assertEqual(status, 200)
+
+        status, closed = self.request("/api/set_repair_order_status", {"card_id": card_id, "status": "closed"})
+        self.assertEqual(status, 200)
+        self.assertEqual(closed["data"]["repair_order"]["works"][0]["salary_amount"], "1500")
+
+        status, report = self.request("/api/get_payroll_report", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(any(item["employee_id"] == employee_id for item in report["data"]["summary"]))
+
     def test_rename_column_route_updates_label_and_preserves_id(self) -> None:
         status, created_column = self.request("/api/create_column", {"label": "OLD LABEL"})
         self.assertEqual(status, 200)

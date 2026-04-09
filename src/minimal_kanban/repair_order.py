@@ -145,6 +145,13 @@ class RepairOrderRow:
     quantity: str = ""
     price: str = ""
     total: str = ""
+    executor_id: str = ""
+    executor_name: str = ""
+    salary_mode_snapshot: str = ""
+    base_salary_snapshot: str = ""
+    work_percent_snapshot: str = ""
+    salary_amount: str = ""
+    salary_accrued_at: str = ""
 
     def __post_init__(self) -> None:
         self.name = _normalize_single_line(self.name, limit=REPAIR_ORDER_ROW_NAME_LIMIT)
@@ -153,6 +160,13 @@ class RepairOrderRow:
         normalized_total = _normalize_single_line(self.total, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
         computed_total = self.computed_total()
         self.total = computed_total if computed_total else normalized_total
+        self.executor_id = _normalize_single_line(self.executor_id, limit=64)
+        self.executor_name = _normalize_single_line(self.executor_name, limit=REPAIR_ORDER_FIELD_LIMIT)
+        self.salary_mode_snapshot = _normalize_single_line(self.salary_mode_snapshot, limit=32)
+        self.base_salary_snapshot = _normalize_single_line(self.base_salary_snapshot, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
+        self.work_percent_snapshot = _normalize_single_line(self.work_percent_snapshot, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
+        self.salary_amount = _normalize_single_line(self.salary_amount, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
+        self.salary_accrued_at = _normalize_single_line(self.salary_accrued_at, limit=REPAIR_ORDER_DATE_LIMIT)
 
     def is_empty(self) -> bool:
         return not any([self.name, self.quantity, self.price, self.total])
@@ -163,6 +177,13 @@ class RepairOrderRow:
             "quantity": self.quantity,
             "price": self.price,
             "total": self.total,
+            "executor_id": self.executor_id,
+            "executor_name": self.executor_name,
+            "salary_mode_snapshot": self.salary_mode_snapshot,
+            "base_salary_snapshot": self.base_salary_snapshot,
+            "work_percent_snapshot": self.work_percent_snapshot,
+            "salary_amount": self.salary_amount,
+            "salary_accrued_at": self.salary_accrued_at,
         }
 
     def total_value(self) -> Decimal:
@@ -190,6 +211,13 @@ class RepairOrderRow:
             quantity=payload.get("quantity", payload.get("qty", "")),
             price=payload.get("price", ""),
             total=payload.get("total", payload.get("sum", "")),
+            executor_id=payload.get("executor_id", payload.get("employee_id", "")),
+            executor_name=payload.get("executor_name", payload.get("employee_name", "")),
+            salary_mode_snapshot=payload.get("salary_mode_snapshot", ""),
+            base_salary_snapshot=payload.get("base_salary_snapshot", ""),
+            work_percent_snapshot=payload.get("work_percent_snapshot", ""),
+            salary_amount=payload.get("salary_amount", ""),
+            salary_accrued_at=payload.get("salary_accrued_at", ""),
         )
 
 

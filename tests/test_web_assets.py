@@ -168,6 +168,21 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('.agent-result__actions {', BOARD_WEB_APP_HTML)
         self.assertIn('data-agent-follow-up="', BOARD_WEB_APP_HTML)
 
+    def test_employees_module_is_exposed_in_topbar_and_repair_order_rows(self) -> None:
+        self.assertIn('id="employeesButton">СОТРУДНИКИ</button>', BOARD_WEB_APP_HTML)
+        self.assertIn("function ensureEmployeesUi()", BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesModal"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesList"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeeSalaryModeInput"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesSummaryTable"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesDetailTable"', BOARD_WEB_APP_HTML)
+        self.assertIn("function openEmployeesModal()", BOARD_WEB_APP_HTML)
+        self.assertIn("function saveEmployee()", BOARD_WEB_APP_HTML)
+        self.assertIn("function renderEmployeesSummary()", BOARD_WEB_APP_HTML)
+        self.assertIn("data-repair-order-cell=\"executor_id\"", BOARD_WEB_APP_HTML)
+        self.assertIn("function repairOrderExecutorOptionsHtml", BOARD_WEB_APP_HTML)
+        self.assertIn("els.employeesButton.addEventListener('click', openEmployeesModal);", BOARD_WEB_APP_HTML)
+
     def test_card_description_textarea_allows_extended_text(self) -> None:
         self.assertIn('id="cardDescription" maxlength="20000"', BOARD_WEB_APP_HTML)
         self.assertIn(".field--description textarea {", BOARD_WEB_APP_HTML)

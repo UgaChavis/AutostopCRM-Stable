@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import json
 from pathlib import Path
 import re
@@ -145,6 +146,15 @@ Rules:
 - If a field is unknown, leave it empty instead of guessing.
 - vin_or_plate may contain both VIN and license plate in one short string.
 """
+EMPLOYEES_SETTING_KEY = "employees"
+PAYROLL_MODE_SALARY_ONLY = "salary_only"
+PAYROLL_MODE_PERCENT_ONLY = "percent_only"
+PAYROLL_MODE_SALARY_PLUS_PERCENT = "salary_plus_percent"
+PAYROLL_ALLOWED_MODES = {
+    PAYROLL_MODE_SALARY_ONLY,
+    PAYROLL_MODE_PERCENT_ONLY,
+    PAYROLL_MODE_SALARY_PLUS_PERCENT,
+}
 _REPAIR_WORK_KEYWORDS = (
     "диагност",
     "провер",
@@ -765,6 +775,7 @@ class CardService:
                 source,
                 cashboxes=bundle["cashboxes"],
                 cash_transactions=bundle["cash_transactions"],
+                settings=bundle["settings"],
             )
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
@@ -811,6 +822,7 @@ class CardService:
                 source,
                 cashboxes=bundle["cashboxes"],
                 cash_transactions=bundle["cash_transactions"],
+                settings=bundle["settings"],
             )
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
@@ -858,6 +870,7 @@ class CardService:
                 source,
                 cashboxes=bundle["cashboxes"],
                 cash_transactions=bundle["cash_transactions"],
+                settings=bundle["settings"],
             )
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
@@ -904,6 +917,7 @@ class CardService:
                 source,
                 cashboxes=bundle["cashboxes"],
                 cash_transactions=bundle["cash_transactions"],
+                settings=bundle["settings"],
             )
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed:
@@ -935,6 +949,104 @@ class CardService:
                     "changed": changed or numbering_changed,
                     "status": card.repair_order.status,
                 },
+            }
+
+    def list_employees(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            employees = self._employees_from_settings(bundle["settings"])
+            month = self._validated_payroll_month(payload.get("month"))
+            report = self._build_payroll_report(bundle["cards"], employees, month=month)
+            return {
+                "employees": employees,
+                "month": month,
+                "summary": report["summary"],
+                "detail_rows": report["detail_rows"],
+            }
+
+    def save_employee(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            actor_name, source = self._audit_identity(payload, default_source="api")
+            settings = dict(bundle["settings"])
+            employees = self._employees_from_settings(settings)
+            employee_id = normalize_text(payload.get("employee_id"), default="", limit=64)
+            existing = next((item for item in employees if item["id"] == employee_id), None)
+            employee = self._validated_employee_payload(payload, existing=existing)
+            next_employees = [item for item in employees if item["id"] != employee["id"]]
+            next_employees.append(employee)
+            next_employees.sort(key=lambda item: (not item["is_active"], item["name"].casefold(), item["id"]))
+            settings[EMPLOYEES_SETTING_KEY] = next_employees
+            self._append_event(
+                bundle["events"],
+                actor_name=actor_name,
+                source=source,
+                action="employee_saved",
+                message=f"{actor_name} обновил сотрудника",
+                card_id=None,
+                details={"employee_id": employee["id"], "name": employee["name"]},
+            )
+            self._save_bundle(
+                bundle,
+                columns=bundle["columns"],
+                cards=bundle["cards"],
+                cashboxes=bundle["cashboxes"],
+                cash_transactions=bundle["cash_transactions"],
+                events=bundle["events"],
+                settings=settings,
+            )
+            return {"employee": employee, "employees": next_employees}
+
+    def toggle_employee(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            actor_name, source = self._audit_identity(payload, default_source="api")
+            settings = dict(bundle["settings"])
+            employees = self._employees_from_settings(settings)
+            employee_id = normalize_text(payload.get("employee_id"), default="", limit=64)
+            if not employee_id:
+                self._fail("validation_error", "Нужно передать employee_id.", details={"field": "employee_id"})
+            target = next((item for item in employees if item["id"] == employee_id), None)
+            if target is None:
+                self._fail("not_found", "Сотрудник не найден.", status_code=404, details={"employee_id": employee_id})
+            target["is_active"] = not bool(target.get("is_active"))
+            target["updated_at"] = utc_now_iso()
+            settings[EMPLOYEES_SETTING_KEY] = employees
+            self._append_event(
+                bundle["events"],
+                actor_name=actor_name,
+                source=source,
+                action="employee_toggled",
+                message=f"{actor_name} изменил активность сотрудника",
+                card_id=None,
+                details={"employee_id": target["id"], "is_active": target["is_active"]},
+            )
+            self._save_bundle(
+                bundle,
+                columns=bundle["columns"],
+                cards=bundle["cards"],
+                cashboxes=bundle["cashboxes"],
+                cash_transactions=bundle["cash_transactions"],
+                events=bundle["events"],
+                settings=settings,
+            )
+            return {"employee": target, "employees": employees}
+
+    def get_payroll_report(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            employees = self._employees_from_settings(bundle["settings"])
+            month = self._validated_payroll_month(payload.get("month"))
+            employee_id = normalize_text(payload.get("employee_id"), default="", limit=64)
+            report = self._build_payroll_report(bundle["cards"], employees, month=month, employee_id=employee_id or None)
+            return {
+                "month": month,
+                "summary": report["summary"],
+                "detail_rows": report["detail_rows"],
             }
 
     def get_repair_order_text_download(self, card_id: str) -> tuple[Path, str]:
@@ -1357,6 +1469,7 @@ class CardService:
                     source,
                     cashboxes=bundle["cashboxes"],
                     cash_transactions=bundle["cash_transactions"],
+                    settings=bundle["settings"],
                 )
                 changed = repair_order_changed or changed
                 if repair_order_changed:
@@ -2866,6 +2979,7 @@ class CardService:
         cashboxes: list[CashBox] | None = None,
         cash_transactions: list[CashTransaction] | None = None,
         events: list[AuditEvent],
+        settings: dict[str, Any] | None = None,
     ) -> None:
         written_bundle = self._store.write_bundle(
             columns=columns,
@@ -2874,11 +2988,217 @@ class CardService:
             cashboxes=bundle["cashboxes"] if cashboxes is None else cashboxes,
             cash_transactions=bundle["cash_transactions"] if cash_transactions is None else cash_transactions,
             events=events,
-            settings=bundle["settings"],
+            settings=bundle["settings"] if settings is None else settings,
         )
         written_cards = written_bundle["cards"]
         self._cleanup_repair_orders_directory(written_cards)
         self._cleanup_attachment_directories(written_cards)
+
+    def _parse_payroll_decimal(self, value, *, default: Decimal = Decimal("0")) -> Decimal:
+        raw = normalize_text(value, default="", limit=40).replace(" ", "").replace(",", ".")
+        if not raw:
+            return default
+        try:
+            return Decimal(raw)
+        except InvalidOperation:
+            return default
+
+    def _format_payroll_decimal(self, value: Decimal) -> str:
+        quantized = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        text = format(quantized, "f")
+        if "." in text:
+            text = text.rstrip("0").rstrip(".")
+        return text or "0"
+
+    def _normalize_payroll_mode(self, value, *, default: str = PAYROLL_MODE_PERCENT_ONLY) -> str:
+        normalized = normalize_text(value, default=default, limit=32).lower()
+        if normalized not in PAYROLL_ALLOWED_MODES:
+            return default
+        return normalized
+
+    def _validated_payroll_month(self, value) -> str:
+        normalized = normalize_text(value, default="", limit=7)
+        if re.fullmatch(r"\d{4}-\d{2}", normalized):
+            return normalized
+        return datetime.now().astimezone().strftime("%Y-%m")
+
+    def _normalized_employee_record(self, payload: Any, *, existing: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        if not isinstance(payload, dict):
+            return None
+        now_iso = utc_now_iso()
+        existing = existing or {}
+        employee_id = normalize_text(
+            payload.get("id") or payload.get("employee_id") or existing.get("id") or str(uuid.uuid4()),
+            default="",
+            limit=64,
+        )
+        name = normalize_text(payload.get("name"), default=existing.get("name", ""), limit=80)
+        if not employee_id or not name:
+            return None
+        position = normalize_text(payload.get("position"), default=existing.get("position", ""), limit=80)
+        salary_mode = self._normalize_payroll_mode(payload.get("salary_mode", existing.get("salary_mode")))
+        base_salary = self._format_payroll_decimal(self._parse_payroll_decimal(payload.get("base_salary", existing.get("base_salary", ""))))
+        work_percent = self._format_payroll_decimal(self._parse_payroll_decimal(payload.get("work_percent", existing.get("work_percent", ""))))
+        note = normalize_text(payload.get("note"), default=existing.get("note", ""), limit=240)
+        is_active = normalize_bool(payload.get("is_active"), default=normalize_bool(existing.get("is_active"), default=True))
+        created_at = normalize_text(existing.get("created_at"), default=now_iso, limit=40) or now_iso
+        updated_at = normalize_text(payload.get("updated_at"), default=existing.get("updated_at", now_iso), limit=40) or now_iso
+        return {
+            "id": employee_id,
+            "name": name,
+            "position": position,
+            "salary_mode": salary_mode,
+            "base_salary": base_salary,
+            "work_percent": work_percent,
+            "is_active": is_active,
+            "note": note,
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
+
+    def _employees_from_settings(self, settings: dict[str, Any]) -> list[dict[str, Any]]:
+        raw_items = settings.get(EMPLOYEES_SETTING_KEY)
+        if not isinstance(raw_items, list):
+            return []
+        employees: list[dict[str, Any]] = []
+        for item in raw_items:
+            normalized = self._normalized_employee_record(item)
+            if normalized is None:
+                continue
+            employees.append(normalized)
+        employees.sort(key=lambda item: (not item["is_active"], item["name"].casefold(), item["id"]))
+        return employees
+
+    def _validated_employee_payload(self, payload: dict[str, Any], *, existing: dict[str, Any] | None = None) -> dict[str, Any]:
+        employee = self._normalized_employee_record(payload, existing=existing)
+        if employee is None:
+            self._fail("validation_error", "Нужно указать имя сотрудника.", details={"field": "name"})
+        employee["updated_at"] = utc_now_iso()
+        return employee
+
+    def _apply_repair_order_payroll_snapshot(self, order: RepairOrder, settings: dict[str, Any]) -> RepairOrder:
+        if order.status != REPAIR_ORDER_STATUS_CLOSED:
+            return order
+        employees_by_id = {item["id"]: item for item in self._employees_from_settings(settings)}
+        next_rows: list[dict[str, str]] = []
+        accrued_at = order.closed_at or self._repair_order_now()
+        for source_row in order.works:
+            row = RepairOrderRow.from_dict(source_row.to_dict() if isinstance(source_row, RepairOrderRow) else source_row)
+            employee = employees_by_id.get(row.executor_id)
+            if employee is None:
+                row.salary_mode_snapshot = ""
+                row.base_salary_snapshot = ""
+                row.work_percent_snapshot = ""
+                row.salary_amount = ""
+                row.salary_accrued_at = ""
+                next_rows.append(row.to_dict())
+                continue
+            row.executor_name = employee["name"]
+            row.salary_mode_snapshot = employee["salary_mode"]
+            row.base_salary_snapshot = employee["base_salary"]
+            row.work_percent_snapshot = employee["work_percent"]
+            salary_amount = Decimal("0")
+            if employee["salary_mode"] in {PAYROLL_MODE_PERCENT_ONLY, PAYROLL_MODE_SALARY_PLUS_PERCENT}:
+                salary_amount = row.total_value() * self._parse_payroll_decimal(employee["work_percent"]) / Decimal("100")
+            row.salary_amount = self._format_payroll_decimal(salary_amount)
+            row.salary_accrued_at = accrued_at
+            next_rows.append(row.to_dict())
+        return RepairOrder.from_dict({**order.to_storage_dict(), "works": next_rows})
+
+    def _build_payroll_report(
+        self,
+        cards: list[Card],
+        employees: list[dict[str, Any]],
+        *,
+        month: str,
+        employee_id: str | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        selected_employee_id = normalize_text(employee_id, default="", limit=64)
+        month_key = month.replace("-", "")
+        summaries: dict[str, dict[str, Any]] = {}
+        for employee in employees:
+            if selected_employee_id and employee["id"] != selected_employee_id:
+                continue
+            base_salary = self._parse_payroll_decimal(employee["base_salary"])
+            summaries[employee["id"]] = {
+                "employee_id": employee["id"],
+                "employee_name": employee["name"],
+                "position": employee["position"],
+                "salary_mode": employee["salary_mode"],
+                "work_percent": employee["work_percent"],
+                "base_salary": self._format_payroll_decimal(base_salary),
+                "works_count": 0,
+                "works_total": Decimal("0"),
+                "accrued_total": Decimal("0"),
+            }
+        detail_rows: list[dict[str, Any]] = []
+        for card in cards:
+            order = card.repair_order
+            if order.status != REPAIR_ORDER_STATUS_CLOSED:
+                continue
+            closed_sort_key = self._repair_order_closed_sort_value(card)
+            if not closed_sort_key.startswith(month_key):
+                continue
+            for source_row in order.works:
+                row = RepairOrderRow.from_dict(source_row.to_dict() if isinstance(source_row, RepairOrderRow) else source_row)
+                current_employee_id = row.executor_id
+                if not current_employee_id:
+                    continue
+                if selected_employee_id and current_employee_id != selected_employee_id:
+                    continue
+                if current_employee_id not in summaries:
+                    summaries[current_employee_id] = {
+                        "employee_id": current_employee_id,
+                        "employee_name": row.executor_name or "Сотрудник",
+                        "position": "",
+                        "salary_mode": row.salary_mode_snapshot,
+                        "work_percent": row.work_percent_snapshot,
+                        "base_salary": "0",
+                        "works_count": 0,
+                        "works_total": Decimal("0"),
+                        "accrued_total": Decimal("0"),
+                    }
+                summary = summaries[current_employee_id]
+                work_total = row.total_value()
+                accrued_total = self._parse_payroll_decimal(row.salary_amount)
+                summary["works_count"] += 1
+                summary["works_total"] += work_total
+                summary["accrued_total"] += accrued_total
+                detail_rows.append(
+                    {
+                        "employee_id": current_employee_id,
+                        "employee_name": summary["employee_name"],
+                        "closed_at": order.closed_at,
+                        "repair_order_number": order.number,
+                        "card_id": card.id,
+                        "vehicle": order.vehicle or card.vehicle,
+                        "work_name": row.name,
+                        "work_total": self._format_payroll_decimal(work_total),
+                        "salary_amount": self._format_payroll_decimal(accrued_total),
+                    }
+                )
+        summary_rows: list[dict[str, Any]] = []
+        for item in summaries.values():
+            base_salary = self._parse_payroll_decimal(item["base_salary"])
+            works_total = item["works_total"]
+            accrued_total = item["accrued_total"]
+            summary_rows.append(
+                {
+                    "employee_id": item["employee_id"],
+                    "employee_name": item["employee_name"],
+                    "position": item["position"],
+                    "salary_mode": item["salary_mode"],
+                    "work_percent": item["work_percent"],
+                    "base_salary": self._format_payroll_decimal(base_salary),
+                    "works_count": item["works_count"],
+                    "works_total": self._format_payroll_decimal(works_total),
+                    "accrued_total": self._format_payroll_decimal(accrued_total),
+                    "total_salary": self._format_payroll_decimal(base_salary + accrued_total),
+                }
+            )
+        summary_rows.sort(key=lambda item: (Decimal(item["total_salary"] or "0"), item["employee_name"]), reverse=True)
+        detail_rows.sort(key=lambda item: (self._repair_order_sortable_datetime(item["closed_at"]), item["repair_order_number"], item["work_name"]), reverse=True)
+        return {"summary": summary_rows, "detail_rows": detail_rows}
 
     def _touch_card(self, card: Card, actor_name: str | None = None) -> str:
         updated_at = utc_now_iso()
@@ -3213,6 +3533,7 @@ class CardService:
         *,
         cashboxes: list[CashBox] | None = None,
         cash_transactions: list[CashTransaction] | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> bool:
         previous_order = RepairOrder.from_dict(card.repair_order.to_storage_dict())
         order = self._prepared_repair_order(
@@ -3232,6 +3553,8 @@ class CardService:
                 actor_name,
                 source,
             )
+        if settings is not None:
+            order = self._apply_repair_order_payroll_snapshot(order, settings)
         if order.to_storage_dict() == previous_order.to_storage_dict():
             return False
         card.repair_order = order
