@@ -88,6 +88,52 @@ class AgentStorageTests(unittest.TestCase):
             self.assertEqual(completed["status"], "completed")
             self.assertEqual(storage.list_tasks(limit=10)[0]["summary"], "done")
 
+    def test_storage_prunes_old_finished_tasks_but_keeps_active(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir), max_finished_tasks=2)
+            first = storage.enqueue_task(task_text="one")
+            second = storage.enqueue_task(task_text="two")
+            third = storage.enqueue_task(task_text="three")
+            pending = storage.enqueue_task(task_text="pending")
+
+            for task in [first, second, third]:
+                claimed = storage.claim_next_task()
+                assert claimed is not None
+                storage.complete_task(
+                    task_id=claimed["id"],
+                    run_id=f"run_{claimed['id']}",
+                    summary=claimed["task_text"],
+                    result="ok",
+                    display={},
+                    tool_calls=1,
+                )
+
+            tasks = storage.list_tasks(limit=10)
+            task_ids = {item["id"] for item in tasks}
+            self.assertNotIn(first["id"], task_ids)
+            self.assertIn(second["id"], task_ids)
+            self.assertIn(third["id"], task_ids)
+            self.assertIn(pending["id"], task_ids)
+
+    def test_storage_compacts_runs_and_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(
+                base_dir=Path(temp_dir),
+                max_runs=2,
+                max_actions=3,
+                compact_threshold_bytes=1,
+            )
+            for index in range(4):
+                storage.append_run({"id": f"run-{index}"})
+            for index in range(6):
+                storage.append_action({"id": f"action-{index}"})
+
+            self.assertEqual([item["id"] for item in storage.list_runs(limit=10)], ["run-3", "run-2"])
+            self.assertEqual(
+                [item["id"] for item in storage.list_actions(limit=10)],
+                ["action-5", "action-4", "action-3"],
+            )
+
 
 class AgentRunnerTests(unittest.TestCase):
     def test_default_prompt_includes_card_cleanup_rules(self) -> None:

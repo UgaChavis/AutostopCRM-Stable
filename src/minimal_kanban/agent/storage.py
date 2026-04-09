@@ -30,11 +30,28 @@ DEFAULT_STATUS = {
     "last_error": "",
 }
 
+DEFAULT_MAX_FINISHED_TASKS = 300
+DEFAULT_MAX_RUNS = 1000
+DEFAULT_MAX_ACTIONS = 4000
+DEFAULT_COMPACT_THRESHOLD_BYTES = 262_144
+
 
 class AgentStorage:
-    def __init__(self, base_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        *,
+        max_finished_tasks: int = DEFAULT_MAX_FINISHED_TASKS,
+        max_runs: int = DEFAULT_MAX_RUNS,
+        max_actions: int = DEFAULT_MAX_ACTIONS,
+        compact_threshold_bytes: int = DEFAULT_COMPACT_THRESHOLD_BYTES,
+    ) -> None:
         self._base_dir = base_dir or get_agent_data_dir()
         self._lock = threading.RLock()
+        self._max_finished_tasks = max(1, int(max_finished_tasks))
+        self._max_runs = max(1, int(max_runs))
+        self._max_actions = max(1, int(max_actions))
+        self._compact_threshold_bytes = max(0, int(compact_threshold_bytes))
         self._prompt_file = self._base_dir / get_agent_prompt_file().name
         self._memory_file = self._base_dir / get_agent_memory_file().name
         self._tasks_file = self._base_dir / get_agent_tasks_file().name
@@ -119,6 +136,7 @@ class AgentStorage:
         with self._lock, self._process_lock.acquire():
             tasks = self._read_tasks_locked()
             tasks.append(task)
+            tasks = self._compact_tasks_locked(tasks)
             self._write_json(self._tasks_file, tasks)
         return task
 
@@ -146,6 +164,7 @@ class AgentStorage:
             task["status"] = "running"
             task["started_at"] = utc_now_iso()
             tasks[index] = task
+            tasks = self._compact_tasks_locked(tasks)
             self._write_json(self._tasks_file, tasks)
             return task
 
@@ -190,10 +209,10 @@ class AgentStorage:
         )
 
     def append_run(self, payload: dict[str, Any]) -> None:
-        self._append_jsonl(self._runs_file, payload)
+        self._append_jsonl(self._runs_file, payload, retention=self._max_runs)
 
     def append_action(self, payload: dict[str, Any]) -> None:
-        self._append_jsonl(self._actions_file, payload)
+        self._append_jsonl(self._actions_file, payload, retention=self._max_actions)
 
     def list_runs(self, *, limit: int = 50) -> list[dict[str, Any]]:
         return self._read_jsonl(self._runs_file, limit=limit)
@@ -243,6 +262,7 @@ class AgentStorage:
                 break
             if updated is None:
                 raise KeyError(f"Unknown agent task: {task_id}")
+            tasks = self._compact_tasks_locked(tasks)
             self._write_json(self._tasks_file, tasks)
             return updated
 
@@ -250,12 +270,44 @@ class AgentStorage:
         payload = self._read_json(self._tasks_file, [])
         return payload if isinstance(payload, list) else []
 
-    def _append_jsonl(self, path: Path, payload: dict[str, Any]) -> None:
+    def _compact_tasks_locked(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        active_tasks = [
+            task
+            for task in tasks
+            if str(task.get("status", "")).strip() in {"pending", "running"}
+        ]
+        finished_tasks = [
+            task
+            for task in tasks
+            if str(task.get("status", "")).strip() not in {"pending", "running"}
+        ]
+        if len(finished_tasks) > self._max_finished_tasks:
+            finished_keep_ids = {
+                id(task) for task in finished_tasks[-self._max_finished_tasks :]
+            }
+            finished_tasks = [task for task in finished_tasks if id(task) in finished_keep_ids]
+        if len(active_tasks) == len(tasks) and len(finished_tasks) == 0:
+            return tasks
+        retained_ids = {id(task) for task in active_tasks} | {id(task) for task in finished_tasks}
+        return [task for task in tasks if id(task) in retained_ids]
+
+    def _append_jsonl(self, path: Path, payload: dict[str, Any], *, retention: int) -> None:
         line = json.dumps(payload, ensure_ascii=False)
         with self._lock, self._process_lock.acquire():
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(line)
                 handle.write("\n")
+            if self._compact_threshold_bytes and path.stat().st_size > self._compact_threshold_bytes:
+                self._compact_jsonl_locked(path, retention=retention)
+
+    def _compact_jsonl_locked(self, path: Path, *, retention: int) -> None:
+        if not path.exists():
+            return
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if len(lines) <= retention:
+            return
+        kept_lines = [line for line in lines if line.strip()][-retention:]
+        path.write_text("\n".join(kept_lines) + ("\n" if kept_lines else ""), encoding="utf-8")
 
     def _read_jsonl(self, path: Path, *, limit: int) -> list[dict[str, Any]]:
         with self._lock, self._process_lock.acquire():
