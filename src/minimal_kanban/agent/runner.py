@@ -147,6 +147,10 @@ class AgentRunner:
             system_prompt = f"{system_prompt}\n\nPersistent memory:\n{memory_text}"
         system_prompt = f"{system_prompt}\n\nAvailable tools:\n{self._tools.describe_for_prompt()}"
         metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+        cleanup_task = self._is_card_cleanup_task(task, metadata)
+        cleanup_card_id = self._cleanup_card_id(metadata)
+        cleanup_update_applied = False
+        cleanup_apply_prompt_sent = False
         messages: list[dict[str, str]] = [
             {
                 "role": "user",
@@ -159,6 +163,15 @@ class AgentRunner:
             decision = self._model_client.next_step(system_prompt=system_prompt, messages=messages)
             decision_type = str(decision.get("type", "") or "").strip().lower()
             if decision_type == "final":
+                if cleanup_task and cleanup_card_id and not cleanup_update_applied and not cleanup_apply_prompt_sent:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": self._card_cleanup_apply_instruction(cleanup_card_id),
+                        }
+                    )
+                    cleanup_apply_prompt_sent = True
+                    continue
                 summary = str(decision.get("summary", "") or "").strip() or "Task completed."
                 result = str(decision.get("result", "") or "").strip() or summary
                 display = self._normalize_display_payload(decision, summary=summary, result=result)
@@ -173,6 +186,8 @@ class AgentRunner:
             tool_calls += 1
             started_at = utc_now_iso()
             result_payload = self._tools.execute(tool_name, args)
+            if cleanup_task and tool_name == "update_card" and str(args.get("card_id", "") or "").strip() == cleanup_card_id:
+                cleanup_update_applied = True
             finished_at = utc_now_iso()
             self._storage.append_action(
                 {
@@ -298,6 +313,36 @@ class AgentRunner:
         lines.append("Task:")
         lines.append(str(task.get("task_text", "") or "").strip())
         return "\n".join(lines)
+
+    def _cleanup_card_id(self, metadata: dict[str, Any]) -> str:
+        context = metadata.get("context") if isinstance(metadata.get("context"), dict) else {}
+        if str(context.get("kind", "")).strip().lower() != "card":
+            return ""
+        return str(context.get("card_id", "") or "").strip()
+
+    def _is_card_cleanup_task(self, task: dict[str, Any], metadata: dict[str, Any]) -> bool:
+        if not self._cleanup_card_id(metadata):
+            return False
+        text = str(task.get("task_text", "") or "").strip().lower()
+        cleanup_markers = (
+            "наведи порядок",
+            "порядок в карточке",
+            "структурируй",
+            "заполни карточку",
+            "cleanup",
+            "clean up",
+            "tidy up",
+            "structure the card",
+        )
+        return any(marker in text for marker in cleanup_markers)
+
+    def _card_cleanup_apply_instruction(self, card_id: str) -> str:
+        return (
+            "This is a card cleanup task opened from a card.\n"
+            f"Apply confident changes to card {card_id} with update_card before the final answer.\n"
+            "Use only facts already present in the current card context.\n"
+            "If nothing can be safely changed, return a final answer that explicitly says no card fields were changed and why."
+        )
 
 
 def build_board_api_client(*, logger: logging.Logger) -> BoardApiClient:

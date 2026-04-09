@@ -52,7 +52,10 @@ CARD_CLEANUP_RULES = """Card cleanup rules:
 - Improve structure and readability, but do not drop meaningful details to make the text shorter.
 - Fill missing card fields only when the current card data supports them confidently.
 - Separate confirmed updates from guessed or missing data.
-- In cleanup tasks, prefer proposing or applying a normalized card payload with clearer title, description, tags, and vehicle profile.
+- In cleanup tasks opened from a card, default behavior is to apply confident changes with update_card before the final answer.
+- Do not stop at analysis only if the request clearly asks to tidy up, structure, or fill the card.
+- If no safe changes can be applied, say explicitly that no card fields were changed and why.
+- In cleanup tasks, prefer applying a normalized card payload with clearer title, description, tags, and vehicle profile.
 """
 
 

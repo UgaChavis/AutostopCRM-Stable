@@ -55,6 +55,10 @@ class _FakeBoardApi:
         self.calls.append(("review_board", kwargs))
         return {"ok": True, "data": {"summary": {"active_cards": 1}}, "text": "board summary"}
 
+    def update_card(self, **kwargs) -> dict:
+        self.calls.append(("update_card", kwargs))
+        return {"ok": True, "card_id": kwargs.get("card_id"), "changed": ["title", "description"]}
+
 
 class AgentStorageTests(unittest.TestCase):
     def test_queue_lifecycle(self) -> None:
@@ -85,6 +89,7 @@ class AgentRunnerTests(unittest.TestCase):
         prompt = build_default_system_prompt()
         self.assertIn("tidy up, clean up, or structure a card", prompt)
         self.assertIn("preserve all facts from the card", prompt)
+        self.assertIn("apply confident changes with update_card", prompt)
 
     def test_runner_executes_tool_and_completes_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -182,6 +187,60 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertIn("decode_vin", str(call["system_prompt"]))
             self.assertIn("This task was opened from a card.", call["messages"][0]["content"])
             self.assertIn('"card_id": "card-1"', call["messages"][0]["content"])
+
+    def test_runner_requires_update_card_before_finalizing_card_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Наведи порядок в этой карточке и структурируй данные.",
+                metadata={
+                    "context": {
+                        "kind": "card",
+                        "card_id": "card-1",
+                        "title": "Черновик",
+                    }
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.cleanup")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _FakeBoardApi()
+            model = _FakeModelClient(
+                [
+                    {"type": "final", "summary": "Готово", "result": "Предлагаю обновления."},
+                    {
+                        "type": "tool",
+                        "tool": "update_card",
+                        "args": {
+                            "card_id": "card-1",
+                            "title": "Mitsubishi L200 / Диагностика подвески",
+                            "description": "Структурированное описание без потери данных.",
+                            "tags": ["диагностика", "подвеска"],
+                        },
+                        "reason": "Apply cleanup changes to the current card",
+                    },
+                    {"type": "final", "summary": "Карточка обновлена", "result": "Изменения применены."},
+                ]
+            )
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=model,
+                logger=logger,
+            )
+            processed = runner.run_once()
+            self.assertTrue(processed)
+            task = storage.list_tasks(limit=1)[0]
+            self.assertEqual(task["status"], "completed")
+            self.assertEqual(task["summary"], "Карточка обновлена")
+            update_call = next(call for call in board_api.calls if call[0] == "update_card")
+            self.assertEqual(update_call[1]["card_id"], "card-1")
+            self.assertEqual(update_call[1]["title"], "Mitsubishi L200 / Диагностика подвески")
+            self.assertEqual(update_call[1]["description"], "Структурированное описание без потери данных.")
+            self.assertEqual(update_call[1]["tags"], ["диагностика", "подвеска"])
+            self.assertEqual(len(model.calls), 3)
+            self.assertIn("Apply confident changes to card card-1 with update_card before the final answer.", model.calls[1]["messages"][-1]["content"])
 
     def test_tool_executor_exposes_automotive_internet_tools(self) -> None:
         executor = AgentRunner(
