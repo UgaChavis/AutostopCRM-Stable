@@ -8,6 +8,7 @@ WORKDIR /app
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        libegl1 \
         libfontconfig1 \
         libgl1 \
         libglib2.0-0 \
