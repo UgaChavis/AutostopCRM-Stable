@@ -71,6 +71,7 @@ from ..vehicle_profile import (
     VehicleProfile,
     normalize_vehicle_field_names,
 )
+from ..agent.openai_client import AgentModelError, OpenAIJsonAgentClient
 from ..printing.service import PrintModuleError, PrintModuleService
 from .column_service import ColumnService
 from .snapshot_service import SnapshotService
@@ -113,6 +114,27 @@ _REPAIR_MATERIAL_SECTION_MARKERS = (
     "расходники",
     "что установили",
 )
+_INSPECTION_SHEET_AUTOFILL_INSTRUCTIONS = """You fill an autoservice inspection sheet from CRM data.
+Return exactly one JSON object with these string fields:
+- client
+- vehicle
+- vin_or_plate
+- complaint_summary
+- findings
+- recommendations
+- planned_works
+- planned_materials
+- master_comment
+And one optional array field:
+- confidence_notes
+
+Rules:
+- Preserve important facts from the source data.
+- Do not invent facts that are not present in the CRM data.
+- Use short structured multiline text with one item per line for findings, recommendations, planned_works, and planned_materials.
+- If a field is unknown, leave it empty instead of guessing.
+- vin_or_plate may contain both VIN and license plate in one short string.
+"""
 _REPAIR_WORK_KEYWORDS = (
     "диагност",
     "провер",
@@ -959,6 +981,93 @@ class CardService:
             except PrintModuleError as exc:
                 self._fail(exc.code, exc.message, status_code=exc.status_code, details=exc.details)
 
+    def get_inspection_sheet_form(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            card = self._find_card(bundle["cards"], payload.get("card_id"))
+            preview_card = self._print_module_card(card, payload)
+            try:
+                return self._print_module.get_inspection_sheet_form(preview_card, repair_order=preview_card.repair_order)
+            except PrintModuleError as exc:
+                self._fail(exc.code, exc.message, status_code=exc.status_code, details=exc.details)
+
+    def save_inspection_sheet_form(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            card = self._find_card(bundle["cards"], payload.get("card_id"))
+            preview_card = self._print_module_card(card, payload)
+            session = payload.get("_operator_session") if isinstance(payload.get("_operator_session"), dict) else {}
+            actor_name = normalize_actor_name((session.get("username") if session else "") or payload.get("actor_name"))
+            try:
+                return self._print_module.save_inspection_sheet_form(
+                    preview_card,
+                    repair_order=preview_card.repair_order,
+                    form_data=payload.get("form_data") if isinstance(payload.get("form_data"), dict) else {},
+                    filled_by=actor_name,
+                    source=str(payload.get("form_source", "manual") or "manual"),
+                )
+            except PrintModuleError as exc:
+                self._fail(exc.code, exc.message, status_code=exc.status_code, details=exc.details)
+
+    def autofill_inspection_sheet_form(self, payload: dict | None = None) -> dict:
+        payload = payload or {}
+        session = payload.get("_operator_session") if isinstance(payload.get("_operator_session"), dict) else {}
+        actor_name = normalize_actor_name((session.get("username") if session else "") or payload.get("actor_name"))
+        with self._lock:
+            bundle = self._store.read_bundle()
+            card = self._find_card(bundle["cards"], payload.get("card_id"))
+            preview_card = self._print_module_card(card, payload)
+            autofill_payload = self._print_module.build_inspection_sheet_autofill_payload(
+                preview_card,
+                repair_order=preview_card.repair_order,
+            )
+        try:
+            model_client = OpenAIJsonAgentClient()
+            result = model_client.complete_json(
+                instructions=_INSPECTION_SHEET_AUTOFILL_INSTRUCTIONS,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": json.dumps(autofill_payload, ensure_ascii=False, indent=2),
+                    }
+                ],
+                temperature=0.1,
+            )
+        except AgentModelError as exc:
+            self._fail("agent_unavailable", str(exc), status_code=503)
+        form_data = {
+            "client": self._inspection_sheet_text(result.get("client")),
+            "vehicle": self._inspection_sheet_text(result.get("vehicle")),
+            "vin_or_plate": self._inspection_sheet_text(result.get("vin_or_plate")),
+            "complaint_summary": self._inspection_sheet_text(result.get("complaint_summary"), multiline=True),
+            "findings": self._inspection_sheet_text(result.get("findings"), multiline=True),
+            "recommendations": self._inspection_sheet_text(result.get("recommendations"), multiline=True),
+            "planned_works": self._inspection_sheet_text(result.get("planned_works"), multiline=True),
+            "planned_materials": self._inspection_sheet_text(result.get("planned_materials"), multiline=True),
+            "master_comment": self._inspection_sheet_text(result.get("master_comment"), multiline=True),
+        }
+        confidence_notes = self._inspection_sheet_lines(result.get("confidence_notes"))
+        with self._lock:
+            try:
+                saved = self._print_module.save_inspection_sheet_form(
+                    preview_card,
+                    repair_order=preview_card.repair_order,
+                    form_data=form_data,
+                    filled_by=actor_name,
+                    source="ai",
+                )
+            except PrintModuleError as exc:
+                self._fail(exc.code, exc.message, status_code=exc.status_code, details=exc.details)
+        return {
+            **saved,
+            "autofill": {
+                "model": model_client.model,
+                "confidence_notes": confidence_notes,
+            },
+        }
+
     def preview_repair_order_print_documents(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
@@ -1092,6 +1201,33 @@ class CardService:
             }
         )
         return cloned_card
+
+    def _inspection_sheet_text(self, value: Any, *, multiline: bool = False) -> str:
+        if isinstance(value, list):
+            lines = self._inspection_sheet_lines(value)
+            return "\n".join(lines) if multiline else ("; ".join(lines[:3]) if lines else "")
+        if multiline:
+            return str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+        return normalize_text(value, default="", limit=2000)
+
+    def _inspection_sheet_lines(self, value: Any) -> list[str]:
+        if isinstance(value, list):
+            items = value
+        elif isinstance(value, str):
+            items = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        else:
+            items = [value]
+        lines: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            text = normalize_text(item, default="", limit=2000)
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            lines.append(text)
+            if len(lines) >= 20:
+                break
+        return lines
 
     def autofill_vehicle_data(self, payload: dict | None = None) -> dict:
         with self._lock:

@@ -1105,6 +1105,97 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(printed["data"]["copies"], 2)
         print_backend.assert_called_once()
 
+    def test_inspection_sheet_form_routes_save_preview_and_autofill(self) -> None:
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "vehicle": "Mazda CX-3",
+                "title": "Заполнить ведомость",
+                "description": "Шум в подвеске, требуется дефектовка.",
+                "deadline": {"hours": 4},
+            },
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, _ = self.request(
+            "/api/update_repair_order",
+            {
+                "card_id": card_id,
+                "repair_order": {
+                    "client": "Ярулина Нина Васильевна",
+                    "vehicle": "Mazda CX-3",
+                    "vin": "DK5FW106086",
+                    "license_plate": "А123АА124",
+                    "reason": "Шум в подвеске",
+                    "comment": "Клиент просит проверить ходовую часть",
+                    "note": "Выявлен люфт стойки стабилизатора",
+                    "works": [{"name": "Диагностика подвески", "quantity": "1", "price": "1800", "total": ""}],
+                    "materials": [{"name": "Стойка стабилизатора", "quantity": "2", "price": "900", "total": ""}],
+                },
+            },
+        )
+        self.assertEqual(status, 200)
+
+        status, loaded = self.request("/api/get_inspection_sheet_form", {"card_id": card_id})
+        self.assertEqual(status, 200)
+        self.assertIn("complaint_summary", loaded["data"]["form"])
+
+        status, saved = self.request(
+            "/api/save_inspection_sheet_form",
+            {
+                "card_id": card_id,
+                "form_data": {
+                    "client": "Ярулина Нина Васильевна",
+                    "vehicle": "Mazda CX-3",
+                    "vin_or_plate": "DK5FW106086 · А123АА124",
+                    "complaint_summary": "Шум в подвеске",
+                    "findings": "Люфт стойки стабилизатора",
+                    "recommendations": "Заменить стойки стабилизатора",
+                    "planned_works": "Замена стоек стабилизатора",
+                    "planned_materials": "Стойка стабилизатора",
+                    "master_comment": "Согласовать смету",
+                },
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["data"]["form"]["vehicle"], "Mazda CX-3")
+
+        status, preview = self.request(
+            "/api/preview_repair_order_print_documents",
+            {
+                "card_id": card_id,
+                "selected_document_ids": ["inspection_sheet"],
+                "active_document_id": "inspection_sheet",
+            },
+        )
+        self.assertEqual(status, 200)
+        html = preview["data"]["documents"][0]["pages"][0]["html"]
+        self.assertIn("Mazda CX-3", html)
+        self.assertIn("Люфт стойки стабилизатора", html)
+        self.assertIn("Замена стоек стабилизатора", html)
+
+        with patch("minimal_kanban.services.card_service.OpenAIJsonAgentClient") as client_cls:
+            client = client_cls.return_value
+            client.model = "gpt-5.4-mini"
+            client.complete_json.return_value = {
+                "client": "Ярулина Нина Васильевна",
+                "vehicle": "Mazda CX-3",
+                "vin_or_plate": "DK5FW106086 · А123АА124",
+                "complaint_summary": "Шум в подвеске и биение",
+                "findings": ["Люфт стойки стабилизатора", "Износ втулок"],
+                "recommendations": ["Заменить стойки", "Проверить втулки"],
+                "planned_works": ["Замена стоек стабилизатора", "Проверка втулок"],
+                "planned_materials": ["Стойка стабилизатора", "Втулка стабилизатора"],
+                "master_comment": "Подготовить смету",
+                "confidence_notes": ["Часть данных собрана из описания карточки"],
+            }
+            status, autofilled = self.request("/api/autofill_inspection_sheet_form", {"card_id": card_id})
+        self.assertEqual(status, 200)
+        self.assertEqual(autofilled["data"]["form"]["master_comment"], "Подготовить смету")
+        self.assertEqual(autofilled["data"]["autofill"]["model"], "gpt-5.4-mini")
+        self.assertIn("Часть данных собрана из описания карточки", autofilled["data"]["autofill"]["confidence_notes"][0])
+
     def test_repair_order_print_pdf_export_works_from_http_thread(self) -> None:
         status, created = self.request(
             "/api/create_card",

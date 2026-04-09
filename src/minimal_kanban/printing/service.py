@@ -13,6 +13,7 @@ from ..models import Card, parse_datetime, utc_now_iso
 from ..repair_order import RepairOrder, RepairOrderRow
 from .defaults import BUILTIN_PRINT_DOCUMENTS, PRINT_BASE_STYLES, builtin_template_records
 from .models import (
+    InspectionSheetFormData,
     SUPPORTED_PRINT_DOCUMENT_TYPES,
     PrintDocumentDefinition,
     PrintModuleSettings,
@@ -25,6 +26,7 @@ from .template_engine import TemplateRenderError, render_template
 
 _SETTINGS_FILE_NAME = "settings.json"
 _TEMPLATES_FILE_NAME = "templates.json"
+_INSPECTION_SHEET_FORMS_FILE_NAME = "inspection_sheet_forms.json"
 _PAGE_BREAK_MARKER = "<!-- AUTOSTOPCRM_PAGE_BREAK -->"
 _SENTENCE_SPLIT_RE = re.compile(r"[\n\r]+|(?<=[.!?])\s+")
 _MONEY_QUANT = Decimal("0.01")
@@ -137,6 +139,7 @@ class PrintModuleService:
         self._root_dir.mkdir(parents=True, exist_ok=True)
         self._settings_path = self._root_dir / _SETTINGS_FILE_NAME
         self._templates_path = self._root_dir / _TEMPLATES_FILE_NAME
+        self._inspection_sheet_forms_path = self._root_dir / _INSPECTION_SHEET_FORMS_FILE_NAME
         self._builtin_documents = {item.id: item for item in BUILTIN_PRINT_DOCUMENTS}
         self._builtin_templates = {item.id: item for item in builtin_template_records()}
 
@@ -426,6 +429,7 @@ class PrintModuleService:
             "selected_template_name": selected_template.name,
             "template_count": len(template_map.get(document.id, [])),
             "is_default_selected": document.id == "repair_order",
+            "supports_form_fill": document.id == "inspection_sheet",
         }
 
     def _preview_document_payload(
@@ -640,6 +644,159 @@ class PrintModuleService:
         merged["service_profile"] = service_profile
         return PrintModuleSettings.from_dict(merged)
 
+    def get_inspection_sheet_form(self, card: Card, *, repair_order: RepairOrder | None = None) -> dict[str, Any]:
+        order = repair_order or card.repair_order
+        form = self._load_inspection_sheet_form(card, order)
+        return {
+            "card_id": card.id,
+            "document_type": "inspection_sheet",
+            "form": form.to_dict(),
+            "meta": {
+                "has_saved_draft": self._inspection_sheet_form_key(card) in self._read_inspection_sheet_form_map(),
+                "updated_at": form.updated_at,
+                "filled_by": form.filled_by,
+                "source": form.source,
+            },
+        }
+
+    def save_inspection_sheet_form(
+        self,
+        card: Card,
+        *,
+        repair_order: RepairOrder | None = None,
+        form_data: dict[str, Any] | None = None,
+        filled_by: str = "",
+        source: str = "manual",
+    ) -> dict[str, Any]:
+        order = repair_order or card.repair_order
+        base = self._default_inspection_sheet_form(card, order)
+        payload = dict(base.to_dict())
+        if isinstance(form_data, dict):
+            payload.update(form_data)
+        payload["updated_at"] = utc_now_iso()
+        payload["filled_by"] = _normalize_text(filled_by, limit=120)
+        payload["source"] = _normalize_text(source, limit=24).lower() or "manual"
+        form = InspectionSheetFormData.from_dict(payload)
+        forms = self._read_inspection_sheet_form_map()
+        forms[self._inspection_sheet_form_key(card)] = form.to_dict()
+        self._write_inspection_sheet_form_map(forms)
+        return {
+            "card_id": card.id,
+            "document_type": "inspection_sheet",
+            "form": form.to_dict(),
+            "meta": {
+                "updated_at": form.updated_at,
+                "filled_by": form.filled_by,
+                "source": form.source,
+            },
+        }
+
+    def build_inspection_sheet_autofill_payload(
+        self,
+        card: Card,
+        *,
+        repair_order: RepairOrder | None = None,
+    ) -> dict[str, Any]:
+        order = repair_order or card.repair_order
+        form = self._load_inspection_sheet_form(card, order)
+        vehicle_display = order.vehicle or card.vehicle_display()
+        return {
+            "card": {
+                "id": card.id,
+                "heading": card.heading(),
+                "title": card.title or "",
+                "vehicle": card.vehicle or "",
+                "description": card.description or "",
+                "tags": [tag.label for tag in getattr(card, "tags", [])],
+            },
+            "repair_order": {
+                "number": order.number,
+                "client": order.client,
+                "phone": order.phone,
+                "vehicle": vehicle_display,
+                "license_plate": order.license_plate,
+                "vin": order.vin,
+                "mileage": order.mileage,
+                "reason": order.reason,
+                "comment": order.comment,
+                "note": order.note,
+                "works": [item["name"] for item in [_repair_row_dict(row, section="works", index=index) for index, row in enumerate(order.works)]],
+                "materials": [item["name"] for item in [_repair_row_dict(row, section="materials", index=index) for index, row in enumerate(order.materials)]],
+            },
+            "current_form": form.to_dict(),
+            "suggested_defaults": self._default_inspection_sheet_form(card, order).to_dict(),
+        }
+
+    def _inspection_sheet_form_key(self, card: Card) -> str:
+        return _normalize_text(card.id, limit=128)
+
+    def _read_inspection_sheet_form_map(self) -> dict[str, dict[str, Any]]:
+        raw = _safe_json_read(self._inspection_sheet_forms_path, default={})
+        if not isinstance(raw, dict):
+            return {}
+        normalized: dict[str, dict[str, Any]] = {}
+        for key, value in raw.items():
+            card_id = _normalize_text(key, limit=128)
+            if not card_id or not isinstance(value, dict):
+                continue
+            normalized[card_id] = InspectionSheetFormData.from_dict(value).to_dict()
+        return normalized
+
+    def _write_inspection_sheet_form_map(self, payload: dict[str, dict[str, Any]]) -> None:
+        _safe_json_write(self._inspection_sheet_forms_path, payload)
+
+    def _load_inspection_sheet_form(self, card: Card, order: RepairOrder) -> InspectionSheetFormData:
+        saved = self._read_inspection_sheet_form_map().get(self._inspection_sheet_form_key(card))
+        if isinstance(saved, dict):
+            return InspectionSheetFormData.from_dict(saved)
+        return self._default_inspection_sheet_form(card, order)
+
+    def _default_inspection_sheet_form(self, card: Card, order: RepairOrder) -> InspectionSheetFormData:
+        vehicle_display = _normalize_text(order.vehicle or card.vehicle_display(), limit=200)
+        vin_or_plate = " · ".join(part for part in (_normalize_text(order.vin, limit=80), _normalize_text(order.license_plate, limit=40)) if part)
+        return InspectionSheetFormData(
+            client=order.client,
+            vehicle=vehicle_display,
+            vin_or_plate=vin_or_plate,
+            complaint_summary=_normalize_multiline(order.reason, limit=16_000),
+            findings=self._bullet_lines(order.note, fallback_source=order.comment),
+            recommendations=self._bullet_lines(order.comment),
+            planned_works=self._row_lines(order.works),
+            planned_materials=self._row_lines(order.materials),
+            master_comment=_normalize_multiline(order.note, limit=16_000),
+        )
+
+    def _row_lines(self, rows: list[RepairOrderRow]) -> str:
+        parts: list[str] = []
+        for row in rows:
+            name = _normalize_text(row.name, limit=240)
+            quantity = _normalize_text(row.quantity, limit=40)
+            if not name:
+                continue
+            parts.append(f"{name} — {quantity} шт." if quantity else name)
+        return "\n".join(parts)
+
+    def _bullet_lines(self, value: Any, fallback_source: Any = "") -> str:
+        points = self._bullet_points(value, fallback_source=fallback_source)
+        return "\n".join(item["text"] for item in points if item.get("text"))
+
+    def _inspection_sheet_list(self, value: Any) -> list[dict[str, str]]:
+        return self._bullet_points(value)
+
+    def _inspection_sheet_missing_fields(self, form: InspectionSheetFormData) -> list[str]:
+        missing: list[str] = []
+        if not _normalize_text(form.client):
+            missing.append("client")
+        if not _normalize_text(form.vehicle):
+            missing.append("vehicle")
+        if not _normalize_text(form.complaint_summary):
+            missing.append("complaint_summary")
+        if not _normalize_text(form.findings):
+            missing.append("findings")
+        if not _normalize_text(form.recommendations):
+            missing.append("recommendations")
+        return missing
+
     def _build_document_context(
         self,
         card: Card,
@@ -651,10 +808,17 @@ class PrintModuleService:
         works = [_repair_row_dict(row, section="works", index=index) for index, row in enumerate(order.works)]
         materials = [_repair_row_dict(row, section="materials", index=index) for index, row in enumerate(order.materials)]
         line_items = works + materials
+        inspection_form = self._load_inspection_sheet_form(card, order)
         findings = self._bullet_points(order.note, fallback_source=order.comment)
         recommendations = self._bullet_points(order.comment)
         issue_points = self._bullet_points(order.reason)
         missing_fields = self._missing_fields(card, order, works=works, materials=materials)
+        inspection_planned_works = self._inspection_sheet_list(inspection_form.planned_works)
+        inspection_planned_materials = self._inspection_sheet_list(inspection_form.planned_materials)
+        if document.id == "inspection_sheet":
+            findings = self._inspection_sheet_list(inspection_form.findings)
+            recommendations = self._inspection_sheet_list(inspection_form.recommendations)
+            missing_fields = self._inspection_sheet_missing_fields(inspection_form)
         warnings: list[str] = []
         if missing_fields:
             warnings.append("Часть полей не заполнена, проверьте документ перед печатью.")
@@ -725,6 +889,25 @@ class PrintModuleService:
             "issue_points": issue_points,
             "findings": findings,
             "recommendations": recommendations,
+            "inspection_sheet": {
+                **inspection_form.to_dict(),
+                "client_display": _display(inspection_form.client),
+                "vehicle_display": _display(inspection_form.vehicle),
+                "vin_or_plate_display": _display(inspection_form.vin_or_plate),
+                "complaint_summary_display": _display(inspection_form.complaint_summary),
+                "complaint_summary_html": _line_breaks_html(inspection_form.complaint_summary),
+                "findings": findings,
+                "recommendations": recommendations,
+                "planned_works": inspection_planned_works,
+                "planned_materials": inspection_planned_materials,
+                "planned_works_count": len(inspection_planned_works),
+                "planned_materials_count": len(inspection_planned_materials),
+                "master_comment_display": _display(inspection_form.master_comment),
+                "master_comment_html": _line_breaks_html(inspection_form.master_comment),
+                "updated_at_display": _date_display(inspection_form.updated_at),
+                "filled_by_display": _display(inspection_form.filled_by),
+                "source_display": _display(inspection_form.source),
+            },
             "totals": {
                 "works": order.works_total_amount(),
                 "materials": order.materials_total_amount(),
@@ -746,8 +929,8 @@ class PrintModuleService:
             "meta": {
                 "warnings": warnings,
                 "missing_fields": missing_fields,
-                "works_count": len(works),
-                "materials_count": len(materials),
+                "works_count": len(inspection_planned_works) if document.id == "inspection_sheet" and inspection_planned_works else len(works),
+                "materials_count": len(inspection_planned_materials) if document.id == "inspection_sheet" and inspection_planned_materials else len(materials),
             },
         }
 

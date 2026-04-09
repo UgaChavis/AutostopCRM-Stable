@@ -184,6 +184,59 @@ class PrintTemplateRecord:
         return record
 
 
+@dataclass(slots=True)
+class InspectionSheetFormData:
+    client: str = ""
+    vehicle: str = ""
+    vin_or_plate: str = ""
+    complaint_summary: str = ""
+    findings: str = ""
+    recommendations: str = ""
+    planned_works: str = ""
+    planned_materials: str = ""
+    master_comment: str = ""
+    updated_at: str = ""
+    filled_by: str = ""
+    source: str = "manual"
+
+    def __post_init__(self) -> None:
+        self.client = _clean_text(self.client, limit=200)
+        self.vehicle = _clean_text(self.vehicle, limit=200)
+        self.vin_or_plate = _clean_text(self.vin_or_plate, limit=200)
+        self.complaint_summary = _clean_multiline(self.complaint_summary, limit=16_000)
+        self.findings = _clean_multiline(self.findings, limit=24_000)
+        self.recommendations = _clean_multiline(self.recommendations, limit=24_000)
+        self.planned_works = _clean_multiline(self.planned_works, limit=24_000)
+        self.planned_materials = _clean_multiline(self.planned_materials, limit=24_000)
+        self.master_comment = _clean_multiline(self.master_comment, limit=16_000)
+        self.updated_at = _clean_text(self.updated_at, limit=48)
+        self.filled_by = _clean_text(self.filled_by, limit=120)
+        self.source = _clean_text(self.source, limit=24).lower() or "manual"
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "client": self.client,
+            "vehicle": self.vehicle,
+            "vin_or_plate": self.vin_or_plate,
+            "complaint_summary": self.complaint_summary,
+            "findings": self.findings,
+            "recommendations": self.recommendations,
+            "planned_works": self.planned_works,
+            "planned_materials": self.planned_materials,
+            "master_comment": self.master_comment,
+            "updated_at": self.updated_at,
+            "filled_by": self.filled_by,
+            "source": self.source,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Any) -> "InspectionSheetFormData":
+        if not isinstance(payload, dict):
+            return cls()
+        values = {item.name: payload.get(item.name, "") for item in fields(cls)}
+        return cls(**values)
+
+
 @dataclass(frozen=True, slots=True)
 class PrintDocumentDefinition:
     id: str

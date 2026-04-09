@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
 from minimal_kanban.models import Card
 from minimal_kanban.printing.models import SUPPORTED_PRINT_DOCUMENT_TYPES
 from minimal_kanban.printing.service import PrintModuleError, PrintModuleService
+from minimal_kanban.printing.template_engine import render_template
 
 
 def build_card() -> Card:
@@ -75,6 +76,8 @@ class PrintingServiceTests(unittest.TestCase):
         self.assertTrue(workspace["documents"][0]["selected_template_id"].startswith("builtin:repair_order"))
         self.assertIn("repair_order", workspace["templates"])
         self.assertEqual(workspace["settings"]["service_profile"]["company_name"], "AutoStop CRM")
+        inspection_document = next(item for item in workspace["documents"] if item["id"] == "inspection_sheet")
+        self.assertTrue(inspection_document["supports_form_fill"])
 
     def test_preview_returns_selected_documents_and_missing_fields(self) -> None:
         preview = self.service.preview_documents(
@@ -106,6 +109,48 @@ class PrintingServiceTests(unittest.TestCase):
             self.assertGreaterEqual(document["page_count"], 1)
             self.assertIn("<!doctype html>", document["pages"][0]["html"].lower())
             self.assertIn(document["label"], document["pages"][0]["html"])
+
+    def test_inspection_sheet_form_roundtrip_updates_preview(self) -> None:
+        initial = self.service.get_inspection_sheet_form(self.card)
+        self.assertIn("planned_works", initial["form"])
+
+        saved = self.service.save_inspection_sheet_form(
+            self.card,
+            form_data={
+                "client": "Новый клиент",
+                "vehicle": "Mazda CX-3",
+                "vin_or_plate": "DK5FW106086 · А123АА124",
+                "complaint_summary": "Шум в подвеске",
+                "findings": "Люфт стойки стабилизатора\nТечь амортизатора",
+                "recommendations": "Заменить стойки\nПроверить втулки",
+                "planned_works": "Замена стоек стабилизатора",
+                "planned_materials": "Стойка стабилизатора",
+                "master_comment": "Согласовать после дефектовки",
+            },
+            filled_by="admin",
+            source="manual",
+        )
+        self.assertEqual(saved["form"]["client"], "Новый клиент")
+        self.assertEqual(saved["meta"]["source"], "manual")
+
+        preview = self.service.preview_documents(
+            self.card,
+            selected_document_ids=["inspection_sheet"],
+            active_document_id="inspection_sheet",
+        )
+        html = preview["documents"][0]["pages"][0]["html"]
+        self.assertIn("Новый клиент", html)
+        self.assertIn("Mazda CX-3", html)
+        self.assertIn("Шум в подвеске", html)
+        self.assertIn("Люфт стойки стабилизатора", html)
+        self.assertIn("Замена стоек стабилизатора", html)
+
+    def test_template_engine_renders_list_item_fields_inside_sections(self) -> None:
+        rendered = render_template(
+            "{{#rows}}<li>{{text}}</li>{{/rows}}",
+            {"rows": [{"text": "один"}, {"text": "два"}]},
+        )
+        self.assertEqual(rendered, "<li>один</li><li>два</li>")
 
     def test_template_crud_duplicate_default_and_delete(self) -> None:
         saved = self.service.save_template(

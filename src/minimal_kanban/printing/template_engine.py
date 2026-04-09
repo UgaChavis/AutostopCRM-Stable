@@ -13,9 +13,7 @@ _TOKEN_RE = re.compile(r"{{{\s*([^{}]+?)\s*}}}|{{\s*([#/^]?)([^{}]+?)\s*}}")
 
 
 def _is_truthy(value: Any) -> bool:
-    if isinstance(value, list):
-        return bool(value)
-    if isinstance(value, dict):
+    if isinstance(value, (list, dict)):
         return bool(value)
     return bool(value)
 
@@ -67,6 +65,26 @@ def render_template(template: str, context: dict[str, Any]) -> str:
     return rendered
 
 
+def _extract_section(template: str, start_index: int, stop_name: str) -> tuple[str, int]:
+    depth = 1
+    index = start_index
+    while True:
+        match = _TOKEN_RE.search(template, index)
+        if match is None:
+            raise TemplateRenderError(f"Не закрыта секция шаблона: {stop_name}")
+        raw_name = match.group(1)
+        sigil = match.group(2) or ""
+        name = (match.group(3) or "").strip()
+        if raw_name is None and name == stop_name:
+            if sigil in ("#", "^"):
+                depth += 1
+            elif sigil == "/":
+                depth -= 1
+                if depth == 0:
+                    return template[start_index:match.start()], match.end()
+        index = match.end()
+
+
 def _render_segment(template: str, stack: list[Any], start_index: int, stop_name: str | None) -> tuple[str, int]:
     out: list[str] = []
     index = start_index
@@ -93,7 +111,7 @@ def _render_segment(template: str, stack: list[Any], start_index: int, stop_name
             if stop_name == name:
                 return "".join(out), index
             raise TemplateRenderError(f"Закрывающая секция {name} не соответствует открытому блоку.")
-        inner, next_index = _render_segment(template, stack, index, stop_name=name)
+        inner, next_index = _extract_section(template, index, name)
         value = _resolve(name, stack)
         if sigil == "#":
             if isinstance(value, list):

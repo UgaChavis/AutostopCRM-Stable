@@ -260,19 +260,19 @@ def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
     <div class="doc-service"><div class="doc-service__name">{{service.company_name}}</div><div class="doc-service__meta">{{service.address}}</div><div class="doc-service__meta">{{service.phone}}</div></div>
   </header>
   <section class="doc-grid">
-    <div class="doc-card"><div class="doc-label">Клиент</div><div class="doc-value">{{client.name_display}}</div></div>
-    <div class="doc-card"><div class="doc-label">Автомобиль</div><div class="doc-value">{{vehicle.display_name}}</div></div>
-    <div class="doc-card"><div class="doc-label">VIN / госномер</div><div class="doc-value">{{vehicle.vin_display}} · {{vehicle.license_plate_display}}</div></div>
+    <div class="doc-card"><div class="doc-label">Клиент</div><div class="doc-value">{{inspection_sheet.client_display}}</div></div>
+    <div class="doc-card"><div class="doc-label">Автомобиль</div><div class="doc-value">{{inspection_sheet.vehicle_display}}</div></div>
+    <div class="doc-card"><div class="doc-label">VIN / госномер</div><div class="doc-value">{{inspection_sheet.vin_or_plate_display}}</div></div>
   </section>
-  <section class="doc-section"><h2 class="doc-section__title">С чем приехал клиент</h2><div class="doc-note">{{{repair_order.reason_html}}}</div></section>
-  <section class="doc-section"><h2 class="doc-section__title">Что выявлено</h2><ul class="doc-list">{{#findings}}<li>{{text}}</li>{{/findings}}{{^findings}}<li>Дефекты не зафиксированы отдельным списком.</li>{{/findings}}</ul></section>
-  <section class="doc-section"><h2 class="doc-section__title">Рекомендации</h2><ul class="doc-list">{{#recommendations}}<li>{{text}}</li>{{/recommendations}}{{^recommendations}}<li>Дополнительные рекомендации не указаны.</li>{{/recommendations}}</ul></section>
+  <section class="doc-section"><h2 class="doc-section__title">С чем приехал клиент</h2><div class="doc-note">{{{inspection_sheet.complaint_summary_html}}}</div></section>
+  <section class="doc-section"><h2 class="doc-section__title">Что выявлено</h2><ul class="doc-list">{{#inspection_sheet.findings}}<li>{{text}}</li>{{/inspection_sheet.findings}}{{^inspection_sheet.findings}}<li>Дефекты не зафиксированы отдельным списком.</li>{{/inspection_sheet.findings}}</ul></section>
+  <section class="doc-section"><h2 class="doc-section__title">Рекомендации</h2><ul class="doc-list">{{#inspection_sheet.recommendations}}<li>{{text}}</li>{{/inspection_sheet.recommendations}}{{^inspection_sheet.recommendations}}<li>Дополнительные рекомендации не указаны.</li>{{/inspection_sheet.recommendations}}</ul></section>
   <section class="doc-section">
     <h2 class="doc-section__title">Планируемые работы / материалы</h2>
     <div class="doc-grid">
-      <div class="doc-card"><div class="doc-label">Работы</div><div class="doc-value">{{meta.works_count}} позиций</div></div>
-      <div class="doc-card"><div class="doc-label">Материалы</div><div class="doc-value">{{meta.materials_count}} позиций</div></div>
-      <div class="doc-card"><div class="doc-label">Комментарий мастера</div><div class="doc-value">{{repair_order.note_display}}</div></div>
+      <div class="doc-card"><div class="doc-label">Работы</div><ul class="doc-list">{{#inspection_sheet.planned_works}}<li>{{text}}</li>{{/inspection_sheet.planned_works}}{{^inspection_sheet.planned_works}}<li>{{meta.works_count}} позиций</li>{{/inspection_sheet.planned_works}}</ul></div>
+      <div class="doc-card"><div class="doc-label">Материалы</div><ul class="doc-list">{{#inspection_sheet.planned_materials}}<li>{{text}}</li>{{/inspection_sheet.planned_materials}}{{^inspection_sheet.planned_materials}}<li>{{meta.materials_count}} позиций</li>{{/inspection_sheet.planned_materials}}</ul></div>
+      <div class="doc-card"><div class="doc-label">Комментарий мастера</div><div class="doc-value">{{inspection_sheet.master_comment_display}}</div></div>
     </div>
   </section>
 </div>

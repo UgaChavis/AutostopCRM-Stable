@@ -5,6 +5,9 @@ PRINTING_WEB_MODULE_STYLE = r"""
     #printTemplateEditorModal {
       z-index: 17;
     }
+    #inspectionSheetFormModal {
+      z-index: 18;
+    }
     .dialog--repair-order-print {
       width: min(1860px, calc(100% - 18px));
       max-width: none;
@@ -73,6 +76,8 @@ PRINTING_WEB_MODULE_STYLE = r"""
     .repair-order-print-preview__meta,
     .repair-order-print-preview__warnings,
     .print-template-editor__meta { color: var(--text-soft); font-size: 12px; line-height: 1.4; }
+    .repair-order-print-doc__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+    .repair-order-print-doc__fill-button { min-height: 30px; padding-inline: 10px; font-size: 11px; }
     .repair-order-print-preview-wrap {
       min-height: 0;
       border: 1px solid rgba(116, 128, 111, 0.34);
@@ -130,6 +135,58 @@ PRINTING_WEB_MODULE_STYLE = r"""
     .print-template-editor__source textarea { width: 100%; min-height: 220px; margin-top: 10px; resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
     .print-template-editor__preview-wrap { min-height: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 4px 0 32px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.08)), #1a211c; border: 1px solid rgba(116, 128, 111, 0.34); border-radius: 16px; }
     .repair-order-print-empty { border: 1px dashed rgba(167, 178, 132, 0.36); border-radius: 16px; padding: 28px 18px; text-align: center; color: var(--text-soft); background: rgba(255,255,255,0.02); }
+    .dialog--inspection-sheet-form {
+      width: min(1080px, calc(100% - 18px));
+      max-width: none;
+      height: min(92vh, 980px);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+    .inspection-sheet-form {
+      min-height: 0;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.08);
+    }
+    .inspection-sheet-form__surface {
+      min-height: 0;
+      border: 1px solid rgba(116, 128, 111, 0.42);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent 18%),
+        rgba(30, 37, 32, 0.96);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+    }
+    .inspection-sheet-form__hint { color: var(--text-soft); font-size: 12px; line-height: 1.45; }
+    .inspection-sheet-form__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .inspection-sheet-form__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .inspection-sheet-form__field .field { gap: 5px; }
+    .inspection-sheet-form textarea {
+      min-height: 94px;
+      resize: vertical;
+      background: rgba(14, 18, 15, 0.76);
+      line-height: 1.45;
+    }
+    .inspection-sheet-form__field--wide { grid-column: 1 / -1; }
+    .inspection-sheet-form__footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .inspection-sheet-form__actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    @media (max-width: 1100px) {
+      .dialog--inspection-sheet-form { width: min(100%, calc(100% - 12px)); height: min(100vh, 100%); }
+      .inspection-sheet-form__grid,
+      .inspection-sheet-form__row { grid-template-columns: 1fr; }
+    }
     @media (max-width: 1500px) {
       .repair-order-print-layout { grid-template-columns: 290px minmax(0, 1fr); grid-template-areas: "docs preview" "settings settings"; }
       .repair-order-print-layout > .repair-order-print-panel:first-child { grid-area: docs; }
@@ -269,6 +326,41 @@ PRINTING_WEB_MODULE_HTML = r"""
       </div>
     </div>
   </div>
+
+  <div class="modal" id="inspectionSheetFormModal">
+    <div class="dialog dialog--inspection-sheet-form" role="dialog" aria-modal="true" aria-labelledby="inspectionSheetFormTitle">
+      <div class="dialog__head">
+        <div><div class="dialog__title-prefix">ВЕДОМОСТЬ</div><h2 class="dialog__title" id="inspectionSheetFormTitle">Заполнение дефектовочной ведомости</h2></div>
+        <button class="btn btn--ghost" id="inspectionSheetFormCloseX" type="button">ЗАКРЫТЬ</button>
+      </div>
+      <div class="dialog__body inspection-sheet-form">
+        <div class="inspection-sheet-form__surface">
+          <div class="inspection-sheet-form__hint" id="inspectionSheetFormMeta">Заполните поля вручную или используйте автозаполнение по данным карточки.</div>
+          <div class="inspection-sheet-form__grid">
+            <div class="inspection-sheet-form__field"><div class="field field--compact"><label for="inspectionSheetClient">Клиент</label><input id="inspectionSheetClient" type="text" maxlength="200"></div></div>
+            <div class="inspection-sheet-form__field"><div class="field field--compact"><label for="inspectionSheetVehicle">Автомобиль</label><input id="inspectionSheetVehicle" type="text" maxlength="200"></div></div>
+            <div class="inspection-sheet-form__field"><div class="field field--compact"><label for="inspectionSheetVinPlate">VIN / госномер</label><input id="inspectionSheetVinPlate" type="text" maxlength="200"></div></div>
+          </div>
+          <div class="inspection-sheet-form__field inspection-sheet-form__field--wide"><div class="field field--compact"><label for="inspectionSheetComplaint">С чем приехал клиент</label><textarea id="inspectionSheetComplaint"></textarea></div></div>
+          <div class="inspection-sheet-form__field inspection-sheet-form__field--wide"><div class="field field--compact"><label for="inspectionSheetFindings">Что выявлено</label><textarea id="inspectionSheetFindings"></textarea></div></div>
+          <div class="inspection-sheet-form__field inspection-sheet-form__field--wide"><div class="field field--compact"><label for="inspectionSheetRecommendations">Рекомендации</label><textarea id="inspectionSheetRecommendations"></textarea></div></div>
+          <div class="inspection-sheet-form__row">
+            <div class="inspection-sheet-form__field"><div class="field field--compact"><label for="inspectionSheetPlannedWorks">Планируемые работы</label><textarea id="inspectionSheetPlannedWorks"></textarea></div></div>
+            <div class="inspection-sheet-form__field"><div class="field field--compact"><label for="inspectionSheetPlannedMaterials">Планируемые материалы</label><textarea id="inspectionSheetPlannedMaterials"></textarea></div></div>
+          </div>
+          <div class="inspection-sheet-form__field inspection-sheet-form__field--wide"><div class="field field--compact"><label for="inspectionSheetMasterComment">Комментарий мастера</label><textarea id="inspectionSheetMasterComment"></textarea></div></div>
+        </div>
+      </div>
+      <div class="dialog__foot inspection-sheet-form__footer">
+        <div class="inspection-sheet-form__hint" id="inspectionSheetFormFooterMeta">После применения предпросмотр и печать будут использовать заполненную ведомость.</div>
+        <div class="inspection-sheet-form__actions">
+          <button class="btn btn--ghost" id="inspectionSheetFormAutofillButton" type="button">АВТОЗАПОЛНЕНИЕ</button>
+          <button class="btn btn--ghost" id="inspectionSheetFormSaveButton" type="button">СОХРАНИТЬ</button>
+          <button class="btn" id="inspectionSheetFormApplyButton" type="button">ПРИМЕНИТЬ</button>
+        </div>
+      </div>
+    </div>
+  </div>
 """
 
 
@@ -283,6 +375,7 @@ _PRINTING_SCRIPT_PART1 = r"""
       previewToken: 0,
       zoomMode: 'fit',
       zoom: 1,
+      inspectionSheetForm: null,
       templateEditor: { documentType: 'repair_order', templateId: '' },
     };
 
@@ -312,6 +405,22 @@ _PRINTING_SCRIPT_PART1 = r"""
       printButton: document.getElementById('repairOrderPrintRunButton'),
       templateEditorButton: document.getElementById('repairOrderPrintTemplateEditorButton'),
       footerMeta: document.getElementById('repairOrderPrintFooterMeta'),
+      inspectionSheetModal: document.getElementById('inspectionSheetFormModal'),
+      inspectionSheetCloseX: document.getElementById('inspectionSheetFormCloseX'),
+      inspectionSheetMeta: document.getElementById('inspectionSheetFormMeta'),
+      inspectionSheetFooterMeta: document.getElementById('inspectionSheetFormFooterMeta'),
+      inspectionSheetClient: document.getElementById('inspectionSheetClient'),
+      inspectionSheetVehicle: document.getElementById('inspectionSheetVehicle'),
+      inspectionSheetVinPlate: document.getElementById('inspectionSheetVinPlate'),
+      inspectionSheetComplaint: document.getElementById('inspectionSheetComplaint'),
+      inspectionSheetFindings: document.getElementById('inspectionSheetFindings'),
+      inspectionSheetRecommendations: document.getElementById('inspectionSheetRecommendations'),
+      inspectionSheetPlannedWorks: document.getElementById('inspectionSheetPlannedWorks'),
+      inspectionSheetPlannedMaterials: document.getElementById('inspectionSheetPlannedMaterials'),
+      inspectionSheetMasterComment: document.getElementById('inspectionSheetMasterComment'),
+      inspectionSheetAutofillButton: document.getElementById('inspectionSheetFormAutofillButton'),
+      inspectionSheetSaveButton: document.getElementById('inspectionSheetFormSaveButton'),
+      inspectionSheetApplyButton: document.getElementById('inspectionSheetFormApplyButton'),
       profileCompanyName: document.getElementById('printProfileCompanyName'),
       profileLegalName: document.getElementById('printProfileLegalName'),
       profileAddress: document.getElementById('printProfileAddress'),
@@ -549,7 +658,82 @@ _PRINTING_SCRIPT_PART1 = r"""
         ...extra,
       };
     }
-"""
+
+    function blankInspectionSheetForm() {
+      return {
+        client: '',
+        vehicle: '',
+        vin_or_plate: '',
+        complaint_summary: '',
+        findings: '',
+        recommendations: '',
+        planned_works: '',
+        planned_materials: '',
+        master_comment: '',
+        updated_at: '',
+        filled_by: '',
+        source: 'manual',
+      };
+    }
+
+    function normalizeInspectionSheetForm(value) {
+      const input = value && typeof value === 'object' ? value : {};
+      return {
+        client: String(input.client || '').trim(),
+        vehicle: String(input.vehicle || '').trim(),
+        vin_or_plate: String(input.vin_or_plate || '').trim(),
+        complaint_summary: String(input.complaint_summary || '').trim(),
+        findings: String(input.findings || '').trim(),
+        recommendations: String(input.recommendations || '').trim(),
+        planned_works: String(input.planned_works || '').trim(),
+        planned_materials: String(input.planned_materials || '').trim(),
+        master_comment: String(input.master_comment || '').trim(),
+        updated_at: String(input.updated_at || '').trim(),
+        filled_by: String(input.filled_by || '').trim(),
+        source: String(input.source || 'manual').trim() || 'manual',
+      };
+    }
+
+    function applyInspectionSheetFormToInputs(form) {
+      const normalized = normalizeInspectionSheetForm(form);
+      repairOrderPrintState.inspectionSheetForm = normalized;
+      if (printEls.inspectionSheetClient) printEls.inspectionSheetClient.value = normalized.client;
+      if (printEls.inspectionSheetVehicle) printEls.inspectionSheetVehicle.value = normalized.vehicle;
+      if (printEls.inspectionSheetVinPlate) printEls.inspectionSheetVinPlate.value = normalized.vin_or_plate;
+      if (printEls.inspectionSheetComplaint) printEls.inspectionSheetComplaint.value = normalized.complaint_summary;
+      if (printEls.inspectionSheetFindings) printEls.inspectionSheetFindings.value = normalized.findings;
+      if (printEls.inspectionSheetRecommendations) printEls.inspectionSheetRecommendations.value = normalized.recommendations;
+      if (printEls.inspectionSheetPlannedWorks) printEls.inspectionSheetPlannedWorks.value = normalized.planned_works;
+      if (printEls.inspectionSheetPlannedMaterials) printEls.inspectionSheetPlannedMaterials.value = normalized.planned_materials;
+      if (printEls.inspectionSheetMasterComment) printEls.inspectionSheetMasterComment.value = normalized.master_comment;
+      if (printEls.inspectionSheetMeta) {
+        const metaBits = [];
+        if (normalized.source) metaBits.push('Источник: ' + normalized.source);
+        if (normalized.filled_by) metaBits.push('Заполнил: ' + normalized.filled_by);
+        if (normalized.updated_at) metaBits.push('Обновлено: ' + normalized.updated_at);
+        printEls.inspectionSheetMeta.textContent = metaBits.length
+          ? metaBits.join(' · ')
+          : 'Заполните поля вручную или используйте автозаполнение по данным карточки.';
+      }
+    }
+
+    function readInspectionSheetFormFromInputs() {
+      return normalizeInspectionSheetForm({
+        client: printEls.inspectionSheetClient?.value || '',
+        vehicle: printEls.inspectionSheetVehicle?.value || '',
+        vin_or_plate: printEls.inspectionSheetVinPlate?.value || '',
+        complaint_summary: printEls.inspectionSheetComplaint?.value || '',
+        findings: printEls.inspectionSheetFindings?.value || '',
+        recommendations: printEls.inspectionSheetRecommendations?.value || '',
+        planned_works: printEls.inspectionSheetPlannedWorks?.value || '',
+        planned_materials: printEls.inspectionSheetPlannedMaterials?.value || '',
+        master_comment: printEls.inspectionSheetMasterComment?.value || '',
+        updated_at: repairOrderPrintState.inspectionSheetForm?.updated_at || '',
+        filled_by: repairOrderPrintState.inspectionSheetForm?.filled_by || '',
+        source: repairOrderPrintState.inspectionSheetForm?.source || 'manual',
+      });
+    }
+""" 
 
 
 _PRINTING_SCRIPT_PART2 = r"""
@@ -600,12 +784,16 @@ _PRINTING_SCRIPT_PART2 = r"""
         const activeClass = isActive ? ' is-active' : '';
         const templateId = repairOrderPrintSelectedTemplateId(item.id);
         const template = repairOrderPrintTemplatesFor(item.id).find((candidate) => candidate.id === templateId);
+        const fillAction = item.supports_form_fill
+          ? '<div class="repair-order-print-doc__actions"><button class="btn btn--ghost repair-order-print-doc__fill-button" data-print-inspection-fill="' + escapeHtml(item.id) + '" type="button">ЗАПОЛНИТЬ ВЕДОМОСТЬ</button></div>'
+          : '';
         return '<div class="repair-order-print-doc' + activeClass + '" data-print-document="' + escapeHtml(item.id) + '">' +
           '<div class="repair-order-print-doc__meta">' +
             '<div class="repair-order-print-doc__state">' + (isActive ? 'ACTIVE' : 'SELECT') + '</div>' +
             '<div class="repair-order-print-doc__title">' + escapeHtml(item.label) + '</div>' +
             '<div class="repair-order-print-doc__description">' + escapeHtml(item.description || '') + '</div>' +
             '<div class="repair-order-print-doc__template">Шаблон: ' + escapeHtml(template?.name || 'не выбран') + '</div>' +
+            fillAction +
           '</div>' +
         '</div>';
       }).join('') : '<div class="repair-order-print-empty">Документы для печати пока недоступны.</div>';
@@ -718,7 +906,98 @@ _PRINTING_SCRIPT_PART2 = r"""
     function closeRepairOrderPrintWorkspace() {
       printEls.modal.classList.remove('is-open');
     }
-"""
+
+    async function loadInspectionSheetForm() {
+      const data = await api('/api/get_inspection_sheet_form', {
+        method: 'POST',
+        body: repairOrderPrintRequestPayload({
+          selected_document_ids: ['inspection_sheet'],
+          active_document_id: 'inspection_sheet',
+        }),
+      });
+      applyInspectionSheetFormToInputs(data?.form || blankInspectionSheetForm());
+      return data;
+    }
+
+    async function openInspectionSheetForm() {
+      repairOrderPrintState.selectedDocumentIds = ['inspection_sheet'];
+      repairOrderPrintState.activeDocumentId = 'inspection_sheet';
+      renderRepairOrderPrintDocuments();
+      renderRepairOrderPrintTemplateSelect();
+      if (!repairOrderPrintState.previewByDocument?.inspection_sheet) {
+        await refreshRepairOrderPrintPreview({
+          selected_document_ids: ['inspection_sheet'],
+          active_document_id: 'inspection_sheet',
+        });
+      } else {
+        renderRepairOrderPrintPreview();
+      }
+      await loadInspectionSheetForm();
+      if (printEls.inspectionSheetFooterMeta) {
+        printEls.inspectionSheetFooterMeta.textContent = 'После применения предпросмотр и печать будут использовать заполненную ведомость.';
+      }
+      printEls.inspectionSheetModal?.classList.add('is-open');
+    }
+
+    function closeInspectionSheetForm() {
+      printEls.inspectionSheetModal?.classList.remove('is-open');
+    }
+
+    async function saveInspectionSheetFormDraft({ closeAfter = false } = {}) {
+      const data = await api('/api/save_inspection_sheet_form', {
+        method: 'POST',
+        body: repairOrderPrintRequestPayload({
+          selected_document_ids: ['inspection_sheet'],
+          active_document_id: 'inspection_sheet',
+          form_source: 'manual',
+          form_data: readInspectionSheetFormFromInputs(),
+        }),
+      });
+      applyInspectionSheetFormToInputs(data?.form || blankInspectionSheetForm());
+      await refreshRepairOrderPrintPreview({
+        selected_document_ids: ['inspection_sheet'],
+        active_document_id: 'inspection_sheet',
+      });
+      if (printEls.inspectionSheetFooterMeta) {
+        printEls.inspectionSheetFooterMeta.textContent = 'Ведомость сохранена и применена к предпросмотру.';
+      }
+      if (closeAfter) closeInspectionSheetForm();
+      setStatus('Ведомость сохранена.', false);
+      return data;
+    }
+
+    async function autofillInspectionSheetFormDraft() {
+      if (printEls.inspectionSheetAutofillButton) printEls.inspectionSheetAutofillButton.disabled = true;
+      try {
+        const data = await api('/api/autofill_inspection_sheet_form', {
+          method: 'POST',
+          body: repairOrderPrintRequestPayload({
+            selected_document_ids: ['inspection_sheet'],
+            active_document_id: 'inspection_sheet',
+          }),
+        });
+        applyInspectionSheetFormToInputs(data?.form || blankInspectionSheetForm());
+        await refreshRepairOrderPrintPreview({
+          selected_document_ids: ['inspection_sheet'],
+          active_document_id: 'inspection_sheet',
+        });
+        const notes = Array.isArray(data?.autofill?.confidence_notes) ? data.autofill.confidence_notes : [];
+        if (printEls.inspectionSheetFooterMeta) {
+          printEls.inspectionSheetFooterMeta.textContent = notes.length
+            ? ('Автозаполнение завершено. ' + notes.slice(0, 2).join(' · '))
+            : 'Автозаполнение завершено.';
+        }
+        setStatus('Ведомость автозаполнена.', false);
+      } catch (error) {
+        if (printEls.inspectionSheetFooterMeta) {
+          printEls.inspectionSheetFooterMeta.textContent = error.message || 'Не удалось автозаполнить ведомость.';
+        }
+        setStatus(error.message, true);
+      } finally {
+        if (printEls.inspectionSheetAutofillButton) printEls.inspectionSheetAutofillButton.disabled = false;
+      }
+    }
+""" 
 
 
 _PRINTING_SCRIPT_PART3 = r"""
@@ -848,6 +1127,11 @@ _PRINTING_SCRIPT_PART3 = r"""
     function handleRepairOrderPrintDocumentsClick(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
+      const fillButton = target.closest('[data-print-inspection-fill]');
+      if (fillButton instanceof HTMLElement) {
+        openInspectionSheetForm();
+        return;
+      }
       const card = target.closest('[data-print-document]');
       if (!card) return;
       const documentId = card.dataset.printDocument || 'repair_order';
@@ -1066,6 +1350,10 @@ _PRINTING_SCRIPT_PART3 = r"""
       if (event.target === printEls.templateModal) closePrintTemplateEditor();
     }
 
+    function handleInspectionSheetFormOverlayClick(event) {
+      if (event.target === printEls.inspectionSheetModal) closeInspectionSheetForm();
+    }
+
     printRepairOrderDraft = function() { return openRepairOrderPrintWorkspace(); };
 
     if (printEls.documents) printEls.documents.addEventListener('click', handleRepairOrderPrintDocumentsClick);
@@ -1083,6 +1371,11 @@ _PRINTING_SCRIPT_PART3 = r"""
     if (printEls.closeX) printEls.closeX.addEventListener('click', closeRepairOrderPrintWorkspace);
     if (printEls.modal) printEls.modal.addEventListener('click', handleRepairOrderPrintModalOverlayClick);
     if (printEls.previewWrap) window.addEventListener('resize', applyRepairOrderPrintZoom);
+    if (printEls.inspectionSheetCloseX) printEls.inspectionSheetCloseX.addEventListener('click', closeInspectionSheetForm);
+    if (printEls.inspectionSheetModal) printEls.inspectionSheetModal.addEventListener('click', handleInspectionSheetFormOverlayClick);
+    if (printEls.inspectionSheetSaveButton) printEls.inspectionSheetSaveButton.addEventListener('click', () => { saveInspectionSheetFormDraft(); });
+    if (printEls.inspectionSheetApplyButton) printEls.inspectionSheetApplyButton.addEventListener('click', () => { saveInspectionSheetFormDraft({ closeAfter: true }); });
+    if (printEls.inspectionSheetAutofillButton) printEls.inspectionSheetAutofillButton.addEventListener('click', autofillInspectionSheetFormDraft);
     if (printEls.templateCloseX) printEls.templateCloseX.addEventListener('click', closePrintTemplateEditor);
     if (printEls.templateModal) printEls.templateModal.addEventListener('click', handlePrintTemplateEditorOverlayClick);
     if (printEls.templateDocumentType) printEls.templateDocumentType.addEventListener('change', handlePrintTemplateDocumentTypeChange);

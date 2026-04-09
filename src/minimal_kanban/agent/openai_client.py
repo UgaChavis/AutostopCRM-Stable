@@ -37,8 +37,7 @@ class OpenAIJsonAgentClient:
     def model(self) -> str:
         return self._model
 
-    def next_step(self, *, system_prompt: str, messages: list[dict[str, str]]) -> dict[str, Any]:
-        instructions = f"{system_prompt.strip()}\n\nReturn only one JSON object that matches the requested schema."
+    def complete_json(self, *, instructions: str, messages: list[dict[str, str]], temperature: float = 0.1) -> dict[str, Any]:
         input_messages = []
         for message in messages:
             message_text = str(message.get("content") or "")
@@ -50,8 +49,8 @@ class OpenAIJsonAgentClient:
             )
         payload = {
             "model": self._model,
-            "temperature": 0.1,
-            "instructions": instructions,
+            "temperature": temperature,
+            "instructions": instructions.strip(),
             "text": {"format": {"type": "json_object"}},
             "input": input_messages,
         }
@@ -74,6 +73,10 @@ class OpenAIJsonAgentClient:
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise AgentModelError("Agent model returned an unexpected payload.") from exc
         return self._parse_json_payload(message)
+
+    def next_step(self, *, system_prompt: str, messages: list[dict[str, str]]) -> dict[str, Any]:
+        instructions = f"{system_prompt.strip()}\n\nReturn only one JSON object that matches the requested schema."
+        return self.complete_json(instructions=instructions, messages=messages, temperature=0.1)
 
     def _extract_error_message(self, response: httpx.Response) -> str:
         status = response.status_code
