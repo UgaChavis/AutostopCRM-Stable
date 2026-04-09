@@ -1893,10 +1893,12 @@ BOARD_WEB_APP_HTML = "".join(
       }
       .dialog--agent {
         width: min(496px, calc(100% - 20px));
-        max-height: min(78vh, 660px);
+        max-height: min(84vh, 760px);
         padding: 0;
         gap: 0;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
       .dialog--agent .dialog__head {
         padding: 11px 12px 9px;
@@ -1905,11 +1907,13 @@ BOARD_WEB_APP_HTML = "".join(
         background: rgba(0, 0, 0, 0.08);
       }
       .agent-shell {
-        display: grid;
+        display: flex;
+        flex-direction: column;
         gap: 8px;
         min-height: 0;
         padding: 11px;
-        overflow: auto;
+        overflow: hidden;
+        flex: 1 1 auto;
       }
       .agent-headline {
         display: flex;
@@ -1973,9 +1977,11 @@ BOARD_WEB_APP_HTML = "".join(
         background: rgba(167, 178, 132, 0.08);
       }
       .agent-field textarea {
-        min-height: 60px;
-        height: 60px;
-        resize: vertical;
+        min-height: 80px;
+        height: 80px;
+        max-height: 180px;
+        resize: none;
+        overflow-y: auto;
       }
       .agent-actions-row {
         display: flex;
@@ -1985,12 +1991,14 @@ BOARD_WEB_APP_HTML = "".join(
         min-width: 124px;
       }
       .agent-result {
-        min-height: 64px;
-        padding: 9px 10px;
+        flex: 1 1 auto;
+        min-height: 200px;
+        padding: 11px 12px;
         border: 1px solid rgba(116, 126, 106, 0.18);
         background: rgba(0, 0, 0, 0.08);
         white-space: pre-wrap;
-        line-height: 1.4;
+        line-height: 1.5;
+        overflow: auto;
       }
       .agent-result[data-state="empty"] {
         color: var(--muted);
@@ -4805,7 +4813,10 @@ BOARD_WEB_APP_HTML = "".join(
       if (els.agentDetails) els.agentDetails.open = false;
       els.agentModal.classList.add('is-open');
       refreshAgentModalState();
-      window.setTimeout(() => els.agentTaskInput?.focus(), 0);
+      window.setTimeout(() => {
+        syncAgentTaskInputHeight();
+        els.agentTaskInput?.focus();
+      }, 0);
     }
 
     function closeAgentModal() {
@@ -5182,6 +5193,25 @@ BOARD_WEB_APP_HTML = "".join(
 
     function configureVehicleAutofillUi() {
       return;
+    }
+
+    function syncAgentTaskInputHeight() {
+      const textarea = els.agentTaskInput;
+      if (!textarea) return;
+      const style = window.getComputedStyle(textarea);
+      const lineHeight = Math.max(20, parseFloat(style.lineHeight || '22'));
+      const paddingTop = parseFloat(style.paddingTop || '0');
+      const paddingBottom = parseFloat(style.paddingBottom || '0');
+      const borderTop = parseFloat(style.borderTopWidth || '0');
+      const borderBottom = parseFloat(style.borderBottomWidth || '0');
+      const chromeHeight = paddingTop + paddingBottom + borderTop + borderBottom;
+      const text = String(textarea.value || '').trim();
+      const lineCount = text ? text.split(/\\r?\\n/).length : 0;
+      const minRows = text ? Math.max(3, Math.min(6, lineCount + 1)) : 3;
+      const minHeight = Math.round(minRows * lineHeight + chromeHeight);
+      const maxHeight = Math.max(minHeight, Math.min(window.innerHeight * 0.24, 180));
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight)) + 'px';
     }
 
     function syncCardDescriptionHeight() {
@@ -8573,6 +8603,7 @@ function renderCompactArchiveRows(cards) {
       const prompt = String(button.dataset.agentPrompt || '').trim();
       if (!prompt || !els.agentTaskInput) return;
       els.agentTaskInput.value = prompt;
+      syncAgentTaskInputHeight();
       els.agentTaskInput.focus();
     }
 
@@ -9073,6 +9104,7 @@ function renderCompactArchiveRows(cards) {
     els.agentQuickActions?.addEventListener('click', handleAgentQuickActionClick);
     els.agentRunsList?.addEventListener('click', handleAgentRunSelection);
     els.agentRunButton?.addEventListener('click', enqueueAgentTask);
+    els.agentTaskInput?.addEventListener('input', syncAgentTaskInputHeight);
     els.agentTaskInput?.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault();

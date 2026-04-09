@@ -127,6 +127,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function boardAgentContext()", BOARD_WEB_APP_HTML)
         self.assertIn("function cardAgentContext()", BOARD_WEB_APP_HTML)
         self.assertIn("function quickAgentPrompts(context)", BOARD_WEB_APP_HTML)
+        self.assertIn("function syncAgentTaskInputHeight()", BOARD_WEB_APP_HTML)
         self.assertIn("function formatAgentErrorMessage(rawValue)", BOARD_WEB_APP_HTML)
         self.assertIn("const latestRunStatus = String(latestRun?.status || '').trim().toLowerCase();", BOARD_WEB_APP_HTML)
         self.assertIn("} else if (latestRunStatus === 'completed') {", BOARD_WEB_APP_HTML)
@@ -139,8 +140,15 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("els.cardAgentButton?.addEventListener('click', () => openAgentModal('card'));", BOARD_WEB_APP_HTML)
         self.assertIn("els.agentQuickActions?.addEventListener('click', handleAgentQuickActionClick);", BOARD_WEB_APP_HTML)
         self.assertIn("els.agentRunsList?.addEventListener('click', handleAgentRunSelection);", BOARD_WEB_APP_HTML)
+        self.assertIn("els.agentTaskInput?.addEventListener('input', syncAgentTaskInputHeight);", BOARD_WEB_APP_HTML)
         self.assertIn("els.agentRunButton?.addEventListener('click', enqueueAgentTask);", BOARD_WEB_APP_HTML)
         self.assertIn("els.agentModal.addEventListener('click', handleAgentModalOverlayClick);", BOARD_WEB_APP_HTML)
+        self.assertIn("syncAgentTaskInputHeight();", BOARD_WEB_APP_HTML)
+        self.assertIn("min-height: 80px;", BOARD_WEB_APP_HTML)
+        self.assertIn("max-height: 180px;", BOARD_WEB_APP_HTML)
+        self.assertIn("min-height: 200px;", BOARD_WEB_APP_HTML)
+        self.assertIn("overflow-y: auto;", BOARD_WEB_APP_HTML)
+        self.assertIn("overflow: auto;", BOARD_WEB_APP_HTML)
 
     def test_card_description_textarea_allows_extended_text(self) -> None:
         self.assertIn('id="cardDescription" maxlength="20000"', BOARD_WEB_APP_HTML)
