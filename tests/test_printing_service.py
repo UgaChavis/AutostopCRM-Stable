@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +15,7 @@ if str(SRC) not in sys.path:
 
 from minimal_kanban.models import Card
 from minimal_kanban.printing.models import SUPPORTED_PRINT_DOCUMENT_TYPES
+from minimal_kanban.printing.pdf import render_html_to_pdf_bytes
 from minimal_kanban.printing.service import PrintModuleError, PrintModuleService
 from minimal_kanban.printing.template_engine import render_template
 
@@ -214,6 +216,21 @@ class PrintingServiceTests(unittest.TestCase):
 
         self.assertEqual(context.exception.code, "validation_error")
         self.assertIn("Не выбран принтер", context.exception.message)
+
+
+    def test_pdf_renderer_falls_back_safely_from_worker_thread(self) -> None:
+        result: dict[str, bytes] = {}
+
+        def run() -> None:
+            result["pdf"] = render_html_to_pdf_bytes("<h1>Worker thread</h1>")
+
+        thread = threading.Thread(target=run, name="pdf-worker-test")
+        thread.start()
+        thread.join(timeout=10)
+
+        self.assertFalse(thread.is_alive())
+        self.assertIn("pdf", result)
+        self.assertTrue(result["pdf"].startswith(b"%PDF"))
 
 
 if __name__ == "__main__":

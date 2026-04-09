@@ -6,9 +6,11 @@ import logging
 import socket
 import sys
 import tempfile
+import http.client
 import unittest
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -46,7 +48,12 @@ class ApiServerTests(unittest.TestCase):
         logger.addHandler(logging.NullHandler())
         logger.propagate = False
         self.store = JsonStore(state_file=state_file, logger=logger)
-        self.service = CardService(self.store, logger)
+        self.service = CardService(
+            self.store,
+            logger,
+            attachments_dir=Path(self.temp_dir.name) / "attachments",
+            repair_orders_dir=Path(self.temp_dir.name) / "repair-orders",
+        )
         self.operator_service = OperatorAuthService(
             self.store,
             self.service,
@@ -115,6 +122,24 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(created["data"]["card"]["indicator"], "green")
         self.assertIn("remaining_seconds", created["data"]["card"])
         self.assertIn("deadline_timestamp", created["data"]["card"])
+
+    def test_head_root_and_health_are_supported(self) -> None:
+        parsed = urlsplit(self.base_url)
+        connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+        try:
+            connection.request("HEAD", "/")
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.read(), b"")
+            connection.close()
+
+            connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+            connection.request("HEAD", "/api/health")
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.read(), b"")
+        finally:
+            connection.close()
 
     def test_review_board_route_returns_summary(self) -> None:
         status, created = self.request(
@@ -1766,7 +1791,12 @@ class ApiServerAuthTests(unittest.TestCase):
         logger.addHandler(logging.NullHandler())
         logger.propagate = False
         self.store = JsonStore(state_file=state_file, logger=logger)
-        self.service = CardService(self.store, logger)
+        self.service = CardService(
+            self.store,
+            logger,
+            attachments_dir=Path(self.temp_dir.name) / "attachments",
+            repair_orders_dir=Path(self.temp_dir.name) / "repair-orders",
+        )
         self.port = reserve_port()
         self.server = ApiServer(
             self.service,

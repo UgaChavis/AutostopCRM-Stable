@@ -71,6 +71,8 @@ async def open_mcp_session(url: str, *, http_client: httpx.AsyncClient | None = 
                         await session.initialize()
                         yield session
                 finally:
+                    with suppress(Exception):
+                        await write_stream.aclose()
                     if transport.session_id:
                         with suppress(Exception):
                             await transport.terminate_session(client)

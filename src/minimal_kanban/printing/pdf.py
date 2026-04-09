@@ -4,6 +4,7 @@ import html as html_lib
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path
 
 
@@ -25,6 +26,17 @@ def _ensure_qt_application():
     return app
 
 
+def _should_use_qt_renderer() -> bool:
+    if str(os.environ.get("MINIMAL_KANBAN_FORCE_FALLBACK_PDF", "")).strip().lower() in {"1", "true", "yes"}:
+        return False
+    # QTextDocument/QPrinter from non-main threads is unstable on Windows and
+    # can crash the process at interpreter shutdown after otherwise successful
+    # requests. In worker threads we always use the deterministic fallback.
+    if threading.current_thread() is not threading.main_thread():
+        return False
+    return True
+
+
 def render_html_to_pdf_bytes(
     html: str,
     *,
@@ -32,6 +44,13 @@ def render_html_to_pdf_bytes(
     orientation: str = "portrait",
     title: str = "AutoStop CRM",
 ) -> bytes:
+    if not _should_use_qt_renderer():
+        return _render_fallback_pdf_bytes(
+            html,
+            paper_size=paper_size,
+            orientation=orientation,
+            title=title,
+        )
     try:
         _ensure_qt_application()
         from PySide6.QtCore import QMarginsF, QSizeF

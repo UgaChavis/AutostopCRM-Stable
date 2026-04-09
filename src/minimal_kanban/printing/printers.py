@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import os
+import threading
 
 
 class PrinterBackendError(RuntimeError):
     pass
+
+
+def _should_use_qt_printer_backend() -> bool:
+    if str(os.environ.get("MINIMAL_KANBAN_ENABLE_QT_PRINTING", "")).strip().lower() not in {"1", "true", "yes"}:
+        return False
+    return threading.current_thread() is threading.main_thread()
 
 
 def _ensure_qt_application():
@@ -22,6 +29,8 @@ def _ensure_qt_application():
 
 
 def list_printers(*, default_name: str = "") -> list[dict[str, object]]:
+    if not _should_use_qt_printer_backend():
+        return []
     try:
         _ensure_qt_application()
         from PySide6.QtPrintSupport import QPrinterInfo
@@ -56,6 +65,8 @@ def print_html(
     orientation: str = "portrait",
     title: str = "AutoStop CRM",
 ) -> None:
+    if not _should_use_qt_printer_backend():
+        raise PrinterBackendError("Прямая печать недоступна в текущем окружении.")
     _ensure_qt_application()
     try:
         from PySide6.QtCore import QMarginsF, QSizeF

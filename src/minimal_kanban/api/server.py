@@ -108,12 +108,13 @@ class ApiServer:
     def stop(self) -> None:
         if self._server is None:
             return
-        self._server.shutdown()
-        self._server.server_close()
+        server = self._server
         self._server = None
+        server.shutdown()
         if self._thread is not None:
             self._thread.join(timeout=5)
             self._thread = None
+        server.server_close()
         self._logger.info("api_server_stopped")
 
     def _make_handler(self):
@@ -274,6 +275,32 @@ class ApiServer:
             def do_OPTIONS(self) -> None:
                 self.send_response(HTTPStatus.NO_CONTENT)
                 self._send_headers("application/json", 0)
+
+            def do_HEAD(self) -> None:
+                request_id = str(uuid.uuid4())
+                parsed = urlsplit(self.path)
+                route = parsed.path
+                if route in {"/", "/index.html"}:
+                    body = BOARD_WEB_APP_HTML.encode("utf-8")
+                    self.send_response(HTTPStatus.OK)
+                    self._send_headers("text/html; charset=utf-8", len(body))
+                    return
+                if route == "/api/health":
+                    body = _json_response(
+                        ok=True,
+                        data={
+                            "status": "ok",
+                            "base_url": base_url,
+                            "bind_host": self.server.server_address[0],
+                            "auth_required": bool(bearer_token),
+                        },
+                        error=None,
+                        request_id=request_id,
+                    )
+                    self.send_response(HTTPStatus.OK)
+                    self._send_headers("application/json", len(body))
+                    return
+                self.send_error(HTTPStatus.NOT_IMPLEMENTED, "Unsupported method ('HEAD')")
 
             def do_GET(self) -> None:
                 request_id = str(uuid.uuid4())
@@ -647,4 +674,5 @@ class ApiServer:
 
 class ReusableThreadingHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
-    daemon_threads = True
+    daemon_threads = False
+    block_on_close = True
