@@ -299,10 +299,14 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(len(details["transactions"]), 2)
         self.assertEqual(details["transactions"][0]["note"], "Расходник")
 
-        deleted = self.service.delete_cashbox({"cashbox_id": cashbox["short_id"], "actor_name": "ADMIN"})
+        with self.assertRaisesRegex(ValueError, "Нельзя удалить кассу, пока в ней есть движения"):
+            self.service.delete_cashbox({"cashbox_id": cashbox["short_id"], "actor_name": "ADMIN"})
+
+        empty_cashbox = self.service.create_cashbox({"name": "Резерв", "actor_name": "ADMIN"})["cashbox"]
+        deleted = self.service.delete_cashbox({"cashbox_id": empty_cashbox["short_id"], "actor_name": "ADMIN"})
         self.assertTrue(deleted["meta"]["deleted"])
-        self.assertEqual(deleted["meta"]["removed_transactions"], 2)
-        self.assertEqual(self.service.list_cashboxes()["meta"]["total"], 0)
+        self.assertEqual(deleted["meta"]["removed_transactions"], 0)
+        self.assertEqual(self.service.list_cashboxes()["meta"]["total"], 1)
 
     def test_move_card_can_reorder_within_same_column(self) -> None:
         first = self.service.create_card({"title": "First", "column": "inbox", "deadline": {"hours": 2}})

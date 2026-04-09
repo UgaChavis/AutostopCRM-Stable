@@ -486,6 +486,8 @@ class CardService:
             actor_name, source = self._audit_identity(payload, default_source="api")
             cashbox = self._find_cashbox(cashboxes, payload.get("cashbox_id"))
             related_transactions = self._cashbox_transactions(transactions, cashbox.id)
+            if related_transactions:
+                raise ValueError("Нельзя удалить кассу, пока в ней есть движения.")
             statistics = self._cashbox_statistics(cashbox, transactions)
             remaining_cashboxes = [item for item in cashboxes if item.id != cashbox.id]
             remaining_transactions = [item for item in transactions if item.cashbox_id != cashbox.id]

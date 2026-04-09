@@ -2959,7 +2959,7 @@ BOARD_WEB_APP_HTML = "".join(
     #cashboxesModal .dialog { width: min(1060px, 100%); }
     .cashboxes-layout {
       display: grid;
-      grid-template-columns: minmax(238px, 276px) minmax(0, 1fr);
+      grid-template-columns: minmax(214px, 244px) minmax(0, 1fr);
       gap: 12px;
       min-height: 472px;
     }
@@ -2987,6 +2987,7 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       flex-direction: column;
       gap: 6px;
+      flex: 1 1 auto;
       max-height: 540px;
       overflow: auto;
       padding-right: 3px;
@@ -3070,6 +3071,35 @@ BOARD_WEB_APP_HTML = "".join(
     .cashbox-detail__meta span {
       white-space: nowrap;
     }
+    .cashbox-detail__toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cashbox-filter-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .cashbox-filter-btn {
+      min-height: 26px;
+      padding: 4px 8px;
+      border: 1px solid var(--line-soft);
+      background: rgba(255,255,255,0.02);
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .cashbox-filter-btn.is-active {
+      color: var(--text);
+      border-color: rgba(167, 178, 132, 0.54);
+      background: rgba(167, 178, 132, 0.1);
+    }
     .cashbox-composer {
       display: grid;
       gap: 7px;
@@ -3114,6 +3144,7 @@ BOARD_WEB_APP_HTML = "".join(
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      flex-wrap: wrap;
     }
     .cashbox-detail__head {
       display: grid;
@@ -3123,14 +3154,18 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .cashbox-detail__actions { display: flex; justify-content: flex-end; }
     .cashbox-delete-button {
-      border-color: rgba(207, 91, 75, 0.42);
-      color: rgba(255, 210, 201, 0.9);
-      background: rgba(47, 16, 14, 0.18);
+      border-color: rgba(135, 113, 109, 0.34);
+      color: rgba(224, 214, 208, 0.78);
+      background: rgba(255,255,255,0.02);
     }
     .cashbox-delete-button:hover {
-      border-color: rgba(207, 91, 75, 0.66);
-      background: rgba(58, 18, 16, 0.28);
-      color: #ffd2c9;
+      border-color: rgba(163, 132, 126, 0.48);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255, 228, 219, 0.92);
+    }
+    .cashbox-delete-button[disabled] {
+      opacity: 0.42;
+      cursor: not-allowed;
     }
     .cashbox-transactions {
       display: flex;
@@ -3148,6 +3183,17 @@ BOARD_WEB_APP_HTML = "".join(
       border: 1px solid var(--line-soft);
       padding: 6px 7px;
       background: rgba(255,255,255,0.02);
+    }
+    .cashbox-transaction__body {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+    .cashbox-transaction__summary {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 8px;
     }
     .cashbox-transaction__badge {
       min-width: 58px;
@@ -3167,6 +3213,13 @@ BOARD_WEB_APP_HTML = "".join(
       white-space: nowrap;
     }
     .cashbox-transaction__amount[data-direction="expense"] { color: #f0b1a6; }
+    .cashbox-transaction__context {
+      color: rgba(231, 226, 193, 0.72);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
     .cashbox-transaction__note {
       font-size: 12.5px;
       line-height: 1.3;
@@ -3584,8 +3637,15 @@ BOARD_WEB_APP_HTML = "".join(
               <div class="panel-title" id="cashboxDetailTitle">КАССА НЕ ВЫБРАНА</div>
               <div class="cashbox-detail__meta" id="cashboxDetailMeta">Выберите кассу слева.</div>
             </div>
+          </div>
+          <div class="cashbox-detail__toolbar">
+            <div class="cashbox-filter-group" id="cashboxPeriodFilters">
+              <button class="cashbox-filter-btn" type="button" data-cashbox-period="today">СЕГОДНЯ</button>
+              <button class="cashbox-filter-btn" type="button" data-cashbox-period="month">МЕСЯЦ</button>
+              <button class="cashbox-filter-btn is-active" type="button" data-cashbox-period="all">ВСЁ</button>
+            </div>
             <div class="cashbox-detail__actions">
-              <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">УДАЛИТЬ КАССУ</button>
+              <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">УДАЛИТЬ ПУСТУЮ КАССУ</button>
             </div>
           </div>
           <div class="cashbox-stats" id="cashboxStats"></div>
@@ -3608,6 +3668,11 @@ BOARD_WEB_APP_HTML = "".join(
           <div class="cashbox-transactions-card">
             <div class="cashbox-transactions-head">
               <div class="panel-title">ДВИЖЕНИЯ</div>
+              <div class="cashbox-filter-group" id="cashboxDirectionFilters">
+                <button class="cashbox-filter-btn is-active" type="button" data-cashbox-direction="all">ВСЕ</button>
+                <button class="cashbox-filter-btn" type="button" data-cashbox-direction="income">ПРИХОД</button>
+                <button class="cashbox-filter-btn" type="button" data-cashbox-direction="expense">РАСХОД</button>
+              </div>
             </div>
             <div class="cashbox-transactions" id="cashboxTransactions"></div>
           </div>
@@ -4021,6 +4086,8 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxes: [],
       activeCashboxId: '',
       activeCashbox: null,
+      cashboxPeriodFilter: 'all',
+      cashboxDirectionFilter: 'all',
       employees: [],
       activeEmployeeId: '',
       payrollMonth: '',
@@ -4341,11 +4408,13 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxDetailTitle: document.getElementById('cashboxDetailTitle'),
       cashboxDetailMeta: document.getElementById('cashboxDetailMeta'),
       cashboxStats: document.getElementById('cashboxStats'),
+      cashboxPeriodFilters: document.getElementById('cashboxPeriodFilters'),
       cashboxAmountInput: document.getElementById('cashboxAmountInput'),
       cashboxNoteInput: document.getElementById('cashboxNoteInput'),
       cashboxIncomeButton: document.getElementById('cashboxIncomeButton'),
       cashboxExpenseButton: document.getElementById('cashboxExpenseButton'),
       cashboxDeleteButton: document.getElementById('cashboxDeleteButton'),
+      cashboxDirectionFilters: document.getElementById('cashboxDirectionFilters'),
       cashboxTransactions: document.getElementById('cashboxTransactions'),
       repairOrdersOpenTab: document.getElementById('repairOrdersOpenTab'),
       repairOrdersClosedTab: document.getElementById('repairOrdersClosedTab'),
@@ -8940,6 +9009,105 @@ function renderCompactArchiveRows(cards) {
       };
     }
 
+    function normalizeCashboxPeriodFilter(value) {
+      return value === 'today' || value === 'month' ? value : 'all';
+    }
+
+    function normalizeCashboxDirectionFilter(value) {
+      return value === 'income' || value === 'expense' ? value : 'all';
+    }
+
+    function cashboxPeriodLabel(value) {
+      if (value === 'today') return 'сегодня';
+      if (value === 'month') return 'месяц';
+      return 'всё';
+    }
+
+    function cashboxDirectionLabel(value) {
+      if (value === 'income') return 'приход';
+      if (value === 'expense') return 'расход';
+      return 'все';
+    }
+
+    function cashboxTransactionMatchesPeriod(item) {
+      const period = normalizeCashboxPeriodFilter(state.cashboxPeriodFilter);
+      if (period === 'all') return true;
+      const createdAt = item?.created_at ? new Date(item.created_at) : null;
+      if (!(createdAt instanceof Date) || Number.isNaN(createdAt.getTime())) return false;
+      const now = new Date();
+      if (period === 'today') {
+        return createdAt.getFullYear() === now.getFullYear()
+          && createdAt.getMonth() === now.getMonth()
+          && createdAt.getDate() === now.getDate();
+      }
+      return createdAt.getFullYear() === now.getFullYear()
+        && createdAt.getMonth() === now.getMonth();
+    }
+
+    function filteredCashboxTransactions() {
+      const items = Array.isArray(state.activeCashbox?.transactions) ? state.activeCashbox.transactions : [];
+      const direction = normalizeCashboxDirectionFilter(state.cashboxDirectionFilter);
+      return items.filter((item) => {
+        if (!cashboxTransactionMatchesPeriod(item)) return false;
+        if (direction !== 'all' && String(item?.direction || 'income') !== direction) return false;
+        return true;
+      });
+    }
+
+    function buildCashboxStatistics(transactions) {
+      const items = Array.isArray(transactions) ? transactions : [];
+      let incomeMinor = 0;
+      let expenseMinor = 0;
+      let lastTransactionAt = '';
+      items.forEach((item) => {
+        const amountMinor = Number(item?.amount_minor || 0);
+        if (item?.direction === 'expense') expenseMinor += amountMinor;
+        else incomeMinor += amountMinor;
+        if (item?.created_at && (!lastTransactionAt || String(item.created_at) > lastTransactionAt)) {
+          lastTransactionAt = String(item.created_at);
+        }
+      });
+      const balanceMinor = incomeMinor - expenseMinor;
+      return {
+        transactions_total: items.length,
+        income_total_minor: incomeMinor,
+        expense_total_minor: expenseMinor,
+        balance_minor: balanceMinor,
+        balance_display: cashboxFormatMinorAmount(balanceMinor),
+        income_total_display: cashboxFormatMinorAmount(incomeMinor),
+        expense_total_display: cashboxFormatMinorAmount(expenseMinor),
+        last_transaction_at: lastTransactionAt,
+      };
+    }
+
+    function cashboxTransactionSourceLabel(item) {
+      const note = String(item?.note || '').trim();
+      if (/заказ-наряд\\s*№/i.test(note)) return 'заказ-наряд';
+      const source = String(item?.source || '').trim().toLowerCase();
+      if (source === 'ui') return 'ручное';
+      if (source === 'mcp') return 'mcp';
+      return source ? source : 'система';
+    }
+
+    function syncCashboxFiltersUi() {
+      els.cashboxPeriodFilters?.querySelectorAll('[data-cashbox-period]').forEach((button) => {
+        button.classList.toggle('is-active', button.getAttribute('data-cashbox-period') === normalizeCashboxPeriodFilter(state.cashboxPeriodFilter));
+      });
+      els.cashboxDirectionFilters?.querySelectorAll('[data-cashbox-direction]').forEach((button) => {
+        button.classList.toggle('is-active', button.getAttribute('data-cashbox-direction') === normalizeCashboxDirectionFilter(state.cashboxDirectionFilter));
+      });
+    }
+
+    function setCashboxPeriodFilter(value) {
+      state.cashboxPeriodFilter = normalizeCashboxPeriodFilter(value);
+      renderCashboxDetail();
+    }
+
+    function setCashboxDirectionFilter(value) {
+      state.cashboxDirectionFilter = normalizeCashboxDirectionFilter(value);
+      renderCashboxDetail();
+    }
+
     function syncCashboxInList(cashbox) {
       if (!cashbox?.id) return;
       const nextItems = (state.cashboxes || []).slice();
@@ -8969,27 +9137,29 @@ function renderCompactArchiveRows(cards) {
     }
 
     function renderCashboxStats() {
-      const stats = activeCashboxStatistics();
+      const stats = buildCashboxStatistics(filteredCashboxTransactions());
       const balanceMinor = Number(stats.balance_minor || 0);
+      const balanceLabel = normalizeCashboxPeriodFilter(state.cashboxPeriodFilter) === 'all' ? 'Баланс' : 'Сальдо';
       els.cashboxStats.innerHTML = [
-        { label: 'Баланс', value: stats.balance_display || cashboxFormatMinorAmount(balanceMinor), sign: balanceMinor < 0 ? 'negative' : 'positive' },
+        { label: balanceLabel, value: stats.balance_display || cashboxFormatMinorAmount(balanceMinor), sign: balanceMinor < 0 ? 'negative' : 'positive' },
         { label: 'Поступления', value: stats.income_total_display || cashboxFormatMinorAmount(stats.income_total_minor || 0), sign: 'positive' },
         { label: 'Списания', value: stats.expense_total_display || cashboxFormatMinorAmount(stats.expense_total_minor || 0), sign: 'positive' },
       ].map((item) => '<div class="cashbox-stat-grid"><div class="cashbox-stat-grid__label">' + escapeHtml(item.label) + '</div><div class="cashbox-stat-grid__value" data-balance-sign="' + escapeHtml(item.sign) + '">' + escapeHtml(item.value) + '</div></div>').join('');
     }
 
     function renderCashboxTransactions() {
-      const transactions = Array.isArray(state.activeCashbox?.transactions) ? state.activeCashbox.transactions : [];
+      const transactions = filteredCashboxTransactions();
       els.cashboxTransactions.innerHTML = transactions.length ? transactions.map((item) => {
         const direction = item?.direction === 'expense' ? 'expense' : 'income';
         const note = String(item?.note || '').trim() || 'Без комментария';
         const actor = String(item?.actor_name || '').trim() || '—';
+        const sourceLabel = cashboxTransactionSourceLabel(item);
         return '<div class="cashbox-transaction">'
           + '<div class="cashbox-transaction__badge" data-direction="' + escapeHtml(direction) + '">' + escapeHtml(direction === 'expense' ? 'списание' : 'поступление') + '</div>'
-          + '<div><div class="cashbox-transaction__note">' + escapeHtml(note) + '</div><div class="cashbox-transaction__meta">' + escapeHtml(formatDate(item?.created_at)) + ' | ' + escapeHtml(actor) + '</div></div>'
+          + '<div class="cashbox-transaction__body"><div class="cashbox-transaction__summary"><div class="cashbox-transaction__note">' + escapeHtml(note) + '</div><div class="cashbox-transaction__context">' + escapeHtml(sourceLabel) + '</div></div><div class="cashbox-transaction__meta">' + escapeHtml(formatDate(item?.created_at)) + ' | ' + escapeHtml(actor) + '</div></div>'
           + '<div class="cashbox-transaction__amount" data-direction="' + escapeHtml(direction) + '">' + escapeHtml(direction === 'expense' ? '-' : '+') + escapeHtml(item?.amount_display || cashboxFormatMinorAmount(item?.amount_minor || 0)) + '</div>'
           + '</div>';
-      }).join('') : '<div class="cashboxes-empty">ДВИЖЕНИЙ ПОКА НЕТ. ДОБАВЬТЕ ПОСТУПЛЕНИЕ ИЛИ СПИСАНИЕ.</div>';
+      }).join('') : '<div class="cashboxes-empty">ПО ФИЛЬТРУ НИЧЕГО НЕ НАЙДЕНО.</div>';
     }
 
     function renderCashboxDetail() {
@@ -9000,20 +9170,26 @@ function renderCompactArchiveRows(cards) {
         els.cashboxDeleteButton.disabled = true;
         els.cashboxIncomeButton.disabled = true;
         els.cashboxExpenseButton.disabled = true;
+        syncCashboxFiltersUi();
         els.cashboxStats.innerHTML = '';
         els.cashboxTransactions.innerHTML = '<div class="cashboxes-empty">НЕТ ДАННЫХ.</div>';
         return;
       }
       const stats = activeCashboxStatistics();
+      const filteredStats = buildCashboxStatistics(filteredCashboxTransactions());
       const lastTransactionAt = stats?.last_transaction_at ? formatDate(stats.last_transaction_at) : '—';
+      const canDelete = Number(stats.transactions_total || 0) === 0;
       els.cashboxDetailTitle.textContent = cashbox.name || 'КАССА';
       els.cashboxDetailMeta.innerHTML =
         '<span>ID: ' + escapeHtml(cashbox.short_id || cashbox.id || '—') + '</span>' +
         '<span>Движений: ' + escapeHtml(String(stats.transactions_total || 0)) + '</span>' +
+        '<span>Период: ' + escapeHtml(cashboxPeriodLabel(state.cashboxPeriodFilter)) + '</span>' +
+        '<span>Показано: ' + escapeHtml(String(filteredStats.transactions_total || 0)) + ' / ' + escapeHtml(cashboxDirectionLabel(state.cashboxDirectionFilter)) + '</span>' +
         '<span>Последнее: ' + escapeHtml(lastTransactionAt) + '</span>';
-      els.cashboxDeleteButton.disabled = false;
+      els.cashboxDeleteButton.disabled = !canDelete;
       els.cashboxIncomeButton.disabled = false;
       els.cashboxExpenseButton.disabled = false;
+      syncCashboxFiltersUi();
       renderCashboxStats();
       renderCashboxTransactions();
     }
@@ -9105,7 +9281,7 @@ function renderCompactArchiveRows(cards) {
     async function deleteActiveCashbox() {
       const cashbox = state.activeCashbox?.cashbox || null;
       if (!cashbox?.id) return;
-      if (!window.confirm('Удалить кассу "' + String(cashbox.name || '').trim() + '" вместе с ее движениями?')) return;
+      if (!window.confirm('Удалить пустую кассу "' + String(cashbox.name || '').trim() + '"?')) return;
       try {
         els.cashboxDeleteButton.disabled = true;
         await api('/api/delete_cashbox', {
@@ -9117,6 +9293,8 @@ function renderCompactArchiveRows(cards) {
         await loadCashboxes(true);
         setStatus('КАССА УДАЛЕНА.', false);
       } catch (error) {
+        const message = String(error?.message || '').trim();
+        if (message) window.alert(message);
         setStatus(error.message, true);
       } finally {
         els.cashboxDeleteButton.disabled = false;
@@ -9726,6 +9904,20 @@ function renderCompactArchiveRows(cards) {
     els.cashboxDeleteButton.addEventListener('click', deleteActiveCashbox);
     els.cashboxIncomeButton.addEventListener('click', () => createCashboxTransaction('income'));
     els.cashboxExpenseButton.addEventListener('click', () => createCashboxTransaction('expense'));
+    els.cashboxPeriodFilters?.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-cashbox-period]');
+      if (!button) return;
+      setCashboxPeriodFilter(button.getAttribute('data-cashbox-period'));
+    });
+    els.cashboxDirectionFilters?.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-cashbox-direction]');
+      if (!button) return;
+      setCashboxDirectionFilter(button.getAttribute('data-cashbox-direction'));
+    });
     els.cashboxesList.addEventListener('click', handleCashboxesListClick);
     els.cashboxesList.addEventListener('keydown', handleCashboxesListKeydown);
     els.cashboxNameInput.addEventListener('keydown', (event) => {

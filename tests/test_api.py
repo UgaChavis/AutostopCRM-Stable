@@ -560,6 +560,15 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(details["data"]["transactions"][0]["note"], "Оплата клиента")
 
         status, deleted = self.request("/api/delete_cashbox", {"cashbox_id": cashbox["id"], "actor_name": "ADMIN"})
+        self.assertEqual(status, 400)
+        self.assertFalse(deleted["ok"])
+        self.assertIn("есть движения", deleted["error"]["message"])
+
+        status, empty_created = self.request("/api/create_cashbox", {"name": "Касса 2", "actor_name": "ADMIN"})
+        self.assertEqual(status, 200)
+        empty_cashbox = empty_created["data"]["cashbox"]
+
+        status, deleted = self.request("/api/delete_cashbox", {"cashbox_id": empty_cashbox["id"], "actor_name": "ADMIN"})
         self.assertEqual(status, 200)
         self.assertTrue(deleted["data"]["meta"]["deleted"])
 
