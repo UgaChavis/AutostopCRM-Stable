@@ -3175,7 +3175,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-layout {
       display: grid;
-      grid-template-columns: 304px minmax(0, 1fr);
+      grid-template-columns: 268px minmax(0, 1fr);
       gap: 14px;
       min-height: 620px;
     }
@@ -3186,7 +3186,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-list {
       display: grid;
-      gap: 8px;
+      gap: 6px;
       max-height: 560px;
       overflow: auto;
       padding-right: 4px;
@@ -3194,13 +3194,15 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-row {
       border: 1px solid var(--line);
       background: rgba(21, 29, 23, 0.68);
-      padding: 10px 12px;
+      padding: 9px 11px;
       cursor: pointer;
       display: grid;
-      gap: 4px;
+      gap: 3px;
+      text-align: left;
     }
     .employees-row.is-active {
       border-color: var(--accent);
+      background: rgba(38, 48, 40, 0.92);
       box-shadow: inset 0 0 0 1px rgba(182, 177, 116, 0.16);
     }
     .employees-row__title {
@@ -3210,17 +3212,22 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-row__meta {
       font-size: 11px;
       opacity: 0.78;
+      line-height: 1.35;
     }
     .employees-actions {
       display: flex;
       gap: 8px;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
     }
     .employees-form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px 12px;
+    }
+    .employees-form-grid .field--secondary {
+      opacity: 0.88;
     }
     .employees-form-grid .field--wide {
       grid-column: 1 / -1;
@@ -3233,6 +3240,41 @@ BOARD_WEB_APP_HTML = "".join(
       letter-spacing: 0.08em;
       text-transform: uppercase;
       opacity: 0.9;
+    }
+    .employees-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .employees-panel-head .repair-orders-search {
+      width: 154px;
+      min-height: 34px;
+    }
+    .employees-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .employees-kpi {
+      display: grid;
+      gap: 3px;
+      padding: 8px 10px;
+      border: 1px solid rgba(164, 173, 138, 0.12);
+      background: rgba(18, 24, 20, 0.44);
+    }
+    .employees-kpi__label {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(231, 226, 193, 0.68);
+    }
+    .employees-kpi__value {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.2;
     }
     .employees-table-wrap {
       overflow: auto;
@@ -3261,6 +3303,9 @@ BOARD_WEB_APP_HTML = "".join(
       text-transform: uppercase;
       letter-spacing: 0.1em;
       color: rgba(231, 226, 193, 0.72);
+    }
+    .employees-table tr.is-active td {
+      background: rgba(182, 177, 116, 0.08);
     }
     .employees-table td.is-num,
     .employees-table th.is-num {
@@ -4142,7 +4187,6 @@ BOARD_WEB_APP_HTML = "".join(
                   + '<div class="panel-title">СПИСОК</div>'
                   + '<div class="employees-actions">'
                     + '<button class="btn" id="employeesCreateButton" type="button">+ СОТРУДНИК</button>'
-                    + '<input class="repair-orders-search" id="employeesMonthInput" type="month">'
                   + '</div>'
                   + '<div class="employees-list" id="employeesList"></div>'
                 + '</div>'
@@ -4155,19 +4199,20 @@ BOARD_WEB_APP_HTML = "".join(
                       + '<div class="field"><label for="employeeSalaryModeInput">СХЕМА</label><select id="employeeSalaryModeInput"><option value="salary_plus_percent">ОКЛАД + %</option><option value="percent_only">% ОТ РАБОТ</option><option value="salary_only">ТОЛЬКО ОКЛАД</option></select></div>'
                       + '<div class="field"><label for="employeeBaseSalaryInput">ОКЛАД</label><input id="employeeBaseSalaryInput" type="text" inputmode="decimal" maxlength="40"></div>'
                       + '<div class="field"><label for="employeeWorkPercentInput">ПРОЦЕНТ</label><input id="employeeWorkPercentInput" type="text" inputmode="decimal" maxlength="40"></div>'
-                      + '<div class="field field--wide"><label for="employeeNoteInput">ЗАМЕТКА</label><input id="employeeNoteInput" type="text" maxlength="240"></div>'
+                      + '<div class="field field--wide field--secondary"><label for="employeeNoteInput">ЗАМЕТКА</label><input id="employeeNoteInput" type="text" maxlength="240"></div>'
                       + '<label class="employees-check field--wide"><input id="employeeActiveInput" type="checkbox" checked> АКТИВЕН</label>'
                     + '</div>'
                     + '<div class="employees-actions" style="margin-top:12px;">'
-                      + '<div class="cashboxes-meta" id="employeesMeta">ВНУТРЕННИЙ МОДУЛЬ НАЧИСЛЕНИЙ.</div>'
+                      + '<div class="cashboxes-meta" id="employeesMeta">МЕСЯЦ.</div>'
                       + '<div style="display:flex; gap:8px;">'
-                        + '<button class="btn btn--ghost" id="employeeToggleButton" type="button">ВКЛ/ВЫКЛ</button>'
+                        + '<button class="btn btn--ghost" id="employeeToggleButton" type="button">ОТКЛЮЧИТЬ</button>'
                         + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
                       + '</div>'
                     + '</div>'
+                    + '<div class="employees-summary-strip" id="employeesSummaryStrip"></div>'
                   + '</div>'
                   + '<div class="subpanel">'
-                    + '<div class="panel-title">НАЧИСЛЕНИЯ</div>'
+                    + '<div class="employees-panel-head"><div class="panel-title">НАЧИСЛЕНИЯ</div><input class="repair-orders-search" id="employeesMonthInput" type="month"></div>'
                     + '<div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>СОТРУДНИК</th><th>ДОЛЖНОСТЬ</th><th class="is-num">РАБОТ</th><th class="is-num">ПО РАБОТАМ</th><th class="is-num">ОКЛАД</th><th class="is-num">ИТОГ</th></tr></thead><tbody id="employeesSummaryTable"></tbody></table></div>'
                   + '</div>'
                   + '<div class="subpanel">'
@@ -4240,6 +4285,7 @@ BOARD_WEB_APP_HTML = "".join(
       employeesList: document.getElementById('employeesList'),
       employeesMonthInput: document.getElementById('employeesMonthInput'),
       employeesMeta: document.getElementById('employeesMeta'),
+      employeesSummaryStrip: document.getElementById('employeesSummaryStrip'),
       employeesSummaryTable: document.getElementById('employeesSummaryTable'),
       employeesDetailTable: document.getElementById('employeesDetailTable'),
       employeesCreateButton: document.getElementById('employeesCreateButton'),
@@ -4763,6 +4809,18 @@ BOARD_WEB_APP_HTML = "".join(
       return (state.employees || []).find((item) => item.id === state.activeEmployeeId) || null;
     }
 
+    function syncEmployeeSalaryModeUi() {
+      const mode = String(els.employeeSalaryModeInput?.value || 'salary_plus_percent').trim();
+      const salaryDisabled = mode === 'percent_only';
+      const percentDisabled = mode === 'salary_only';
+      if (els.employeeBaseSalaryInput) {
+        els.employeeBaseSalaryInput.disabled = salaryDisabled;
+      }
+      if (els.employeeWorkPercentInput) {
+        els.employeeWorkPercentInput.disabled = percentDisabled;
+      }
+    }
+
     function fillEmployeeForm(employee) {
       const current = employee || null;
       els.employeeNameInput.value = current?.name || '';
@@ -4773,6 +4831,8 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeNoteInput.value = current?.note || '';
       els.employeeActiveInput.checked = current ? Boolean(current.is_active) : true;
       els.employeeToggleButton.disabled = !current;
+      els.employeeToggleButton.textContent = current && current.is_active ? 'ОТКЛЮЧИТЬ' : 'ВКЛЮЧИТЬ';
+      syncEmployeeSalaryModeUi();
     }
 
     function readEmployeeFormPayload() {
@@ -4819,7 +4879,8 @@ BOARD_WEB_APP_HTML = "".join(
         return;
       }
       els.employeesSummaryTable.innerHTML = rows.map((row) => {
-        return '<tr data-employee-id="' + escapeHtml(row.employee_id) + '">' +
+        const isActive = String(row.employee_id || '') === String(state.activeEmployeeId || '');
+        return '<tr data-employee-id="' + escapeHtml(row.employee_id) + '"' + (isActive ? ' class="is-active"' : '') + '>' +
           '<td>' + escapeHtml(row.employee_name || '-') + '</td>' +
           '<td>' + escapeHtml(row.position || '-') + '</td>' +
           '<td class="is-num">' + escapeHtml(row.works_count || 0) + '</td>' +
@@ -4830,12 +4891,34 @@ BOARD_WEB_APP_HTML = "".join(
       }).join('');
     }
 
+    function renderEmployeesSummaryStrip() {
+      const rows = Array.isArray(state.payrollReport?.summary) ? state.payrollReport.summary : [];
+      const selectedSummary = rows.find((item) => String(item.employee_id || '') === String(state.activeEmployeeId || '')) || null;
+      const selectedEmployee = selectedEmployeeRecord();
+      const kpis = selectedSummary
+        ? [
+            { label: 'ОКЛАД', value: selectedSummary.base_salary || '0' },
+            { label: '%', value: selectedEmployee?.work_percent || '0' },
+            { label: 'РАБОТ', value: selectedSummary.works_count || '0' },
+            { label: 'ИТОГ', value: selectedSummary.total_salary || '0' },
+          ]
+        : [
+            { label: 'ОКЛАД', value: '—' },
+            { label: '%', value: '—' },
+            { label: 'РАБОТ', value: '—' },
+            { label: 'ИТОГ', value: '—' },
+          ];
+      els.employeesSummaryStrip.innerHTML = kpis.map((item) => (
+        '<div class="employees-kpi"><div class="employees-kpi__label">' + escapeHtml(item.label) + '</div><div class="employees-kpi__value">' + escapeHtml(item.value) + '</div></div>'
+      )).join('');
+    }
+
     function renderEmployeesDetails() {
       const selectedId = String(state.activeEmployeeId || '').trim();
       const rows = Array.isArray(state.payrollReport?.detail_rows) ? state.payrollReport.detail_rows : [];
-      const visibleRows = selectedId ? rows.filter((item) => String(item.employee_id || '').trim() === selectedId) : rows;
+      const visibleRows = selectedId ? rows.filter((item) => String(item.employee_id || '').trim() === selectedId) : [];
       if (!visibleRows.length) {
-        els.employeesDetailTable.innerHTML = '<tr><td colspan="6">Строк начисления нет.</td></tr>';
+        els.employeesDetailTable.innerHTML = '<tr><td colspan="6">' + (selectedId ? 'Строк начисления нет.' : 'Выберите сотрудника.') + '</td></tr>';
         return;
       }
       els.employeesDetailTable.innerHTML = visibleRows.map((row) => {
@@ -4864,6 +4947,7 @@ BOARD_WEB_APP_HTML = "".join(
       fillEmployeeForm(selectedEmployeeRecord());
       renderEmployeesList();
       renderEmployeesSummary();
+      renderEmployeesSummaryStrip();
       renderEmployeesDetails();
       const summaryRows = Array.isArray(state.payrollReport?.summary) ? state.payrollReport.summary : [];
       const selectedSummary = summaryRows.find((item) => item.employee_id === state.activeEmployeeId) || null;
@@ -4906,6 +4990,7 @@ BOARD_WEB_APP_HTML = "".join(
       state.activeEmployeeId = '';
       fillEmployeeForm(null);
       renderEmployeesList();
+      renderEmployeesSummaryStrip();
       renderEmployeesDetails();
     }
 
@@ -9615,6 +9700,7 @@ function renderCompactArchiveRows(cards) {
     els.employeesCreateButton?.addEventListener('click', resetEmployeeForm);
     els.employeeSaveButton?.addEventListener('click', saveEmployee);
     els.employeeToggleButton?.addEventListener('click', toggleEmployee);
+    els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
     els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
     els.employeesList?.addEventListener('click', handleEmployeesListClick);
     els.employeesSummaryTable?.addEventListener('click', handleEmployeesListClick);
