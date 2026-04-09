@@ -8,6 +8,7 @@ WORKDIR /app
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        libdbus-1-3 \
         libegl1 \
         libfontconfig1 \
         libgl1 \
