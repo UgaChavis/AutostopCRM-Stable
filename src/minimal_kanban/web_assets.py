@@ -4576,6 +4576,9 @@ BOARD_WEB_APP_HTML = "".join(
       const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
       const status = payload.status && typeof payload.status === 'object' ? payload.status : {};
       const queue = payload.queue && typeof payload.queue === 'object' ? payload.queue : {};
+      const recentRuns = Array.isArray(payload.recent_runs) ? payload.recent_runs : [];
+      const latestRun = recentRuns.length ? recentRuns[0] : null;
+      const latestRunStatus = String(latestRun?.status || '').trim().toLowerCase();
       let stateLabel = 'ОФЛАЙН';
       let stateValue = 'idle';
       if (payload.agent?.enabled) {
@@ -4585,6 +4588,12 @@ BOARD_WEB_APP_HTML = "".join(
       if (status.running) {
         stateLabel = 'В РАБОТЕ';
         stateValue = 'busy';
+      } else if (latestRunStatus === 'completed') {
+        stateLabel = 'ГОТОВ';
+        stateValue = 'online';
+      } else if (latestRunStatus === 'failed') {
+        stateLabel = 'СБОЙ';
+        stateValue = 'error';
       } else if (status.last_error) {
         stateLabel = 'СБОЙ';
         stateValue = 'error';
@@ -4677,11 +4686,15 @@ BOARD_WEB_APP_HTML = "".join(
       if (status === 'running' || status === 'pending') {
         els.agentResultPanel.dataset.state = 'active';
         els.agentResultPanel.textContent = 'Задача принята и выполняется.';
+        renderAgentActions([]);
+        if (els.agentDetails) els.agentDetails.open = false;
         return;
       }
       if (status === 'failed') {
         els.agentResultPanel.dataset.state = 'error';
         els.agentResultPanel.textContent = formatAgentErrorMessage(task.error || 'Агент завершил задачу с ошибкой.');
+        renderAgentActions([]);
+        if (els.agentDetails) els.agentDetails.open = false;
         return;
       }
       const summary = String(task.summary || '').trim();
@@ -4698,12 +4711,22 @@ BOARD_WEB_APP_HTML = "".join(
         if (exact) return exact;
       }
       const context = state.agentContext && typeof state.agentContext === 'object' ? state.agentContext : { kind: 'board' };
-      if (String(context.kind || '').trim().toLowerCase() === 'card') {
-        const cardId = String(context.card_id || '').trim();
-        const contextual = items.find((item) => String(item?.metadata?.context?.card_id || '').trim() === cardId);
-        if (contextual) return contextual;
-      }
-      return items[0];
+      const contextKind = String(context.kind || 'board').trim().toLowerCase();
+      const contextCardId = String(context.card_id || '').trim();
+      const matchesContext = (item) => {
+        const metadataContext = item?.metadata?.context && typeof item.metadata.context === 'object'
+          ? item.metadata.context
+          : {};
+        const itemKind = String(metadataContext.kind || 'board').trim().toLowerCase();
+        if (contextKind === 'card') return String(metadataContext.card_id || '').trim() === contextCardId;
+        return itemKind === 'board';
+      };
+      const active = items.find((item) => {
+        if (!matchesContext(item)) return false;
+        const itemStatus = String(item?.status || '').trim().toLowerCase();
+        return itemStatus === 'pending' || itemStatus === 'running';
+      });
+      return active || null;
     }
 
     async function syncAgentTaskEffects(task) {
