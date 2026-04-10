@@ -823,6 +823,10 @@ class Card:
         deadline_progress_bucket = self.deadline_progress_bucket(reference_time)
         attachments = self.attachments if include_removed_attachments else self.active_attachments()
         vehicle_display = self.vehicle_display()
+        normalized_description = _SPACES_PATTERN.sub(" ", str(self.description or "").replace("\r", " ").replace("\n", " ")).strip()
+        description_preview = normalized_description[:480].rstrip()
+        if len(normalized_description) > len(description_preview):
+            description_preview = description_preview.rstrip(" ,.;:-") + "…"
         payload = {
             "id": self.id,
             "short_id": short_entity_id(self.id, prefix="C"),
@@ -830,6 +834,7 @@ class Card:
             "vehicle": vehicle_display,
             "title": self.title,
             "description": self.description,
+            "description_preview": description_preview,
             "column": self.column,
             "position": self.position,
             "archived": self.archived,
@@ -859,6 +864,7 @@ class Card:
             "has_unseen_update": self.has_unseen_update_for(viewer_username),
         }
         if compact:
+            payload["description"] = description_preview
             return payload
 
         payload.update(

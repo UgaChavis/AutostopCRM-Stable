@@ -74,8 +74,8 @@ class WebAssetsTests(unittest.TestCase):
 
     def test_board_snapshot_polling_is_throttled_and_visibility_aware(self) -> None:
         self.assertIn("refreshInFlight: null", BOARD_WEB_APP_HTML)
-        self.assertIn("const SNAPSHOT_POLL_INTERVAL_MS = 5000;", BOARD_WEB_APP_HTML)
-        self.assertIn("const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 30000;", BOARD_WEB_APP_HTML)
+        self.assertIn("const SNAPSHOT_POLL_INTERVAL_MS = 8000;", BOARD_WEB_APP_HTML)
+        self.assertIn("const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 60000;", BOARD_WEB_APP_HTML)
         self.assertIn("function snapshotPollIntervalMs()", BOARD_WEB_APP_HTML)
         self.assertIn("function scheduleNextSnapshotPoll()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleSnapshotVisibilityChange()", BOARD_WEB_APP_HTML)
@@ -84,6 +84,8 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("state.pollHandle = window.setTimeout(async () => {", BOARD_WEB_APP_HTML)
         self.assertIn("await refreshSnapshot(false);", BOARD_WEB_APP_HTML)
         self.assertIn("scheduleNextSnapshotPoll();", BOARD_WEB_APP_HTML)
+        self.assertIn("const SNAPSHOT_POLL_MODAL_INTERVAL_MS = 15000;", BOARD_WEB_APP_HTML)
+        self.assertIn("function hasOpenWorkspaceModal()", BOARD_WEB_APP_HTML)
 
     def test_archive_modal_uses_last_30_compact_rows(self) -> None:
         self.assertIn("АРХИВ / ПОСЛЕДНИЕ 30", BOARD_WEB_APP_HTML)
@@ -191,18 +193,18 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function renderEmployeeProfileMeta()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleEmployeesDetailClick(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function syncEmployeeSalaryModeUi()", BOARD_WEB_APP_HTML)
+        self.assertIn("function hydrateEmployeesUiRefs()", BOARD_WEB_APP_HTML)
+        self.assertIn("function bindEmployeesUiEvents()", BOARD_WEB_APP_HTML)
         self.assertIn('input[type="search"], input[type="month"]', BOARD_WEB_APP_HTML)
         self.assertIn("setStatus('УКАЖИ ИМЯ СОТРУДНИКА.', true);", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-list-tools {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-row__summary {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-card-head {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-row__state {", BOARD_WEB_APP_HTML)
+        self.assertIn("bindEmployeesUiEvents();", BOARD_WEB_APP_HTML)
         self.assertIn("data-repair-order-cell=\"executor_id\"", BOARD_WEB_APP_HTML)
         self.assertIn("function repairOrderExecutorOptionsHtml", BOARD_WEB_APP_HTML)
         self.assertIn("els.employeesButton.addEventListener('click', openEmployeesModal);", BOARD_WEB_APP_HTML)
-        self.assertIn("els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);", BOARD_WEB_APP_HTML)
-        self.assertIn("els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);", BOARD_WEB_APP_HTML)
-        self.assertIn("els.employeesDetailTable?.addEventListener('click', handleEmployeesDetailClick);", BOARD_WEB_APP_HTML)
         self.assertNotIn('id="employeeToggleButton"', BOARD_WEB_APP_HTML)
 
     def test_card_description_textarea_allows_extended_text(self) -> None:
@@ -230,6 +232,8 @@ class WebAssetsTests(unittest.TestCase):
     def test_board_cards_show_eight_lines_of_description_preview(self) -> None:
         self.assertIn(".card__desc {", BOARD_WEB_APP_HTML)
         self.assertIn("-webkit-line-clamp: 8;", BOARD_WEB_APP_HTML)
+        self.assertIn("function boardCardDescription(card)", BOARD_WEB_APP_HTML)
+        self.assertIn("card?.description_preview || card?.description", BOARD_WEB_APP_HTML)
 
     def test_card_modal_includes_centered_work_zone_and_separate_vehicle_panel(self) -> None:
         self.assertIn('class="dialog dialog--card"', BOARD_WEB_APP_HTML)

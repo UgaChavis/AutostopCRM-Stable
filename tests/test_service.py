@@ -760,6 +760,8 @@ class CardServiceTests(unittest.TestCase):
         compact_card = next(card for card in snapshot["cards"] if card["id"] == card_id)
         self.assertIn("tag_items", compact_card)
         self.assertIn("attachment_count", compact_card)
+        self.assertIn("description_preview", compact_card)
+        self.assertLessEqual(len(compact_card["description"]), 481)
         self.assertNotIn("repair_order", compact_card)
         self.assertNotIn("vehicle_profile", compact_card)
         self.assertNotIn("attachments", compact_card)

@@ -4189,6 +4189,7 @@ BOARD_WEB_APP_HTML = "".join(
       employeeFormBaseline: null,
       payrollMonth: '',
       payrollReport: null,
+      employeesUiBound: false,
       repairOrderTags: [],
       repairOrderPayments: [],
       repairOrderTagColor: 'green',
@@ -4199,8 +4200,9 @@ BOARD_WEB_APP_HTML = "".join(
       agentSyncedTaskId: '',
     };
 
-    const SNAPSHOT_POLL_INTERVAL_MS = 5000;
-    const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 30000;
+    const SNAPSHOT_POLL_INTERVAL_MS = 8000;
+    const SNAPSHOT_POLL_MODAL_INTERVAL_MS = 15000;
+    const SNAPSHOT_POLL_HIDDEN_INTERVAL_MS = 60000;
     const CARD_UNREAD_HOVER_DELAY_MS = 260;
 
     const COLUMN_TONES = [
@@ -4435,7 +4437,6 @@ BOARD_WEB_APP_HTML = "".join(
     ensureRepairOrderPaymentsUi();
     ensureAgentUi();
     ensureCashboxesUi();
-    ensureEmployeesUi();
 
     const els = {
       boardScroll: document.querySelector('.board-scroll'),
@@ -4619,6 +4620,49 @@ BOARD_WEB_APP_HTML = "".join(
     };
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+
+    function hydrateEmployeesUiRefs() {
+      els.employeesModal = document.getElementById('employeesModal');
+      els.employeesList = document.getElementById('employeesList');
+      els.employeesCardMode = document.getElementById('employeesCardMode');
+      els.employeesSearchInput = document.getElementById('employeesSearchInput');
+      els.employeesVisibilityFilters = document.getElementById('employeesVisibilityFilters');
+      els.employeesListMeta = document.getElementById('employeesListMeta');
+      els.employeesMonthInput = document.getElementById('employeesMonthInput');
+      els.employeesMeta = document.getElementById('employeesMeta');
+      els.employeesReportMeta = document.getElementById('employeesReportMeta');
+      els.employeesSummaryStrip = document.getElementById('employeesSummaryStrip');
+      els.employeesSummaryTable = document.getElementById('employeesSummaryTable');
+      els.employeesDetailTable = document.getElementById('employeesDetailTable');
+      els.employeesCreateButton = document.getElementById('employeesCreateButton');
+      els.employeeNameInput = document.getElementById('employeeNameInput');
+      els.employeePositionInput = document.getElementById('employeePositionInput');
+      els.employeeSalaryModeInput = document.getElementById('employeeSalaryModeInput');
+      els.employeeBaseSalaryInput = document.getElementById('employeeBaseSalaryInput');
+      els.employeeWorkPercentInput = document.getElementById('employeeWorkPercentInput');
+      els.employeeNoteDetails = document.getElementById('employeeNoteDetails');
+      els.employeeNoteInput = document.getElementById('employeeNoteInput');
+      els.employeeActiveInput = document.getElementById('employeeActiveInput');
+      els.employeeSaveButton = document.getElementById('employeeSaveButton');
+    }
+
+    function bindEmployeesUiEvents() {
+      if (state.employeesUiBound) return;
+      hydrateEmployeesUiRefs();
+      els.employeesCreateButton?.addEventListener('click', resetEmployeeForm);
+      els.employeeSaveButton?.addEventListener('click', saveEmployee);
+      els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
+      els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
+      els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);
+      els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);
+      els.employeesList?.addEventListener('click', handleEmployeesListClick);
+      els.employeesSummaryTable?.addEventListener('click', handleEmployeesListClick);
+      els.employeesDetailTable?.addEventListener('click', handleEmployeesDetailClick);
+      els.employeesModal?.addEventListener('input', handleEmployeesModalFormInput);
+      els.employeesModal?.addEventListener('change', handleEmployeesModalFormInput);
+      els.employeesModal?.addEventListener('click', handleEmployeesModalOverlayClick);
+      state.employeesUiBound = true;
+    }
 
     async function api(path, options = {}) {
       const request = { method: options.method || 'GET', headers: {}, cache: 'no-store' };
@@ -4987,7 +5031,7 @@ BOARD_WEB_APP_HTML = "".join(
         cashboxes: () => els.cashboxesModal.classList.remove('is-open'),
         employees: () => {
           if (!confirmDiscardEmployeeChanges()) return;
-          els.employeesModal.classList.remove('is-open');
+          els.employeesModal?.classList.remove('is-open');
         },
         agent: () => closeAgentModal(),
         wall: () => els.gptWallModal.classList.remove('is-open'),
@@ -5357,6 +5401,9 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function openEmployeesModal() {
+      ensureEmployeesUi();
+      hydrateEmployeesUiRefs();
+      bindEmployeesUiEvents();
       if (els.employeesMonthInput && !els.employeesMonthInput.value) {
         els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
       }
@@ -9046,8 +9093,28 @@ function renderCompactArchiveRows(cards) {
       }
     }
 
+    function hasOpenWorkspaceModal() {
+      return [
+        els.cardModal,
+        els.archiveModal,
+        els.repairOrdersModal,
+        els.cashboxesModal,
+        els.employeesModal,
+        els.agentModal,
+        els.gptWallModal,
+        els.boardSettingsModal,
+        els.stickyModal,
+        els.repairOrderModal,
+        els.repairOrderPaymentsModal,
+        els.operatorProfileModal,
+        els.operatorAdminModal,
+      ].some((modal) => modal?.classList.contains('is-open'));
+    }
+
     function snapshotPollIntervalMs() {
-      return document.hidden ? SNAPSHOT_POLL_HIDDEN_INTERVAL_MS : SNAPSHOT_POLL_INTERVAL_MS;
+      if (document.hidden) return SNAPSHOT_POLL_HIDDEN_INTERVAL_MS;
+      if (hasOpenWorkspaceModal()) return SNAPSHOT_POLL_MODAL_INTERVAL_MS;
+      return SNAPSHOT_POLL_INTERVAL_MS;
     }
 
     function scheduleNextSnapshotPoll() {
@@ -10266,17 +10333,6 @@ function renderCompactArchiveRows(cards) {
       }
     });
     els.gptWallButton.addEventListener('click', openGptWallModal);
-    els.employeesCreateButton?.addEventListener('click', resetEmployeeForm);
-    els.employeeSaveButton?.addEventListener('click', saveEmployee);
-    els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
-    els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
-    els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);
-    els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);
-    els.employeesList?.addEventListener('click', handleEmployeesListClick);
-    els.employeesSummaryTable?.addEventListener('click', handleEmployeesListClick);
-    els.employeesDetailTable?.addEventListener('click', handleEmployeesDetailClick);
-    els.employeesModal?.addEventListener('input', handleEmployeesModalFormInput);
-    els.employeesModal?.addEventListener('change', handleEmployeesModalFormInput);
     els.gptWallBoardTab.addEventListener('click', () => setGptWallView('board_content'));
     els.gptWallEventsTab.addEventListener('click', () => setGptWallView('event_log'));
     els.gptWallRefresh.addEventListener('click', refreshGptWallView);
@@ -10356,7 +10412,6 @@ function renderCompactArchiveRows(cards) {
     els.repairOrderPaymentsModal.addEventListener('click', handleRepairOrderPaymentsModalOverlayClick);
     els.operatorProfileModal.addEventListener('click', handleOperatorProfileModalOverlayClick);
     els.operatorAdminModal.addEventListener('click', handleOperatorAdminModalOverlayClick);
-    els.employeesModal?.addEventListener('click', handleEmployeesModalOverlayClick);
 
     const CARD_VEHICLE_FIELD_LABEL = 'Марка / модель';
     const CARD_TITLE_FIELD_LABEL = 'Краткая суть';
@@ -10404,6 +10459,10 @@ function renderCompactArchiveRows(cards) {
         : '';
     }
 
+    function boardCardDescription(card) {
+      return String(card?.description_preview || card?.description || 'Описание не указано');
+    }
+
     cardUnreadBadgeHtml = function(card) {
       if (card?.is_unread) {
         return '<div class="card__unread-badge" title="Не прочитано" aria-label="Не прочитано">NEW</div>';
@@ -10424,7 +10483,7 @@ function renderCompactArchiveRows(cards) {
       const headingHtml = buildCardHeadingHtml(card);
       const badgeHtml = cardUnreadBadgeHtml(card);
       const heatStyle = '--deadline-heat-border:' + escapeHtml(card.deadline_heat_border_color || 'rgba(83, 191, 122, 0.34)') + ';--deadline-heat-ring:' + escapeHtml(card.deadline_heat_ring_color || 'rgba(83, 191, 122, 0.08)') + ';--deadline-heat-glow:' + escapeHtml(card.deadline_heat_glow_color || 'rgba(83, 191, 122, 0.04)') + ';';
-      return '<article class="card" style="' + heatStyle + '" draggable="true" data-card-id="' + escapeHtml(card.id) + '" data-indicator="' + escapeHtml(card.indicator) + '" data-status="' + escapeHtml(card.status) + '" data-blink="' + (card.is_blinking ? "true" : "false") + '" data-unread="' + (card.is_unread ? 'true' : 'false') + '" data-updated-unseen="' + (card.has_unseen_update ? 'true' : 'false') + '" data-deadline-bucket="' + escapeHtml(card.deadline_progress_bucket ?? 0) + '" data-deadline-step="' + escapeHtml(card.deadline_progress_step_percent ?? 0) + '">' + badgeHtml + headingHtml + '<div class="card__desc">' + escapeHtml(card.description || 'Описание не указано') + '</div><div class="card__signal"><span class="card__signal-label"><span class="lamp" data-indicator="' + escapeHtml(card.indicator) + '"></span><span>СИГН</span></span><span class="card__signal-value">' + durationToMarkup(card.remaining_seconds, false) + '</span></div><div class="card__tags">' + tagsHtml + '</div><div class="meta-line"><span>ФАЙЛЫ ' + escapeHtml(card.attachment_count) + '</span><span>ЖУРНАЛ ' + escapeHtml(card.events_count) + '</span></div></article>';
+      return '<article class="card" style="' + heatStyle + '" draggable="true" data-card-id="' + escapeHtml(card.id) + '" data-indicator="' + escapeHtml(card.indicator) + '" data-status="' + escapeHtml(card.status) + '" data-blink="' + (card.is_blinking ? "true" : "false") + '" data-unread="' + (card.is_unread ? 'true' : 'false') + '" data-updated-unseen="' + (card.has_unseen_update ? 'true' : 'false') + '" data-deadline-bucket="' + escapeHtml(card.deadline_progress_bucket ?? 0) + '" data-deadline-step="' + escapeHtml(card.deadline_progress_step_percent ?? 0) + '">' + badgeHtml + headingHtml + '<div class="card__desc">' + escapeHtml(boardCardDescription(card)) + '</div><div class="card__signal"><span class="card__signal-label"><span class="lamp" data-indicator="' + escapeHtml(card.indicator) + '"></span><span>СИГН</span></span><span class="card__signal-value">' + durationToMarkup(card.remaining_seconds, false) + '</span></div><div class="card__tags">' + tagsHtml + '</div><div class="meta-line"><span>ФАЙЛЫ ' + escapeHtml(card.attachment_count) + '</span><span>ЖУРНАЛ ' + escapeHtml(card.events_count) + '</span></div></article>';
     };
 
     function legacyCardHtmlBase(card) {
