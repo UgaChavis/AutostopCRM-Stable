@@ -4111,6 +4111,7 @@ BOARD_WEB_APP_HTML = "".join(
     // Legacy actor localStorage flow removed in favor of operator sessions.
     const OPERATOR_SESSION_STORAGE_KEY = 'kanban-operator-session';
     const API_TOKEN_STORAGE_KEY = 'kanban-api-token';
+    const BOARD_SCALE_STORAGE_KEY_PREFIX = 'kanban-board-scale:';
 
     const state = {
       actor: '',
@@ -4815,6 +4816,7 @@ BOARD_WEB_APP_HTML = "".join(
       state.operatorProfile = null;
       state.operatorUsers = [];
       setOperatorSessionToken('');
+      applyBoardScalePreference({ fallbackValue: 1, syncInput: true, persistFallback: false });
       updateOperatorButton();
       els.operatorProfileModal.classList.remove('is-open');
       els.operatorAdminModal.classList.remove('is-open');
@@ -4845,6 +4847,7 @@ BOARD_WEB_APP_HTML = "".join(
       state.operatorProfile = data;
       state.actor = data?.user?.username || '';
       setOperatorSessionToken(data?.session?.token || state.operatorSessionToken);
+      applyBoardScalePreference({ fallbackValue: state.snapshot?.settings?.board_scale ?? state.boardScale ?? 1, syncInput: true, persistFallback: true });
       updateOperatorButton();
       const stats = data?.stats || {};
       els.operatorProfileMeta.textContent =
@@ -6026,6 +6029,43 @@ BOARD_WEB_APP_HTML = "".join(
     function formatDate(value) {
       if (!value) return 'нет даты';
       try { return new Date(value).toLocaleString('ru-RU'); } catch { return value; }
+    }
+
+    function boardScaleStorageKey(actor = state.actor) {
+      const normalizedActor = String(actor || '').trim().toUpperCase();
+      return BOARD_SCALE_STORAGE_KEY_PREFIX + (normalizedActor || 'GUEST');
+    }
+
+    function readStoredBoardScale(actor = state.actor) {
+      try {
+        const rawValue = localStorage.getItem(boardScaleStorageKey(actor));
+        if (!rawValue) return null;
+        const numeric = Number(rawValue);
+        return Number.isFinite(numeric) ? normalizeBoardScale(numeric) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function persistStoredBoardScale(value, actor = state.actor) {
+      const scale = normalizeBoardScale(value);
+      try {
+        localStorage.setItem(boardScaleStorageKey(actor), String(scale));
+      } catch (_) {
+      }
+      return scale;
+    }
+
+    function resolveBoardScalePreference(fallbackValue = 1, { persistFallback = false } = {}) {
+      const storedScale = readStoredBoardScale();
+      if (storedScale !== null) return storedScale;
+      const fallbackScale = normalizeBoardScale(fallbackValue);
+      if (persistFallback) persistStoredBoardScale(fallbackScale);
+      return fallbackScale;
+    }
+
+    function applyBoardScalePreference({ fallbackValue = 1, syncInput = false, persistFallback = false } = {}) {
+      return applyBoardScale(resolveBoardScalePreference(fallbackValue, { persistFallback }), { syncInput });
     }
 
     function normalizeBoardScale(value) {
@@ -8794,7 +8834,7 @@ function renderCompactArchiveRows(cards) {
           const nextRevision = String(nextSnapshot?.meta?.revision || '');
           const boardChanged = !previousRevision || !nextRevision || previousRevision !== nextRevision;
           state.snapshot = nextSnapshot;
-          applyBoardScale(state.snapshot?.settings?.board_scale ?? state.boardScale ?? 1, { syncInput: true });
+          applyBoardScalePreference({ fallbackValue: state.snapshot?.settings?.board_scale ?? 1, syncInput: true, persistFallback: true });
           if (boardChanged) {
             renderBoard();
             if (els.archiveModal.classList.contains('is-open')) renderArchive();
@@ -9777,15 +9817,7 @@ function renderCompactArchiveRows(cards) {
     async function saveBoardScale() {
       const scale = normalizeBoardScale(Number(els.boardScaleInput.value) / 100);
       applyBoardScale(scale, { syncInput: true });
-      try {
-        await api('/api/update_board_settings', {
-          method: 'POST',
-          body: { board_scale: scale, actor_name: state.actor, source: 'ui' },
-        });
-        await refreshSnapshot(true);
-      } catch (error) {
-        setStatus(error.message, true);
-      }
+      persistStoredBoardScale(scale);
     }
 
     async function persistBoardScaleChange() {
