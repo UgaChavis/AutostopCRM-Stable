@@ -3228,26 +3228,28 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-layout {
       display: grid;
-      grid-template-columns: 248px minmax(0, 1fr);
-      gap: 14px;
-      min-height: 620px;
+      grid-template-columns: 224px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
     }
     .employees-pane {
       display: grid;
-      gap: 12px;
+      gap: 10px;
       min-height: 0;
     }
     .employees-pane--list {
       align-content: start;
+      align-self: start;
     }
     .employees-list-tools {
       display: grid;
-      gap: 8px;
-      margin-bottom: 10px;
+      gap: 6px;
+      margin-bottom: 8px;
     }
     .employees-search {
       width: 100%;
-      min-height: 36px;
+      min-height: 34px;
+      padding: 7px 9px;
     }
     .employees-filterbar {
       display: flex;
@@ -3255,8 +3257,8 @@ BOARD_WEB_APP_HTML = "".join(
       flex-wrap: wrap;
     }
     .employees-filterbar .btn {
-      min-height: 32px;
-      padding: 7px 10px;
+      min-height: 30px;
+      padding: 6px 9px;
       font-size: 10.5px;
     }
     .employees-filterbar .btn.is-active {
@@ -3276,17 +3278,17 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-list {
       display: grid;
       gap: 6px;
-      max-height: 524px;
+      max-height: 448px;
       overflow: auto;
       padding-right: 4px;
     }
     .employees-row {
       border: 1px solid var(--line);
       background: rgba(21, 29, 23, 0.68);
-      padding: 8px 10px;
+      padding: 7px 9px;
       cursor: pointer;
       display: grid;
-      gap: 4px;
+      gap: 3px;
       text-align: left;
     }
     .employees-row.is-active {
@@ -3301,7 +3303,7 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 8px;
     }
     .employees-row__title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
     }
     .employees-row__state {
@@ -3312,32 +3314,32 @@ BOARD_WEB_APP_HTML = "".join(
       white-space: nowrap;
     }
     .employees-row__meta {
-      font-size: 11px;
+      font-size: 10.5px;
       opacity: 0.78;
-      line-height: 1.35;
+      line-height: 1.3;
     }
     .employees-row__comp {
-      font-size: 11px;
+      font-size: 10.5px;
       color: rgba(231, 226, 193, 0.86);
-      line-height: 1.3;
+      line-height: 1.25;
     }
     .employees-row__summary {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      padding-top: 4px;
+      padding-top: 3px;
       border-top: 1px solid rgba(164, 173, 138, 0.1);
-      font-size: 11px;
+      font-size: 10.5px;
       color: rgba(231, 226, 193, 0.76);
     }
     .employees-row__summary strong {
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--text);
     }
     .employees-actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
@@ -3348,7 +3350,7 @@ BOARD_WEB_APP_HTML = "".join(
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .employees-card-mode {
       font-size: 11px;
@@ -3358,9 +3360,18 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-form-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px 12px;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 8px 10px;
+      align-items: end;
     }
+    .employees-form-grid input[type="text"],
+    .employees-form-grid select {
+      min-height: 34px;
+      padding: 7px 9px;
+    }
+    .employees-field--span-4 { grid-column: span 4; }
+    .employees-field--span-6 { grid-column: span 6; }
+    .employees-field--span-12 { grid-column: 1 / -1; }
     .employees-form-grid .field--secondary {
       opacity: 0.72;
     }
@@ -3368,14 +3379,14 @@ BOARD_WEB_APP_HTML = "".join(
       grid-column: 1 / -1;
     }
     .employees-note-details {
-      margin-top: 10px;
+      margin-top: 8px;
       border: 1px solid rgba(164, 173, 138, 0.12);
       background: rgba(18, 24, 20, 0.34);
     }
     .employees-note-details summary {
       cursor: pointer;
       list-style: none;
-      padding: 9px 10px;
+      padding: 8px 10px;
       font-size: 11px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -3388,7 +3399,7 @@ BOARD_WEB_APP_HTML = "".join(
       border-bottom: 1px solid rgba(164, 173, 138, 0.1);
     }
     .employees-note-details .field {
-      padding: 10px;
+      padding: 8px 10px;
     }
     .employees-check {
       display: flex;
@@ -3398,6 +3409,7 @@ BOARD_WEB_APP_HTML = "".join(
       letter-spacing: 0.08em;
       text-transform: uppercase;
       opacity: 0.9;
+      min-height: 34px;
     }
     .employees-panel-head {
       display: flex;
@@ -3413,8 +3425,8 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-summary-strip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      margin-top: 12px;
+      gap: 6px;
+      margin-top: 10px;
     }
     .employees-summary-strip:empty {
       display: none;
@@ -3422,7 +3434,7 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-kpi {
       display: grid;
       gap: 3px;
-      padding: 8px 10px;
+      padding: 7px 9px;
       border: 1px solid rgba(164, 173, 138, 0.12);
       background: rgba(18, 24, 20, 0.44);
     }
@@ -3433,13 +3445,13 @@ BOARD_WEB_APP_HTML = "".join(
       color: rgba(231, 226, 193, 0.68);
     }
     .employees-kpi__value {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       line-height: 1.2;
     }
     .employees-table-wrap {
       overflow: auto;
-      max-height: 300px;
+      max-height: 236px;
       border: 1px solid var(--line);
       background: rgba(18, 24, 20, 0.6);
     }
@@ -3450,7 +3462,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-table th,
     .employees-table td {
-      padding: 8px 10px;
+      padding: 7px 9px;
       border-bottom: 1px solid rgba(164, 173, 138, 0.1);
       text-align: left;
       vertical-align: top;
@@ -3460,7 +3472,7 @@ BOARD_WEB_APP_HTML = "".join(
       top: 0;
       background: rgba(31, 39, 33, 0.98);
       z-index: 1;
-      font-size: 10.5px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.1em;
       color: rgba(231, 226, 193, 0.72);
@@ -4364,7 +4376,7 @@ BOARD_WEB_APP_HTML = "".join(
         'beforeend',
         ''
           + '<div class="modal" id="employeesModal">'
-            + '<div class="dialog" style="width:min(1320px,100%);">'
+            + '<div class="dialog" style="width:min(1240px,100%);">'
               + '<div class="dialog__head">'
                 + '<div class="dialog__title">СОТРУДНИКИ</div>'
                 + '<button class="btn" data-close="employees">ЗАКРЫТЬ</button>'
@@ -4389,12 +4401,12 @@ BOARD_WEB_APP_HTML = "".join(
                   + '<div class="subpanel">'
                     + '<div class="employees-card-head"><div class="panel-title">ПРОФИЛЬ</div><div class="employees-card-mode" id="employeesCardMode">НОВЫЙ СОТРУДНИК</div></div>'
                     + '<div class="employees-form-grid">'
-                      + '<div class="field"><label for="employeeNameInput">ИМЯ</label><input id="employeeNameInput" type="text" maxlength="80"></div>'
-                      + '<div class="field"><label for="employeePositionInput">ДОЛЖНОСТЬ</label><input id="employeePositionInput" type="text" maxlength="80"></div>'
-                      + '<div class="field"><label for="employeeSalaryModeInput">СХЕМА</label><select id="employeeSalaryModeInput"><option value="salary_plus_percent">ОКЛАД + %</option><option value="percent_only">% ОТ РАБОТ</option><option value="salary_only">ТОЛЬКО ОКЛАД</option></select></div>'
-                      + '<div class="field"><label for="employeeBaseSalaryInput">ОКЛАД</label><input id="employeeBaseSalaryInput" type="text" inputmode="decimal" maxlength="40"></div>'
-                      + '<div class="field"><label for="employeeWorkPercentInput">ПРОЦЕНТ</label><input id="employeeWorkPercentInput" type="text" inputmode="decimal" maxlength="40"></div>'
-                      + '<label class="employees-check field--wide"><input id="employeeActiveInput" type="checkbox" checked> АКТИВЕН</label>'
+                      + '<div class="field employees-field--span-6"><label for="employeeNameInput">ИМЯ</label><input id="employeeNameInput" type="text" maxlength="80"></div>'
+                      + '<div class="field employees-field--span-6"><label for="employeePositionInput">ДОЛЖНОСТЬ</label><input id="employeePositionInput" type="text" maxlength="80"></div>'
+                      + '<div class="field employees-field--span-4"><label for="employeeSalaryModeInput">СХЕМА</label><select id="employeeSalaryModeInput"><option value="salary_plus_percent">ОКЛАД + %</option><option value="percent_only">% ОТ РАБОТ</option><option value="salary_only">ТОЛЬКО ОКЛАД</option></select></div>'
+                      + '<div class="field employees-field--span-4"><label for="employeeBaseSalaryInput">ОКЛАД</label><input id="employeeBaseSalaryInput" type="text" inputmode="decimal" maxlength="40"></div>'
+                      + '<div class="field employees-field--span-4"><label for="employeeWorkPercentInput">ПРОЦЕНТ</label><input id="employeeWorkPercentInput" type="text" inputmode="decimal" maxlength="40"></div>'
+                      + '<label class="employees-check employees-field--span-4"><input id="employeeActiveInput" type="checkbox" checked> АКТИВЕН</label>'
                     + '</div>'
                     + '<details class="employees-note-details" id="employeeNoteDetails"><summary>ЗАМЕТКА</summary><div class="field field--secondary"><input id="employeeNoteInput" type="text" maxlength="240"></div></details>'
                     + '<div class="employees-actions" style="margin-top:12px;">'
