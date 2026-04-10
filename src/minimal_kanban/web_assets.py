@@ -868,6 +868,11 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 8px;
       align-items: center;
     }
+    .dialog__head--card > .btn {
+      position: relative;
+      z-index: 2;
+      pointer-events: auto;
+    }
     .dialog__title-wrap {
       min-width: 0;
       display: grid;
@@ -3824,7 +3829,7 @@ BOARD_WEB_APP_HTML = "".join(
           <div class="dialog__title-prefix">КАРТОЧКА</div>
           <div class="dialog__title dialog__title--card" id="cardModalTitle">РАБОЧАЯ КАРТОЧКА</div>
         </div>
-        <button class="btn" data-close="card">ЗАКРЫТЬ</button>
+        <button class="btn" id="cardModalCloseButtonTop" data-close="card">ЗАКРЫТЬ</button>
       </div>
       <div class="dialog__tabs dialog__tabs--card">
         <div>
@@ -3920,7 +3925,7 @@ BOARD_WEB_APP_HTML = "".join(
           <button class="btn hidden" id="restoreAction">ВЕРНУТЬ ИЗ АРХИВА</button>
         </div>
         <div class="dialog__foot-group dialog__foot-group--main">
-          <button class="btn" data-close="card">ОТМЕНА</button>
+          <button class="btn" id="cardModalCloseButtonBottom" data-close="card">ОТМЕНА</button>
           <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Агент по карточке" aria-label="Агент по карточке">АГЕНТ</button>
           <button class="btn btn--accent" id="saveCardButton">СОХРАНИТЬ</button>
         </div>
@@ -4542,6 +4547,8 @@ BOARD_WEB_APP_HTML = "".join(
       agentDetails: document.getElementById('agentDetails'),
       cardModal: document.getElementById('cardModal'),
       cardModalTitle: document.getElementById('cardModalTitle'),
+      cardModalCloseButtonTop: document.getElementById('cardModalCloseButtonTop'),
+      cardModalCloseButtonBottom: document.getElementById('cardModalCloseButtonBottom'),
       cardMetaLine: document.getElementById('cardMetaLine'),
       cardVehicle: document.getElementById('cardVehicle'),
       cardTitle: document.getElementById('cardTitle'),
@@ -9023,8 +9030,7 @@ function renderCompactArchiveRows(cards) {
     }
 
     function bindDirectCardModalCloseButtons() {
-      if (!els.cardModal) return;
-      els.cardModal.querySelectorAll('[data-close="card"]').forEach((button) => {
+      [els.cardModalCloseButtonTop, els.cardModalCloseButtonBottom].forEach((button) => {
         if (!(button instanceof HTMLElement)) return;
         button.addEventListener('click', (event) => {
           event.preventDefault();
