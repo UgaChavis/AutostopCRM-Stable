@@ -951,7 +951,7 @@ BOARD_WEB_APP_HTML = "".join(
       font-size: 11px;
       letter-spacing: 0.06em;
     }
-    input[type="text"], input[type="password"], textarea, select, input[type="number"] {
+    input[type="text"], input[type="password"], input[type="search"], input[type="month"], textarea, select, input[type="number"] {
       width: 100%;
       border: 1px solid var(--line);
       background: #151c17;
@@ -5340,6 +5340,12 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     async function saveEmployee() {
+      const employeeName = String(els.employeeNameInput?.value || '').trim();
+      if (!employeeName) {
+        if (els.employeeNameInput) els.employeeNameInput.focus();
+        setStatus('УКАЖИ ИМЯ СОТРУДНИКА.', true);
+        return;
+      }
       try {
         const data = await api('/api/save_employee', { method: 'POST', body: readEmployeeFormPayload() });
         state.employees = Array.isArray(data?.employees) ? data.employees : [];
