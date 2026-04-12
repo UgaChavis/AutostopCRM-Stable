@@ -1,0 +1,81 @@
+AUTOSTOP CRM TASKS, AUTOFILL, AND INTERNET TOOLS
+
+Purpose
+- This file explains scheduled tasks, on_create automation, card autofill, and the limited internet tools available to the server agent.
+
+Scheduled task model
+- Tasks are stored as lightweight metadata.
+- Scheduler runs inside the current server agent process.
+- No cron dependency is required.
+- The scheduler periodically checks due tasks and enqueues them.
+
+Supported schedule types
+- once
+- interval
+- on_create
+
+Supported task scopes
+- current_card
+- column
+- all_cards
+
+Task creation rules
+- current_card: use when the task is created from the currently open card
+- column: use when the task should react only to one column
+- all_cards: use for board-wide monitoring or review
+
+on_create trigger behavior
+- Fires when a new card appears.
+- May be limited to one selected column.
+- Should be used for inbox enrichment, first-pass classification, or initial cleanup.
+- Must not enqueue a duplicate active run for the same schedule + card.
+
+Card autofill mode
+- UI button enables autofill for 4 hours on the current card.
+- The first run is immediate.
+- Follow-up runs are adaptive, not constant.
+- Stored metadata includes:
+  - ai_autofill_active
+  - ai_autofill_until
+  - ai_next_run_at
+  - last_ai_run_at
+  - ai_run_count
+  - last_card_fingerprint
+
+Adaptive follow-up rules
+- If the card changed after the last AI pass, schedule the next pass sooner.
+- If there are no meaningful changes, slow down checks.
+- If the text implies waiting, pause, parts on the way, or client decision, slow down more aggressively.
+- Keep the number of runs bounded.
+- Never run parallel autofill passes for the same card.
+
+Available internet tools
+- decode_vin(vin)
+- find_part_numbers(query, vehicle)
+- estimate_price_ru(part_number, vehicle)
+- decode_dtc(code)
+- search_fault_info(query)
+
+Internet-tool rules
+- Use the built-in adapters only.
+- Keep lookups practical and limited.
+- Prefer exact identifiers from the card first.
+- Return compact structured results, then write concise value into the card.
+
+Recommended autofill strategy
+1. Read the card fully.
+2. Detect whether there is a VIN, DTC, parts request, ТО request, mileage, or symptom description.
+3. Use only the tools that actually match the card.
+4. Consolidate findings.
+5. Write short structured additions without overwriting good manual data.
+
+Useful task payload example
+{
+  "name": "Автообогащение inbox",
+  "prompt": "Когда в колонке появляется новая карточка, кратко обогати её по VIN, симптомам и деталям, если данные реально есть.",
+  "scope_type": "column",
+  "scope_column": "inbox",
+  "scope_column_label": "Inbox",
+  "schedule_type": "on_create",
+  "active": true
+}
