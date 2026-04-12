@@ -53,6 +53,7 @@ AUDIT_EVENT_RETENTION_DAYS = 60
 AUDIT_EVENT_RETENTION_LIMIT = 5000
 REPAIR_ORDER_FILE_RETENTION_LIMIT = 300
 MAX_ATTACHMENT_SIZE_BYTES = 15 * 1024 * 1024
+CARD_AI_AUTOFILL_LOG_LIMIT = 24
 _COLUMN_ID_PATTERN = re.compile(r"[^a-z0-9_]+")
 _SPACES_PATTERN = re.compile(r"\s+")
 
@@ -145,6 +146,34 @@ def normalize_text(value, *, default: str = "", limit: int | None = None) -> str
     if limit is not None:
         text = text[:limit]
     return text
+
+
+def normalize_ai_autofill_log(value) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    items: list[dict[str, str]] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        level = normalize_text(entry.get("level"), default="INFO", limit=8).upper()
+        if level not in {"INFO", "RUN", "WAIT", "DONE", "WARN"}:
+            level = "INFO"
+        message = normalize_text(entry.get("message"), default="", limit=240)
+        timestamp = normalize_text(entry.get("timestamp"), default="", limit=64)
+        task_id = normalize_text(entry.get("task_id"), default="", limit=64)
+        if not message:
+            continue
+        items.append(
+            {
+                "level": level,
+                "message": message,
+                "timestamp": timestamp,
+                "task_id": task_id,
+            }
+        )
+    if len(items) > CARD_AI_AUTOFILL_LOG_LIMIT:
+        items = items[-CARD_AI_AUTOFILL_LOG_LIMIT:]
+    return items
 
 
 def normalize_money_minor(value, *, default: int = 0, minimum: int | None = None) -> int:
@@ -704,6 +733,7 @@ class Card:
     last_ai_run_at: str = ""
     ai_run_count: int = 0
     last_card_fingerprint: str = ""
+    ai_autofill_log: list[dict[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.tags = normalize_tags(self.tags)
@@ -715,6 +745,7 @@ class Card:
         self.last_ai_run_at = normalize_text(self.last_ai_run_at, default="", limit=64)
         self.ai_run_count = normalize_int(self.ai_run_count, default=0, minimum=0)
         self.last_card_fingerprint = normalize_text(self.last_card_fingerprint, default="", limit=128)
+        self.ai_autofill_log = normalize_ai_autofill_log(self.ai_autofill_log)
 
     def deadline_datetime(self) -> datetime:
         deadline = parse_datetime(self.deadline_timestamp)
@@ -892,6 +923,7 @@ class Card:
                 "vehicle_profile_compact": self.vehicle_profile.to_compact_dict(),
                 "repair_order": self.repair_order.to_dict(),
                 "attachments": [attachment.to_dict() for attachment in attachments],
+                "ai_autofill_log": list(self.ai_autofill_log),
             }
         )
         return payload
@@ -921,6 +953,7 @@ class Card:
             "last_ai_run_at": self.last_ai_run_at,
             "ai_run_count": self.ai_run_count,
             "last_card_fingerprint": self.last_card_fingerprint,
+            "ai_autofill_log": list(self.ai_autofill_log),
         }
 
     @classmethod
@@ -994,6 +1027,7 @@ class Card:
             last_ai_run_at=normalize_text(payload.get("last_ai_run_at"), default="", limit=64),
             ai_run_count=normalize_int(payload.get("ai_run_count"), default=0, minimum=0),
             last_card_fingerprint=normalize_text(payload.get("last_card_fingerprint"), default="", limit=128),
+            ai_autofill_log=normalize_ai_autofill_log(payload.get("ai_autofill_log")),
         )
         card.title = title
         return card

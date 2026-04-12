@@ -18,6 +18,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from minimal_kanban.models import CARD_DESCRIPTION_LIMIT, AuditEvent, Card, utc_now
+from minimal_kanban.agent.config import get_agent_name
 from minimal_kanban.repair_order import RepairOrder
 from minimal_kanban.services.card_service import CardService, ServiceError
 from minimal_kanban.storage.json_store import JsonStore
@@ -251,6 +252,8 @@ class CardServiceTests(unittest.TestCase):
         self.assertTrue(card["ai_next_run_at"])
         self.assertTrue(card["last_ai_run_at"])
         self.assertTrue(card["last_card_fingerprint"])
+        self.assertEqual(card["ai_autofill_log"][0]["message"], "Автосопровождение включено.")
+        self.assertEqual(card["ai_autofill_log"][-1]["message"], "Первый проход запущен.")
 
     def test_trigger_due_ai_followups_skips_unchanged_then_enqueues_after_change(self) -> None:
         agent = _FakeAgentControl()
@@ -303,6 +306,42 @@ class CardServiceTests(unittest.TestCase):
         card = next(item for item in bundle["cards"] if item.id == card_id)
         self.assertEqual(card.ai_run_count, 2)
         self.assertNotEqual(card.ai_next_run_at, deferred_next_run)
+        messages = [entry["message"] for entry in card.ai_autofill_log]
+        self.assertIn("Изменений не обнаружено. Повторная проверка отложена.", messages)
+        self.assertIn("Обнаружены изменения. Запущен повторный проход.", messages)
+
+    def test_agent_originated_update_refreshes_autofill_fingerprint(self) -> None:
+        agent = _FakeAgentControl()
+        self.service.attach_agent_control(agent)
+        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
+        patches = self._patch_time(base)
+        with patches[0], patches[1], patches[2]:
+            created = self.service.create_card(
+                {
+                    "vehicle": "Toyota Corolla",
+                    "title": "Автосопровождение",
+                    "description": "Первичный текст",
+                    "deadline": {"hours": 2},
+                }
+            )
+            card_id = created["card"]["id"]
+            enabled = self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
+
+        fingerprint_before = enabled["card"]["last_card_fingerprint"]
+        update_time = base + timedelta(minutes=3)
+        patches = self._patch_time(update_time)
+        with patches[0], patches[1], patches[2]:
+            updated = self.service.update_card(
+                {
+                    "card_id": card_id,
+                    "description": "Первичный текст\nVIN: WAUZZZ8V0JA000001",
+                    "actor_name": get_agent_name(),
+                }
+            )
+
+        self.assertNotEqual(updated["card"]["last_card_fingerprint"], fingerprint_before)
+        expected = self.service._card_ai_fingerprint(next(item for item in self.store.read_bundle()["cards"] if item.id == card_id))
+        self.assertEqual(updated["card"]["last_card_fingerprint"], expected)
 
     def test_inconsistent_archived_card_with_open_repair_order_is_blocked_and_hidden(self) -> None:
         created = self.service.create_card(

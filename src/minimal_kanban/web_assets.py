@@ -2070,6 +2070,24 @@ BOARD_WEB_APP_HTML = "".join(
       .agent-autofill-button {
         min-height: 34px;
         width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        white-space: nowrap;
+      }
+      .agent-autofill-button__label,
+      .agent-autofill-button__timer {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+      }
+      .agent-autofill-button__label {
+        flex: 1 1 auto;
+      }
+      .agent-autofill-button__timer {
+        flex: 0 0 auto;
+        color: rgba(238, 247, 230, 0.88);
       }
       .agent-autofill-button[data-state="active"] {
         border-color: rgba(115, 182, 107, 0.54);
@@ -2085,12 +2103,13 @@ BOARD_WEB_APP_HTML = "".join(
       }
       .agent-result {
         flex: 1 1 auto;
-        min-height: 200px;
-        padding: 11px 12px;
-        border: 1px solid rgba(116, 126, 106, 0.18);
-        background: rgba(0, 0, 0, 0.08);
+        min-height: 220px;
+        padding: 0;
+        border: 1px solid rgba(116, 126, 106, 0.2);
+        background: #0d120f;
+        color: #d9ded4;
         white-space: normal;
-        line-height: 1.5;
+        line-height: 1.45;
         overflow: auto;
       }
       .agent-result[data-state="empty"] {
@@ -2111,6 +2130,97 @@ BOARD_WEB_APP_HTML = "".join(
       }
       .agent-result__fallback {
         white-space: pre-wrap;
+        padding: 11px 12px;
+      }
+      .agent-console {
+        display: grid;
+        gap: 0;
+        min-height: 220px;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .agent-console__entry {
+        display: grid;
+        gap: 4px;
+        padding: 9px 12px;
+        border-bottom: 1px solid rgba(116, 126, 106, 0.12);
+      }
+      .agent-console__entry:last-child {
+        border-bottom: 0;
+      }
+      .agent-console__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .agent-console__meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .agent-console__level {
+        display: inline-flex;
+        align-items: center;
+        padding: 1px 6px;
+        border: 1px solid rgba(116, 126, 106, 0.24);
+        color: var(--text-soft);
+      }
+      .agent-console__level[data-level="RUN"] {
+        border-color: rgba(120, 178, 104, 0.42);
+        color: #dff0d7;
+      }
+      .agent-console__level[data-level="INFO"] {
+        border-color: rgba(122, 141, 168, 0.34);
+        color: #cfd8e4;
+      }
+      .agent-console__level[data-level="WAIT"] {
+        border-color: rgba(174, 153, 95, 0.38);
+        color: #eadfae;
+      }
+      .agent-console__level[data-level="DONE"] {
+        border-color: rgba(110, 156, 117, 0.36);
+        color: #cee5c8;
+      }
+      .agent-console__level[data-level="WARN"] {
+        border-color: rgba(169, 96, 86, 0.42);
+        color: #efc0b7;
+      }
+      .agent-console__timestamp {
+        color: rgba(194, 200, 188, 0.66);
+        white-space: nowrap;
+      }
+      .agent-console__message {
+        color: #f1f3ec;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .agent-console__detail {
+        color: rgba(194, 200, 188, 0.72);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .agent-console__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .agent-console__action {
+        min-height: 24px;
+        padding: 4px 8px;
+        border: 1px solid rgba(116, 126, 106, 0.22);
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text-soft);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .agent-console__action:hover {
+        border-color: rgba(167, 178, 132, 0.42);
+        background: rgba(167, 178, 132, 0.08);
+        color: var(--text);
       }
       .agent-result__hero {
         display: grid;
@@ -4578,6 +4688,7 @@ BOARD_WEB_APP_HTML = "".join(
       agentUiBound: false,
       agentContext: { kind: 'board' },
       agentRefreshTimer: null,
+      agentAutofillCountdownTimer: null,
       agentTasksUiBound: false,
       agentTasksRefreshTimer: null,
       agentScheduledTasks: [],
@@ -4588,6 +4699,9 @@ BOARD_WEB_APP_HTML = "".join(
       agentTaskId: '',
       agentTaskStatus: '',
       agentSyncedTaskId: '',
+      agentStatusPayload: null,
+      agentLatestTasks: [],
+      agentLatestActions: [],
     };
 
     const SNAPSHOT_POLL_INTERVAL_MS = 8000;
@@ -6336,9 +6450,11 @@ BOARD_WEB_APP_HTML = "".join(
       const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
       const agentEnabled = Boolean(payload.agent?.enabled);
       const card = currentAgentContextCard();
+      const activeTask = currentCardAutofillTask(state.agentLatestTasks);
       const active = Boolean(card?.ai_autofill_active);
       const untilText = String(card?.ai_autofill_until || '').trim();
-      let buttonText = active ? 'АВТОСОПРОВОЖДЕНИЕ' : 'АВТОЗАПОЛНЕНИЕ';
+      const countdown = active ? formatAgentCountdown(untilText) : '';
+      let buttonLabel = active ? 'АВТО' : 'АВТОЗАПОЛНЕНИЕ';
       let statusText = 'ОТКРОЙ КАРТОЧКУ';
       let stateValue = 'offline';
       let disabled = !String(card?.id || '').trim();
@@ -6347,10 +6463,16 @@ BOARD_WEB_APP_HTML = "".join(
           statusText = 'SERVER AI OFFLINE';
           stateValue = 'offline';
           disabled = true;
-        } else if (active) {
-          statusText = untilText ? ('АКТИВНО ДО ' + formatDate(untilText)) : 'АВТОСОПРОВОЖДЕНИЕ АКТИВНО';
+        } else if (activeTask) {
+          const trigger = String(activeTask?.metadata?.trigger || '').trim().toLowerCase();
+          statusText = trigger === 'adaptive_followup' ? 'ПОВТОРНЫЙ ПРОХОД' : 'ПЕРВЫЙ ПРОХОД';
           stateValue = 'active';
-          buttonText = 'ОСТАНОВИТЬ АВТО';
+          disabled = false;
+        } else if (active) {
+          const nextRunText = formatAgentClock(card?.ai_next_run_at || '');
+          statusText = nextRunText ? ('ОЖИДАНИЕ · ' + nextRunText) : 'АВТОСОПРОВОЖДЕНИЕ АКТИВНО';
+          stateValue = 'waiting';
+          buttonLabel = 'АВТО';
           disabled = false;
         } else {
           statusText = 'SERVER AI READY';
@@ -6359,7 +6481,9 @@ BOARD_WEB_APP_HTML = "".join(
         }
       }
       if (els.agentAutofillButton) {
-        els.agentAutofillButton.textContent = buttonText;
+        els.agentAutofillButton.innerHTML = active
+          ? '<span class="agent-autofill-button__label">' + escapeHtml(buttonLabel) + '</span><span class="agent-autofill-button__timer">' + escapeHtml(countdown || '00:00') + '</span>'
+          : '<span class="agent-autofill-button__label">' + escapeHtml(buttonLabel) + '</span>';
         els.agentAutofillButton.disabled = disabled;
         els.agentAutofillButton.dataset.state = active ? 'active' : 'inactive';
       }
@@ -6388,8 +6512,10 @@ BOARD_WEB_APP_HTML = "".join(
           state.activeCard = data.card;
           if (els.cardModal?.classList.contains('is-open')) applyCardModalState(data.card);
         }
+        if (data?.meta?.task_id) state.agentTaskId = String(data.meta.task_id || '').trim();
         renderAgentAutofillControls({ agent: { enabled: true } });
         setStatus(nextEnabled ? 'АВТОСОПРОВОЖДЕНИЕ ВКЛЮЧЕНО НА 4 ЧАСА.' : 'АВТОСОПРОВОЖДЕНИЕ ОТКЛЮЧЕНО.', false);
+        await refreshAgentModalState();
       } catch (error) {
         setStatus(error.message, true);
       } finally {
@@ -6813,6 +6939,205 @@ BOARD_WEB_APP_HTML = "".join(
         : '<div class="agent-result__fallback">' + escapeHtml([summary, result].filter(Boolean).join('\\n\\n') || 'Ответ агента пока пуст.') + '</div>';
     }
 
+    function currentCardAutofillTask(tasks) {
+      const items = Array.isArray(tasks) ? tasks : [];
+      const card = currentAgentContextCard();
+      const cardId = String(card?.id || '').trim();
+      if (!cardId) return null;
+      return items.find((item) => {
+        const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+        const context = metadata.context && typeof metadata.context === 'object' ? metadata.context : {};
+        const status = String(item?.status || '').trim().toLowerCase();
+        return String(metadata.purpose || '').trim().toLowerCase() === 'card_autofill'
+          && String(context.card_id || '').trim() === cardId
+          && (status === 'pending' || status === 'running');
+      }) || null;
+    }
+
+    function relevantAgentConsoleTasks(tasks) {
+      const items = Array.isArray(tasks) ? tasks : [];
+      const context = state.agentContext && typeof state.agentContext === 'object' ? state.agentContext : { kind: 'board' };
+      const kind = String(context.kind || 'board').trim().toLowerCase();
+      const cardId = String(context.card_id || '').trim();
+      return items.filter((item) => {
+        const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+        const taskContext = metadata.context && typeof metadata.context === 'object' ? metadata.context : {};
+        if (kind === 'card') return String(taskContext.card_id || '').trim() === cardId;
+        return String(taskContext.kind || 'board').trim().toLowerCase() === 'board';
+      }).slice(0, 12);
+    }
+
+    function summarizeAgentConsoleText(value, limit = 220) {
+      const text = String(value || '').replace(/\\s+/g, ' ').trim();
+      if (!text) return '';
+      return text.length > limit ? (text.slice(0, limit - 1).trim() + '…') : text;
+    }
+
+    function mapAgentActionToConsoleEntry(action) {
+      if (!action || typeof action !== 'object') return null;
+      const kind = String(action.kind || '').trim().toLowerCase();
+      const timestamp = String(action.finished_at || action.started_at || '').trim();
+      if (kind === 'log') {
+        return {
+          timestamp,
+          level: String(action.level || 'INFO').trim().toUpperCase(),
+          message: summarizeAgentConsoleText(action.message || action.result_preview || 'Событие агента'),
+          detail: '',
+          taskId: String(action.task_id || '').trim(),
+          actions: [],
+        };
+      }
+      const tool = String(action.tool || '').trim().toLowerCase();
+      const messageMap = {
+        get_card: 'Начат анализ карточки.',
+        get_card_context: 'Начат анализ карточки.',
+        decode_vin: 'Обнаружен VIN. Идёт расшифровка.',
+        find_part_numbers: 'Идёт поиск каталожных номеров.',
+        search_part_numbers: 'Идёт поиск каталожных номеров.',
+        estimate_price_ru: 'Идёт оценка цен по РФ.',
+        lookup_part_prices: 'Идёт оценка цен по РФ.',
+        estimate_maintenance: 'Найден контекст по ТО.',
+        decode_dtc: 'Идёт расшифровка кодов ошибок.',
+        search_fault_info: 'Идёт поиск во внешних источниках.',
+        search_web: 'Идёт поиск во внешних источниках.',
+        fetch_page_excerpt: 'Идёт поиск во внешних источниках.',
+        update_card: 'Карточка обновлена.',
+        update_repair_order: 'Заказ-наряд обновлён.',
+        replace_repair_order_works: 'Заказ-наряд обновлён.',
+        replace_repair_order_materials: 'Заказ-наряд обновлён.',
+      };
+      return {
+        timestamp,
+        level: tool === 'update_card' ? 'DONE' : 'INFO',
+        message: messageMap[tool] || ('Выполнен tool: ' + String(action.tool || 'tool').trim()),
+        detail: summarizeAgentConsoleText(action.reason || action.result_preview || '', 260),
+        taskId: String(action.task_id || '').trim(),
+        actions: [],
+      };
+    }
+
+    function buildAgentTaskFallbackEntry(task) {
+      if (!task || typeof task !== 'object') return null;
+      const status = String(task.status || '').trim().toLowerCase();
+      let level = 'INFO';
+      let message = '';
+      if (status === 'running') {
+        level = 'RUN';
+        message = 'Агент обрабатывает задачу.';
+      } else if (status === 'pending') {
+        level = 'WAIT';
+        message = 'Задача ожидает выполнения.';
+      } else if (status === 'failed') {
+        level = 'WARN';
+        message = 'Ошибка выполнения задачи.';
+      } else if (status === 'completed') {
+        level = 'DONE';
+        message = summarizeAgentConsoleText(task.summary || task.result || 'Задача завершена.');
+      } else {
+        return null;
+      }
+      return {
+        timestamp: String(task.finished_at || task.started_at || task.created_at || '').trim(),
+        level,
+        message,
+        detail: summarizeAgentConsoleText(task.result || task.error || '', 260),
+        taskId: String(task.id || '').trim(),
+        actions: [],
+      };
+    }
+
+    function buildAgentConsoleEntries(tasks, actions, selectedTask) {
+      const entries = [];
+      const card = currentAgentContextCard();
+      const cardLog = Array.isArray(card?.ai_autofill_log) ? card.ai_autofill_log : [];
+      cardLog.forEach((entry) => {
+        entries.push({
+          timestamp: String(entry?.timestamp || '').trim(),
+          level: String(entry?.level || 'INFO').trim().toUpperCase(),
+          message: summarizeAgentConsoleText(entry?.message || ''),
+          detail: '',
+          taskId: String(entry?.task_id || '').trim(),
+          actions: [],
+        });
+      });
+      const relevantTasks = relevantAgentConsoleTasks(tasks);
+      const relevantTaskIds = new Set(relevantTasks.map((item) => String(item?.id || '').trim()).filter(Boolean));
+      if (selectedTask?.id) relevantTaskIds.add(String(selectedTask.id || '').trim());
+      (Array.isArray(actions) ? actions : []).forEach((action) => {
+        const taskId = String(action?.task_id || '').trim();
+        if (taskId && relevantTaskIds.size && !relevantTaskIds.has(taskId)) return;
+        const mapped = mapAgentActionToConsoleEntry(action);
+        if (mapped) entries.push(mapped);
+      });
+      relevantTasks.forEach((task) => {
+        const fallback = buildAgentTaskFallbackEntry(task);
+        if (fallback) entries.push(fallback);
+      });
+      if (selectedTask && typeof selectedTask === 'object') {
+        const display = normalizeAgentDisplay(selectedTask);
+        const actionItems = Array.isArray(display.actions) ? display.actions.filter(Boolean).slice(0, 4) : [];
+        if (display.title || display.summary || actionItems.length) {
+          entries.push({
+            timestamp: String(selectedTask.finished_at || selectedTask.started_at || selectedTask.created_at || '').trim(),
+            level: String(selectedTask.status || '').trim().toLowerCase() === 'failed' ? 'WARN' : 'DONE',
+            message: summarizeAgentConsoleText(display.title || selectedTask.summary || selectedTask.result || 'Ответ агента.'),
+            detail: summarizeAgentConsoleText(display.summary || selectedTask.result || '', 260),
+            taskId: String(selectedTask.id || '').trim(),
+            actions: actionItems,
+          });
+        }
+      }
+      const seen = new Set();
+      return entries
+        .filter((item) => item && item.message)
+        .sort((left, right) => {
+          const leftRaw = new Date(left.timestamp || 0).getTime();
+          const rightRaw = new Date(right.timestamp || 0).getTime();
+          const leftTime = Number.isFinite(leftRaw) ? leftRaw : 0;
+          const rightTime = Number.isFinite(rightRaw) ? rightRaw : 0;
+          return leftTime - rightTime;
+        })
+        .filter((item) => {
+          const key = [item.timestamp, item.level, item.message, item.taskId].join('|');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(-24);
+    }
+
+    function renderAgentConsole(entries) {
+      if (!els.agentResultPanel) return;
+      const items = Array.isArray(entries) ? entries : [];
+      if (!items.length) {
+        els.agentResultPanel.dataset.state = 'empty';
+        delete els.agentResultPanel.dataset.tone;
+        els.agentResultPanel.innerHTML = '<div class="agent-result__fallback">Лента агента пуста. Запусти задачу или включи автосопровождение.</div>';
+        return;
+      }
+      const panel = els.agentResultPanel;
+      const distanceToBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+      const shouldStickBottom = distanceToBottom < 48;
+      panel.dataset.state = 'filled';
+      delete panel.dataset.tone;
+      panel.innerHTML = '<div class="agent-console">' + items.map((item) => {
+        const timestamp = formatAgentClock(item.timestamp, { withSeconds: true }) || '---';
+        const detailHtml = item.detail ? '<div class="agent-console__detail">' + escapeHtml(item.detail) + '</div>' : '';
+        const actionsHtml = Array.isArray(item.actions) && item.actions.length
+          ? '<div class="agent-console__actions">' + item.actions.map((action) =>
+              '<button class="agent-console__action" type="button" data-agent-follow-up="' + escapeHtml(action) + '">' + escapeHtml(action) + '</button>'
+            ).join('') + '</div>'
+          : '';
+        return '<div class="agent-console__entry">'
+          + '<div class="agent-console__top"><div class="agent-console__meta"><span class="agent-console__level" data-level="' + escapeHtml(item.level || 'INFO') + '">' + escapeHtml(item.level || 'INFO') + '</span></div><span class="agent-console__timestamp">' + escapeHtml(timestamp) + '</span></div>'
+          + '<div class="agent-console__message">' + escapeHtml(item.message || '') + '</div>'
+          + detailHtml
+          + actionsHtml
+          + '</div>';
+      }).join('') + '</div>';
+      if (shouldStickBottom) panel.scrollTop = panel.scrollHeight;
+    }
+
     function handleAgentResultActionClick(event) {
       const button = event.target.closest('[data-agent-follow-up]');
       if (!button || !els.agentTaskInput) return;
@@ -6874,26 +7199,42 @@ BOARD_WEB_APP_HTML = "".join(
     async function refreshAgentModalState() {
       if (!els.agentModal?.classList.contains('is-open')) return;
       try {
-        const [statusData, tasksData] = await Promise.all([
+        const card = currentAgentContextCard();
+        const cardId = String(card?.id || '').trim();
+        const requests = [
           api('/api/agent_status'),
-          api('/api/agent_tasks?limit=10'),
-        ]);
+          api('/api/agent_tasks?limit=20'),
+          api('/api/agent_actions?limit=80'),
+        ];
+        if (cardId) requests.push(api('/api/get_card?card_id=' + encodeURIComponent(cardId)));
+        const [statusData, tasksData, actionsData, cardData] = await Promise.all(requests);
+        state.agentStatusPayload = statusData || null;
+        state.agentLatestTasks = Array.isArray(tasksData?.tasks) ? tasksData.tasks : [];
+        state.agentLatestActions = Array.isArray(actionsData?.actions) ? actionsData.actions : [];
+        if (cardData?.card) {
+          state.activeCard = cardData.card;
+          if (els.cardModal?.classList.contains('is-open')) applyCardModalState(cardData.card);
+        }
         renderAgentStatus(statusData);
         renderAgentRuns(statusData?.recent_runs || []);
-        const task = selectAgentTask(tasksData?.tasks || []);
+        const task = selectAgentTask(state.agentLatestTasks);
         if (task) {
           state.agentTaskId = String(task.id || state.agentTaskId || '');
           state.agentTaskStatus = String(task.status || '');
         }
-        renderAgentTask(task);
+        renderAgentConsole(buildAgentConsoleEntries(state.agentLatestTasks, state.agentLatestActions, task));
         if (task?.id) {
-          const actionsData = await api('/api/agent_actions?limit=25&task_id=' + encodeURIComponent(task.id));
-          renderAgentActions(actionsData?.actions || []);
+          const taskActionsData = await api('/api/agent_actions?limit=25&task_id=' + encodeURIComponent(task.id));
+          renderAgentActions(taskActionsData?.actions || []);
           await syncAgentTaskEffects(task);
         } else {
           renderAgentActions([]);
         }
-        scheduleAgentRefresh(task && (task.status === 'pending' || task.status === 'running') ? 1200 : 3500);
+        const hasRunningAutofill = Boolean(currentCardAutofillTask(state.agentLatestTasks));
+        const activeAutofill = Boolean(currentAgentContextCard()?.ai_autofill_active);
+        scheduleAgentRefresh(task && (task.status === 'pending' || task.status === 'running')
+          ? 1200
+          : ((hasRunningAutofill || activeAutofill) ? 1800 : 3500));
       } catch (error) {
         renderAgentStatus({ agent: { enabled: false }, status: { running: false, last_error: error.message }, queue: { pending_total: 0 } });
         if (els.agentResultPanel) {
@@ -6921,14 +7262,21 @@ BOARD_WEB_APP_HTML = "".join(
       if (els.agentResultPanel) {
         els.agentResultPanel.dataset.state = 'empty';
         delete els.agentResultPanel.dataset.tone;
-        els.agentResultPanel.textContent = 'Короткий запрос по доске или этой карточке.';
+        els.agentResultPanel.innerHTML = '<div class="agent-result__fallback">Лента агента пуста. Запусти задачу или включи автосопровождение.</div>';
       }
+      state.agentStatusPayload = null;
+      state.agentLatestTasks = [];
+      state.agentLatestActions = [];
       renderAgentAutofillControls({ agent: { enabled: false } });
       renderAgentActions([]);
       renderAgentRuns([]);
       if (els.agentRunsDetails) els.agentRunsDetails.open = false;
       if (els.agentDetails) els.agentDetails.open = false;
       els.agentModal.classList.add('is-open');
+      if (state.agentAutofillCountdownTimer) window.clearInterval(state.agentAutofillCountdownTimer);
+      state.agentAutofillCountdownTimer = window.setInterval(() => {
+        renderAgentAutofillControls(state.agentStatusPayload || { agent: { enabled: false } });
+      }, 1000);
       refreshAgentModalState();
       window.setTimeout(() => {
         syncAgentTaskInputHeight();
@@ -6941,6 +7289,10 @@ BOARD_WEB_APP_HTML = "".join(
       if (state.agentRefreshTimer) {
         window.clearTimeout(state.agentRefreshTimer);
         state.agentRefreshTimer = null;
+      }
+      if (state.agentAutofillCountdownTimer) {
+        window.clearInterval(state.agentAutofillCountdownTimer);
+        state.agentAutofillCountdownTimer = null;
       }
     }
 
@@ -6970,7 +7322,16 @@ BOARD_WEB_APP_HTML = "".join(
         if (els.agentResultPanel) {
           els.agentResultPanel.dataset.state = 'active';
           delete els.agentResultPanel.dataset.tone;
-          els.agentResultPanel.textContent = 'Задача принята и выполняется.';
+          renderAgentConsole([
+            {
+              timestamp: new Date().toISOString(),
+              level: 'RUN',
+              message: 'Задача принята и выполняется.',
+              detail: summarizeAgentConsoleText(taskText, 220),
+              taskId: state.agentTaskId,
+              actions: [],
+            },
+          ]);
         }
         if (els.agentDetails) els.agentDetails.open = false;
         refreshAgentModalState();
@@ -7082,6 +7443,34 @@ BOARD_WEB_APP_HTML = "".join(
     function formatDate(value) {
       if (!value) return 'нет даты';
       try { return new Date(value).toLocaleString('ru-RU'); } catch { return value; }
+    }
+
+    function formatAgentClock(value, { withSeconds = false } = {}) {
+      if (!value) return '';
+      try {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        return date.toLocaleTimeString('ru-RU', withSeconds
+          ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+          : { hour: '2-digit', minute: '2-digit' });
+      } catch {
+        return '';
+      }
+    }
+
+    function formatAgentCountdown(untilText) {
+      if (!untilText) return '';
+      try {
+        const untilAt = new Date(untilText);
+        const diffMs = untilAt.getTime() - Date.now();
+        if (!Number.isFinite(diffMs) || diffMs <= 0) return '00:00';
+        const totalMinutes = Math.ceil(diffMs / 60000);
+        const hours = Math.max(0, Math.floor(totalMinutes / 60));
+        const minutes = Math.max(0, totalMinutes % 60);
+        return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+      } catch {
+        return '';
+      }
     }
 
     function boardScaleStorageKey(actor = state.actor) {

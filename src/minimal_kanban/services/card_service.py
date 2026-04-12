@@ -74,10 +74,17 @@ from ..vehicle_profile import (
     normalize_vehicle_field_names,
 )
 from ..agent.openai_client import AgentModelError, OpenAIJsonAgentClient
+from ..agent.config import get_agent_name
 from ..printing.service import PrintModuleError, PrintModuleService
 from .column_service import ColumnService
 from .snapshot_service import SnapshotService
 from .vehicle_profile_service import VehicleProfileService
+
+
+_CARD_AI_LOG_LIMIT = 24
+_CARD_AI_LEVELS = {"INFO", "RUN", "WAIT", "DONE", "WARN"}
+_CARD_AI_VIN_PATTERN = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+_CARD_AI_DTC_PATTERN = re.compile(r"\b[PBCU][0-9]{4}\b", re.IGNORECASE)
 from ..storage.json_store import JsonStore, default_columns
 
 
@@ -391,10 +398,12 @@ class CardService:
             if not enabled:
                 card.last_card_fingerprint = ""
                 card.ai_run_count = 0
+                self._append_card_ai_log(card, level="DONE", message="Автосопровождение остановлено.")
             launched_task_id = ""
             if enabled:
-                fingerprint = self._card_ai_fingerprint(card)
-                card.last_card_fingerprint = fingerprint
+                self._append_card_ai_log(card, level="RUN", message="Автосопровождение включено.")
+                for level, message in self._card_ai_context_messages(card):
+                    self._append_card_ai_log(card, level=level, message=message)
                 if self._agent_control is not None:
                     task = self._agent_control.enqueue_card_autofill_task(
                         {
@@ -412,7 +421,14 @@ class CardService:
                         card.last_ai_run_at = str(task.get("created_at", "") or now_iso).strip() or now_iso
                         card.ai_run_count = max(0, int(card.ai_run_count)) + 1
                         card.ai_next_run_at = (now + timedelta(minutes=self._card_ai_next_interval_minutes(card, changed=True))).isoformat()
+                        self._append_card_ai_log(card, level="RUN", message="Первый проход запущен.", task_id=launched_task_id)
+                    else:
+                        self._append_card_ai_log(card, level="WAIT", message="Проход уже выполняется.")
+                else:
+                    self._append_card_ai_log(card, level="WARN", message="Server AI недоступен.")
             self._touch_card(card, actor_name)
+            if enabled:
+                card.last_card_fingerprint = self._card_ai_fingerprint(card)
             self._append_event(
                 events,
                 actor_name=actor_name,
@@ -455,6 +471,7 @@ class CardService:
                         card.ai_autofill_active = False
                         card.ai_autofill_until = ""
                         card.ai_next_run_at = ""
+                        self._append_card_ai_log(card, level="DONE", message="Автосопровождение остановлено: карточка в архиве.")
                         changed_any = True
                     continue
                 if not card.ai_autofill_active:
@@ -464,17 +481,21 @@ class CardService:
                     card.ai_autofill_active = False
                     card.ai_autofill_until = ""
                     card.ai_next_run_at = ""
+                    self._append_card_ai_log(card, level="DONE", message="Автосопровождение завершено.")
                     changed_any = True
                     continue
                 next_run_at = parse_datetime(card.ai_next_run_at) or now
                 if next_run_at > now:
                     continue
                 if self._agent_control.has_active_task_for_card(card.id, purpose="card_autofill"):
+                    self._append_card_ai_log(card, level="WAIT", message="Проход уже выполняется.")
+                    changed_any = True
                     continue
                 fingerprint = self._card_ai_fingerprint(card)
                 changed = fingerprint != str(card.last_card_fingerprint or "").strip()
                 if not changed:
                     card.ai_next_run_at = (now + timedelta(minutes=self._card_ai_next_interval_minutes(card, changed=False))).isoformat()
+                    self._append_card_ai_log(card, level="WAIT", message="Изменений не обнаружено. Повторная проверка отложена.")
                     changed_any = True
                     continue
                 try:
@@ -490,15 +511,20 @@ class CardService:
                         trigger="adaptive_followup",
                     )
                     if task is None:
+                        self._append_card_ai_log(card, level="WAIT", message="Не удалось запустить повторный проход.")
+                        changed_any = True
                         continue
                     launched.append(str(task.get("id", "") or "").strip())
                     card.last_ai_run_at = str(task.get("created_at", "") or now_iso).strip() or now_iso
                     card.ai_run_count = max(0, int(card.ai_run_count)) + 1
                     card.last_card_fingerprint = fingerprint
                     card.ai_next_run_at = (now + timedelta(minutes=self._card_ai_next_interval_minutes(card, changed=True))).isoformat()
+                    self._append_card_ai_log(card, level="RUN", message="Обнаружены изменения. Запущен повторный проход.", task_id=launched[-1])
                     changed_any = True
                 except Exception as exc:
+                    self._append_card_ai_log(card, level="WARN", message="Не удалось запустить повторный проход.")
                     failed.append({"card_id": card.id, "error": str(exc)})
+                    changed_any = True
             if changed_any:
                 self._save_bundle(bundle, columns=columns, cards=cards, events=events)
             return {"launched": launched, "failed": failed}
@@ -947,6 +973,7 @@ class CardService:
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
                 self._touch_card(card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(card, actor_name, source)
                 if self._card_has_repair_order(card):
                     self._ensure_repair_order_text_file(card, force=True)
                 self._save_bundle(
@@ -994,6 +1021,7 @@ class CardService:
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
                 self._touch_card(card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(card, actor_name, source)
                 if self._card_has_repair_order(card):
                     self._ensure_repair_order_text_file(card, force=True)
                 self._save_bundle(
@@ -1042,6 +1070,7 @@ class CardService:
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
                 self._touch_card(card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(card, actor_name, source)
                 if self._card_has_repair_order(card):
                     self._ensure_repair_order_text_file(card, force=True)
                 self._save_bundle(
@@ -1101,6 +1130,7 @@ class CardService:
                 )
             if changed or numbering_changed:
                 self._touch_card(card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(card, actor_name, source)
                 if self._card_has_repair_order(card):
                     self._ensure_repair_order_text_file(card, force=True)
                 self._save_bundle(
@@ -1650,6 +1680,7 @@ class CardService:
             numbering_changed = self._synchronize_repair_order_numbers(cards)
             if changed or numbering_changed:
                 self._touch_card(card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(card, actor_name, source)
                 if self._card_has_repair_order(card):
                     self._ensure_repair_order_text_file(card, force=True)
                 self._save_bundle(
@@ -1694,6 +1725,7 @@ class CardService:
             if changed:
                 card.repair_order = next_order
                 self._touch_card(card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(card, actor_name, source)
                 self._ensure_repair_order_text_file(card, force=True)
                 self._append_event(
                     events,
@@ -1831,6 +1863,7 @@ class CardService:
             card.ai_autofill_active = False
             card.ai_autofill_until = ""
             card.ai_next_run_at = ""
+            self._append_card_ai_log(card, level="DONE", message="Автосопровождение остановлено: карточка отправлена в архив.")
             self._touch_card(card, actor_name)
             self._append_event(
                 events,
@@ -3452,6 +3485,81 @@ class CardService:
         if active and int(card.ai_run_count or 0) <= 3:
             return 25
         return 40
+
+    def _append_card_ai_log(self, card: Card, *, level: str, message: str, task_id: str = "") -> None:
+        normalized_level = str(level or "INFO").strip().upper()
+        if normalized_level not in _CARD_AI_LEVELS:
+            normalized_level = "INFO"
+        text = normalize_text(message, default="", limit=240)
+        if not text:
+            return
+        normalized_task_id = normalize_text(task_id, default="", limit=64)
+        previous = list(card.ai_autofill_log or [])
+        if previous:
+            last_entry = previous[-1]
+            if (
+                str(last_entry.get("level", "")).strip().upper() == normalized_level
+                and str(last_entry.get("message", "")).strip() == text
+                and str(last_entry.get("task_id", "")).strip() == normalized_task_id
+            ):
+                return
+        item = {
+            "level": normalized_level,
+            "message": text,
+            "timestamp": utc_now_iso(),
+            "task_id": normalized_task_id,
+        }
+        card.ai_autofill_log = [*previous, item][-_CARD_AI_LOG_LIMIT:]
+
+    def _card_ai_source_text(self, card: Card) -> str:
+        return "\n".join(
+            filter(
+                None,
+                [
+                    str(card.title or ""),
+                    str(card.vehicle or ""),
+                    str(card.description or ""),
+                    str(card.repair_order.reason or ""),
+                    str(card.repair_order.comment or ""),
+                    str(card.repair_order.note or ""),
+                ],
+            )
+        )
+
+    def _card_ai_detect_vin(self, card: Card, source_text: str) -> str:
+        vehicle_profile_vin = normalize_text(card.vehicle_profile.vin, default="", limit=32).upper()
+        if vehicle_profile_vin:
+            return vehicle_profile_vin
+        repair_order_vin = normalize_text(card.repair_order.vin, default="", limit=32).upper()
+        if repair_order_vin:
+            return repair_order_vin
+        match = _CARD_AI_VIN_PATTERN.search(source_text.upper())
+        return match.group(0) if match else ""
+
+    def _card_ai_context_messages(self, card: Card) -> list[tuple[str, str]]:
+        source_text = self._card_ai_source_text(card)
+        haystack = source_text.casefold()
+        messages: list[tuple[str, str]] = []
+        vin = self._card_ai_detect_vin(card, source_text)
+        messages.append(("INFO", "Обнаружен VIN." if vin else "VIN не найден."))
+        if "то" in haystack or "техническ" in haystack or "обслуж" in haystack or "пробег" in haystack:
+            messages.append(("INFO", "Найден контекст по ТО."))
+        if "запчаст" in haystack or "детал" in haystack or "фильтр" in haystack or "масл" in haystack:
+            messages.append(("INFO", "Найден контекст по запчастям."))
+        if _CARD_AI_DTC_PATTERN.search(source_text):
+            messages.append(("INFO", "Найдены коды ошибок."))
+        return messages[:4]
+
+    def _refresh_card_ai_fingerprint_if_agent_changed(self, card: Card, actor_name: str, source: str) -> None:
+        normalized_actor = normalize_actor_name(actor_name, default="").casefold()
+        if not normalized_actor:
+            return
+        agent_name = normalize_actor_name(get_agent_name(), default="").casefold()
+        if normalized_actor != agent_name and str(source or "").strip().lower() not in {"agent", "agent_task", "agent_autofill"}:
+            return
+        if not card.ai_autofill_active:
+            return
+        card.last_card_fingerprint = self._card_ai_fingerprint(card)
 
     def _should_seed_demo(self, bundle: dict) -> bool:
         cards = bundle["cards"]

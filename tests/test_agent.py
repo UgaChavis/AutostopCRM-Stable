@@ -167,7 +167,11 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertEqual(task["status"], "completed")
             self.assertEqual(task["summary"], "Board reviewed")
             self.assertEqual(task["display"]["title"], "Board reviewed")
-            self.assertEqual(len(storage.list_actions(limit=10)), 1)
+            actions = storage.list_actions(limit=10)
+            self.assertEqual(len(actions), 4)
+            self.assertEqual(actions[0]["kind"], "log")
+            self.assertEqual(actions[1]["kind"], "tool")
+            self.assertEqual(actions[-1]["message"], "Задача агента запущена.")
 
     def test_runner_persists_structured_display_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -205,6 +209,39 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertEqual(task["display"]["emoji"], "⚠️")
             self.assertEqual(task["display"]["tone"], "warning")
             self.assertEqual(task["display"]["sections"][0]["title"], "Приоритет")
+
+    def test_runner_records_card_autofill_log_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Проверь карточку и дополни только при необходимости.",
+                metadata={
+                    "purpose": "card_autofill",
+                    "trigger": "manual_activate",
+                    "context": {"kind": "card", "card_id": "card-1", "title": "Диагностика"},
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.autofill")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            runner = AgentRunner(
+                storage=storage,
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient(
+                    [
+                        {"type": "final", "summary": "Готово", "result": "Изменения не требуются."},
+                    ]
+                ),
+                logger=logger,
+            )
+            processed = runner.run_once()
+            self.assertTrue(processed)
+            actions = storage.list_actions(limit=10)
+            log_messages = [item.get("message", "") for item in actions if item.get("kind") == "log"]
+            self.assertIn("Первый проход автосопровождения запущен.", log_messages)
+            self.assertIn("Начат анализ карточки.", log_messages)
+            self.assertIn("Изменений не обнаружено.", log_messages)
 
     def test_runner_includes_card_context_in_model_messages(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

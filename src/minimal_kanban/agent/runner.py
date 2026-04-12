@@ -102,6 +102,14 @@ class AgentRunner:
             self._logger.info("agent_task_completed task_id=%s run_id=%s tool_calls=%s", task["id"], run_id, tool_calls)
             return True
         except Exception as exc:
+            self._record_log_action(
+                task_id=task["id"],
+                run_id=run_id,
+                step=tool_calls + 1,
+                level="WARN",
+                phase="failed",
+                message=self._task_failed_message(task, exc),
+            )
             failed = self._storage.fail_task(
                 task_id=task["id"],
                 run_id=run_id,
@@ -164,6 +172,22 @@ class AgentRunner:
             }
         ]
         tool_calls = 0
+        self._record_log_action(
+            task_id=task["id"],
+            run_id=run_id,
+            step=0,
+            level="RUN",
+            phase="start",
+            message=self._task_started_message(metadata),
+        )
+        self._record_log_action(
+            task_id=task["id"],
+            run_id=run_id,
+            step=0,
+            level="INFO",
+            phase="analysis",
+            message=self._task_analysis_message(metadata),
+        )
         for step in range(1, self._max_steps + 1):
             self._storage.heartbeat(task_id=task["id"], run_id=run_id)
             decision = self._model_client.next_step(system_prompt=system_prompt, messages=messages)
@@ -197,6 +221,14 @@ class AgentRunner:
                 result = str(decision.get("result", "") or "").strip() or summary
                 display = self._normalize_display_payload(decision, summary=summary, result=result)
                 display = self._append_applied_updates(display, applied_updates)
+                self._record_log_action(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=step,
+                    level="DONE",
+                    phase="completed",
+                    message=self._task_completed_message(metadata, summary=summary, applied_updates=applied_updates),
+                )
                 return summary, result, display, tool_calls
             if decision_type != "tool":
                 raise AgentModelError("Agent model returned neither a tool call nor a final answer.")
@@ -330,6 +362,7 @@ class AgentRunner:
                 "task_id": task_id,
                 "run_id": run_id,
                 "step": step,
+                "kind": "tool",
                 "tool": tool_name,
                 "args": args,
                 "reason": reason,
@@ -338,6 +371,66 @@ class AgentRunner:
                 "result_preview": self._preview_payload(result_payload),
             }
         )
+
+    def _record_log_action(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        step: int,
+        level: str,
+        phase: str,
+        message: str,
+    ) -> None:
+        text = str(message or "").strip()
+        if not text:
+            return
+        timestamp = utc_now_iso()
+        self._storage.append_action(
+            {
+                "id": f"aglog_{uuid.uuid4().hex[:12]}",
+                "task_id": task_id,
+                "run_id": run_id,
+                "step": step,
+                "kind": "log",
+                "level": str(level or "INFO").strip().upper(),
+                "phase": str(phase or "").strip().lower(),
+                "message": text,
+                "started_at": timestamp,
+                "finished_at": timestamp,
+                "result_preview": text,
+            }
+        )
+
+    def _task_started_message(self, metadata: dict[str, Any]) -> str:
+        purpose = str(metadata.get("purpose", "") or "").strip().lower()
+        if purpose == "card_autofill":
+            trigger = str(metadata.get("trigger", "") or "").strip().lower()
+            if trigger == "adaptive_followup":
+                return "Повторный проход автосопровождения запущен."
+            return "Первый проход автосопровождения запущен."
+        return "Задача агента запущена."
+
+    def _task_analysis_message(self, metadata: dict[str, Any]) -> str:
+        context = metadata.get("context") if isinstance(metadata.get("context"), dict) else {}
+        if str(context.get("kind", "") or "").strip().lower() == "card":
+            return "Начат анализ карточки."
+        return "Начат анализ доски."
+
+    def _task_completed_message(self, metadata: dict[str, Any], *, summary: str, applied_updates: list[str]) -> str:
+        purpose = str(metadata.get("purpose", "") or "").strip().lower()
+        if purpose == "card_autofill":
+            return "Карточка обновлена." if applied_updates else "Изменений не обнаружено."
+        text = str(summary or "").strip()
+        return text or "Задача завершена."
+
+    def _task_failed_message(self, task: dict[str, Any], error: Exception) -> str:
+        metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+        purpose = str(metadata.get("purpose", "") or "").strip().lower()
+        if purpose == "card_autofill":
+            return "Ошибка автосопровождения."
+        message = str(error or "").strip()
+        return message or "Ошибка выполнения задачи."
 
     def _tool_result_for_model(self, tool_name: str, payload: dict[str, Any]) -> str:
         compact = payload if isinstance(payload, dict) else {}
