@@ -144,6 +144,7 @@ def run() -> int:
     api_server = None
     mcp_controller = None
     tunnel_controller = None
+    agent_service = None
 
     try:
         update_splash("Загружаю модули...")
@@ -203,6 +204,10 @@ def run() -> int:
         )
         try:
             api_server.start()
+            try:
+                agent_service.start_worker(logger=logger, board_api_url=api_server.base_url)
+            except Exception as exc:
+                logger.exception("failed_to_start_embedded_agent_worker error=%s", exc)
         except Exception as exc:
             logger.exception("failed_to_start_api error=%s", exc)
             if splash is not None:
@@ -263,6 +268,8 @@ def run() -> int:
             mcp_controller.stop()
         if api_server is not None:
             api_server.stop()
+        if agent_service is not None:
+            agent_service.close()
         if logger is not None:
             from .logging_setup import close_logger
 

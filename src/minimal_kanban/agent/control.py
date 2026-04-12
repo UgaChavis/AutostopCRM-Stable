@@ -7,7 +7,14 @@ from datetime import timedelta
 from typing import Any
 
 from ..models import parse_datetime, utc_now, utc_now_iso
-from .config import get_agent_board_api_url, get_agent_enabled, get_agent_name, get_agent_openai_model
+from .config import (
+    get_agent_board_api_url,
+    get_agent_enabled,
+    get_agent_name,
+    get_agent_openai_api_key,
+    get_agent_openai_model,
+    get_agent_poll_interval_seconds,
+)
 from .storage import AgentStorage
 
 
@@ -24,6 +31,8 @@ class AgentControlService:
         self._scheduler_interval_seconds = max(5.0, float(scheduler_interval_seconds))
         self._scheduler_stop = threading.Event()
         self._scheduler_thread: threading.Thread | None = None
+        self._worker_stop = threading.Event()
+        self._worker_thread: threading.Thread | None = None
         if start_scheduler:
             self.start_scheduler()
 
@@ -39,12 +48,48 @@ class AgentControlService:
         if self._scheduler_thread is not None:
             self._scheduler_thread.join(timeout=2)
             self._scheduler_thread = None
+        self._worker_stop.set()
+        if self._worker_thread is not None:
+            self._worker_thread.join(timeout=2)
+            self._worker_thread = None
 
     def bind_board_service(self, board_service: Any | None) -> None:
         self._board_service = board_service
 
+    def start_worker(self, *, logger: Any, board_api_url: str | None = None) -> bool:
+        if self._worker_thread is not None and self._worker_thread.is_alive():
+            return True
+        if not get_agent_enabled() or not get_agent_openai_api_key():
+            return False
+        self._worker_stop.clear()
+        resolved_board_api_url = str(board_api_url or get_agent_board_api_url() or "").strip().rstrip("/")
+        self._worker_thread = threading.Thread(
+            target=self._worker_loop,
+            args=(logger, resolved_board_api_url),
+            name="minimal-kanban-agent-worker",
+            daemon=True,
+        )
+        self._worker_thread.start()
+        return True
+
     def has_active_task_for_card(self, card_id: str, *, purpose: str | None = None) -> bool:
         return self._storage.has_active_task_for_card(card_id, purpose=purpose)
+
+    def latest_task_for_card(self, card_id: str, *, purpose: str | None = None) -> dict[str, Any] | None:
+        normalized_card_id = str(card_id or "").strip()
+        normalized_purpose = str(purpose or "").strip().lower()
+        if not normalized_card_id:
+            return None
+        for task in self._storage.list_tasks(limit=200):
+            metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+            context = metadata.get("context") if isinstance(metadata.get("context"), dict) else {}
+            metadata_card_id = str(context.get("card_id") or metadata.get("card_id") or "").strip()
+            if metadata_card_id != normalized_card_id:
+                continue
+            if normalized_purpose and str(metadata.get("purpose", "") or "").strip().lower() != normalized_purpose:
+                continue
+            return task
+        return None
 
     def agent_status(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
@@ -54,12 +99,19 @@ class AgentControlService:
         status = self._storage.read_status()
         schedules = self._storage.list_schedules()
         active_total = sum(1 for item in schedules if bool(item.get("active")))
+        configured = bool(get_agent_openai_api_key())
         return {
             "agent": {
                 "name": get_agent_name(),
                 "enabled": get_agent_enabled(),
+                "available": get_agent_enabled() and configured,
+                "configured": configured,
                 "model": get_agent_openai_model(),
                 "board_api_url": get_agent_board_api_url() or "",
+            },
+            "worker": {
+                "embedded": True,
+                "running": bool(self._worker_thread and self._worker_thread.is_alive()),
             },
             "status": status,
             "queue": {
@@ -278,6 +330,65 @@ class AgentControlService:
                 self.trigger_scheduled_tasks()
             except Exception:
                 continue
+
+    def _worker_loop(self, logger: Any, board_api_url: str) -> None:
+        from ..mcp.client import BoardApiClient
+        from .openai_client import OpenAIJsonAgentClient
+        from .runner import AgentRunner, DEFAULT_SYSTEM_PROMPT
+
+        idle_sleep = max(0.2, float(get_agent_poll_interval_seconds()))
+        if not self._storage.read_prompt_text().strip():
+            self._storage.write_prompt_text(DEFAULT_SYSTEM_PROMPT)
+        if not self._storage.read_memory_text().strip():
+            self._storage.write_memory_text(
+                "CRM URL: https://crm.autostopcrm.ru\n"
+                "MCP URL: https://crm.autostopcrm.ru/mcp\n"
+                "Default admin: admin/admin\n"
+                "Use cashbox names exactly as they exist.\n"
+                "If payment goes to cashbox 'Безналичный', the repair order adds 15% taxes and fees from that payment amount.\n"
+                "Cashboxes 'Наличный' and 'Карта Мария' do not add taxes and fees.\n"
+            )
+        runner = None
+        while not self._worker_stop.is_set():
+            try:
+                if not get_agent_enabled():
+                    self._storage.update_status(
+                        running=False,
+                        current_task_id=None,
+                        current_run_id=None,
+                        last_heartbeat=utc_now_iso(),
+                        last_error="",
+                    )
+                    self._worker_stop.wait(idle_sleep)
+                    continue
+                if runner is None:
+                    resolved_board_api_url = str(board_api_url or get_agent_board_api_url() or "").strip().rstrip("/")
+                    if not resolved_board_api_url:
+                        raise RuntimeError("Board API URL is not configured for embedded agent runtime.")
+                    board_api = BoardApiClient(resolved_board_api_url, logger=logger, default_source="agent")
+                    health = board_api.health()
+                    if not health.get("ok"):
+                        raise RuntimeError("Board API health check failed for embedded agent runtime.")
+                    runner = AgentRunner(
+                        storage=self._storage,
+                        board_api=board_api,
+                        model_client=OpenAIJsonAgentClient(),
+                        logger=logger,
+                    )
+                processed = runner.run_once()
+            except Exception as exc:
+                self._storage.update_status(
+                    running=False,
+                    current_task_id=None,
+                    current_run_id=None,
+                    last_heartbeat=utc_now_iso(),
+                    last_error=str(exc),
+                )
+                logger.exception("embedded_agent_worker_failed error=%s", exc)
+                runner = None
+                self._worker_stop.wait(idle_sleep)
+                continue
+            self._worker_stop.wait(0.2 if processed else idle_sleep)
 
     def _set_schedule_active(self, payload: dict[str, Any] | None, *, active: bool) -> dict[str, Any]:
         payload = payload or {}
@@ -514,6 +625,8 @@ class AgentControlService:
     def _build_card_autofill_prompt(self, payload: dict[str, Any]) -> str:
         heading = str(payload.get("card_heading", "") or payload.get("title", "") or "").strip()
         vehicle = str(payload.get("vehicle", "") or "").strip()
+        mini_prompt = str(payload.get("prompt", "") or payload.get("ai_autofill_prompt", "") or "").strip()
+        ai_log_tail = payload.get("ai_log_tail") if isinstance(payload.get("ai_log_tail"), list) else []
         lines = [
             "Выполни автосопровождение карточки автосервиса.",
             "Работай только с этой карточкой и не добавляй шум, если полезных изменений нет.",
@@ -528,4 +641,24 @@ class AgentControlService:
             lines.append(f"Карточка: {heading}.")
         if vehicle:
             lines.append(f"Автомобиль: {vehicle}.")
+        lines.extend(
+            [
+                "Preserve all existing facts, numbers, prices, part numbers, notes, and customer statements.",
+                "Do not delete useful content just to make the text shorter.",
+                "Only supplement, structure, or carefully rephrase the card.",
+                "Label AI-added notes, comments, or next questions with 'ИИ:' or 'AI:'.",
+                "When you update the card, use update_card or apply.update_card.",
+            ]
+        )
+        if mini_prompt:
+            lines.append(f"User mini-prompt: {mini_prompt}")
+        if ai_log_tail:
+            lines.append("Use the recent autofill feed as continuation context:")
+            for entry in ai_log_tail[-8:]:
+                if not isinstance(entry, dict):
+                    continue
+                level = str(entry.get("level", "INFO") or "INFO").strip().upper()[:8]
+                message = str(entry.get("message", "") or "").strip()
+                if message:
+                    lines.append(f"- {level}: {message}")
         return "\n".join(lines)

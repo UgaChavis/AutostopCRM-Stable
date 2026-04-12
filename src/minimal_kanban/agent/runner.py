@@ -162,6 +162,7 @@ class AgentRunner:
         )
         cleanup_task = task_type == "card_cleanup"
         cleanup_card_id = self._cleanup_card_id(metadata)
+        autofill_task = str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill"
         cleanup_update_applied = False
         cleanup_apply_prompt_sent = False
         applied_updates: list[str] = []
@@ -195,6 +196,8 @@ class AgentRunner:
             if decision_type == "final":
                 apply_args = self._extract_card_update_apply(decision, cleanup_card_id=cleanup_card_id)
                 if apply_args is not None:
+                    if autofill_task:
+                        apply_args = self._normalize_card_autofill_update(apply_args)
                     tool_calls += 1
                     apply_result = self._tools.execute("update_card", apply_args)
                     cleanup_update_applied = True
@@ -238,6 +241,8 @@ class AgentRunner:
                 args = {}
             reason = str(decision.get("reason", "") or "").strip()
             tool_calls += 1
+            if autofill_task and tool_name == "update_card":
+                args = self._normalize_card_autofill_update(args)
             result_payload = self._tools.execute(tool_name, args)
             if cleanup_task and tool_name == "update_card" and str(args.get("card_id", "") or "").strip() == cleanup_card_id:
                 cleanup_update_applied = True
@@ -459,6 +464,8 @@ class AgentRunner:
                         "description": card.get("description"),
                         "column": card.get("column"),
                         "tags": card.get("tags"),
+                        "ai_autofill_prompt": card.get("ai_autofill_prompt"),
+                        "ai_autofill_log": (card.get("ai_autofill_log") or [])[-8:],
                         "vin": vehicle_profile.get("vin") or repair_order.get("vin"),
                     },
                     "vehicle_profile": vehicle_profile,
@@ -625,7 +632,44 @@ class AgentRunner:
         context = metadata.get("context") if isinstance(metadata.get("context"), dict) else {}
         return str(context.get("kind", "") or "board").strip().lower() or "board"
 
+    def _normalize_card_autofill_update(self, args: dict[str, Any]) -> dict[str, Any]:
+        card_id = str(args.get("card_id", "") or "").strip()
+        if not card_id or "description" not in args:
+            return args
+        try:
+            current_payload = self._board_api.get_card(card_id)
+        except Exception:
+            return args
+        current_card = current_payload.get("card") if isinstance(current_payload, dict) and isinstance(current_payload.get("card"), dict) else current_payload
+        current_description = str(current_card.get("description", "") if isinstance(current_card, dict) else "").strip()
+        proposed_description = str(args.get("description", "") or "").strip()
+        merged_description = self._merge_card_autofill_description(current_description, proposed_description)
+        if merged_description == proposed_description:
+            return args
+        normalized_args = dict(args)
+        normalized_args["description"] = merged_description
+        return normalized_args
+
+    def _merge_card_autofill_description(self, current_text: str, proposed_text: str) -> str:
+        current = str(current_text or "").strip()
+        proposed = str(proposed_text or "").strip()
+        if not proposed:
+            return current
+        if not current:
+            return proposed
+        current_normalized = " ".join(current.split())
+        proposed_normalized = " ".join(proposed.split())
+        if proposed_normalized == current_normalized or proposed_normalized in current_normalized:
+            return current
+        if current_normalized and current_normalized in proposed:
+            return proposed
+        if "ИИ:" in proposed or "AI:" in proposed:
+            return f"{current}\n\n{proposed}"
+        return f"{current}\n\nИИ:\n{proposed}"
+
     def _classify_task(self, task: dict[str, Any], metadata: dict[str, Any]) -> str:
+        if str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill":
+            return "card_cleanup"
         text = self._normalized_task_text(str(task.get("task_text", "") or ""))
         if self._is_card_cleanup_task(task, metadata):
             return "card_cleanup"
@@ -781,7 +825,9 @@ class AgentRunner:
         return (
             "This is a card cleanup task opened from a card.\n"
             f"Apply confident changes to card {card_id} with update_card before the final answer.\n"
-            "Use only facts already present in the current card context.\n"
+            "Preserve the existing card text and only add or reorganize useful information.\n"
+            "External facts found during this task may be added only when they are clearly grounded by the tool results.\n"
+            "AI-added notes or follow-up questions inside the description must be labeled with 'ИИ:' or 'AI:'.\n"
             "If nothing can be safely changed, return a final answer that explicitly says no card fields were changed and why."
         )
 

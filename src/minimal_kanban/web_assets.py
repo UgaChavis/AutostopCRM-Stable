@@ -1912,7 +1912,7 @@ BOARD_WEB_APP_HTML = "".join(
         overflow: hidden;
       }
       .dialog--agent {
-        width: min(496px, calc(100% - 20px));
+        width: min(720px, calc(100% - 24px));
         max-height: min(84vh, 760px);
         padding: 0;
         gap: 0;
@@ -2045,6 +2045,12 @@ BOARD_WEB_APP_HTML = "".join(
         display: grid;
         gap: 6px;
       }
+      .agent-autofill-panel__top {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+      }
       .agent-autofill-status {
         display: inline-flex;
         align-items: center;
@@ -2098,12 +2104,57 @@ BOARD_WEB_APP_HTML = "".join(
         cursor: default;
         opacity: 0.72;
       }
+      .agent-autofill-gear {
+        min-width: 30px;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: 1px solid rgba(116, 126, 106, 0.2);
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text-soft);
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1;
+      }
+      .agent-autofill-gear:hover {
+        border-color: rgba(167, 178, 132, 0.42);
+        background: rgba(167, 178, 132, 0.08);
+        color: var(--text);
+      }
+      .agent-autofill-gear[data-open="true"] {
+        border-color: rgba(115, 182, 107, 0.38);
+        background: rgba(52, 88, 48, 0.18);
+        color: #eef7e6;
+      }
+      .agent-autofill-prompt[hidden] {
+        display: none !important;
+      }
+      .agent-autofill-prompt {
+        display: grid;
+        gap: 7px;
+        padding-top: 4px;
+        border-top: 1px solid rgba(116, 126, 106, 0.12);
+      }
+      .agent-autofill-prompt textarea {
+        min-height: 72px;
+        height: 72px;
+        max-height: 148px;
+        resize: vertical;
+      }
+      .agent-autofill-prompt-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .agent-autofill-prompt-actions .btn {
+        min-width: 108px;
+      }
       .agent-actions-row .btn {
         min-width: 136px;
       }
       .agent-result {
         flex: 1 1 auto;
-        min-height: 220px;
+        min-height: 320px;
         padding: 0;
         border: 1px solid rgba(116, 126, 106, 0.2);
         background: #0d120f;
@@ -2111,6 +2162,7 @@ BOARD_WEB_APP_HTML = "".join(
         white-space: normal;
         line-height: 1.45;
         overflow: auto;
+        user-select: text;
       }
       .agent-result[data-state="empty"] {
         color: var(--muted);
@@ -2135,7 +2187,7 @@ BOARD_WEB_APP_HTML = "".join(
       .agent-console {
         display: grid;
         gap: 0;
-        min-height: 220px;
+        min-height: 320px;
         font-family: var(--mono);
         font-size: 11px;
       }
@@ -4689,6 +4741,7 @@ BOARD_WEB_APP_HTML = "".join(
       agentContext: { kind: 'board' },
       agentRefreshTimer: null,
       agentAutofillCountdownTimer: null,
+      agentAutofillPromptOpen: false,
       agentTasksUiBound: false,
       agentTasksRefreshTimer: null,
       agentScheduledTasks: [],
@@ -4848,8 +4901,21 @@ BOARD_WEB_APP_HTML = "".join(
                     + '<span class="agent-tasks-launch__meta">РАСПИСАНИЕ, ЗАПУСКИ И КОНТРОЛЬ</span>'
                   + '</button>'
                   + '<div class="agent-autofill-panel">'
-                    + '<button class="btn btn--ghost agent-autofill-button" id="agentAutofillButton" type="button">АВТОЗАПОЛНЕНИЕ</button>'
+                    + '<div class="agent-autofill-panel__top">'
+                      + '<button class="btn btn--ghost agent-autofill-button" id="agentAutofillButton" type="button">АВТОЗАПОЛНЕНИЕ</button>'
+                      + '<button class="agent-autofill-gear" id="agentAutofillPromptToggle" type="button" title="Mini-prompt" aria-label="Mini-prompt">⚙</button>'
+                    + '</div>'
                     + '<div class="agent-autofill-status" id="agentAutofillStatus" data-state="offline">SERVER AI OFFLINE</div>'
+                    + '<div class="agent-autofill-prompt" id="agentAutofillPromptPanel" hidden>'
+                      + '<div class="field field--compact">'
+                        + '<label for="agentAutofillPromptInput">MINI-PROMPT</label>'
+                        + '<textarea id="agentAutofillPromptInput" maxlength="800" placeholder="Например: не переписывай цены и артикулы, добавляй только ИИ-комментарии для следующего мастера"></textarea>'
+                      + '</div>'
+                      + '<div class="agent-autofill-prompt-actions">'
+                        + '<button class="btn btn--ghost" id="agentAutofillPromptResetButton" type="button">СБРОС</button>'
+                        + '<button class="btn btn--accent" id="agentAutofillPromptSaveButton" type="button">СОХРАНИТЬ</button>'
+                      + '</div>'
+                    + '</div>'
                   + '</div>'
                   + '<button class="btn btn--accent" id="agentRunButton" type="button">ВЫПОЛНИТЬ</button>'
                 + '</div>'
@@ -5077,6 +5143,11 @@ BOARD_WEB_APP_HTML = "".join(
       agentQuickActions: document.getElementById('agentQuickActions'),
       agentTaskInput: document.getElementById('agentTaskInput'),
       agentAutofillButton: document.getElementById('agentAutofillButton'),
+      agentAutofillPromptToggle: document.getElementById('agentAutofillPromptToggle'),
+      agentAutofillPromptPanel: document.getElementById('agentAutofillPromptPanel'),
+      agentAutofillPromptInput: document.getElementById('agentAutofillPromptInput'),
+      agentAutofillPromptSaveButton: document.getElementById('agentAutofillPromptSaveButton'),
+      agentAutofillPromptResetButton: document.getElementById('agentAutofillPromptResetButton'),
       agentAutofillStatus: document.getElementById('agentAutofillStatus'),
       agentRunButton: document.getElementById('agentRunButton'),
       agentResultPanel: document.getElementById('agentResultPanel'),
@@ -5241,6 +5312,11 @@ BOARD_WEB_APP_HTML = "".join(
       els.agentTasksOpenButton = document.getElementById('agentTasksOpenButton');
       els.agentTaskInput = document.getElementById('agentTaskInput');
       els.agentAutofillButton = document.getElementById('agentAutofillButton');
+      els.agentAutofillPromptToggle = document.getElementById('agentAutofillPromptToggle');
+      els.agentAutofillPromptPanel = document.getElementById('agentAutofillPromptPanel');
+      els.agentAutofillPromptInput = document.getElementById('agentAutofillPromptInput');
+      els.agentAutofillPromptSaveButton = document.getElementById('agentAutofillPromptSaveButton');
+      els.agentAutofillPromptResetButton = document.getElementById('agentAutofillPromptResetButton');
       els.agentAutofillStatus = document.getElementById('agentAutofillStatus');
       els.agentRunButton = document.getElementById('agentRunButton');
       els.agentResultPanel = document.getElementById('agentResultPanel');
@@ -5276,6 +5352,9 @@ BOARD_WEB_APP_HTML = "".join(
       els.agentQuickActions?.addEventListener('click', handleAgentQuickActionClick);
       els.agentTasksOpenButton?.addEventListener('click', openAgentTasksModal);
       els.agentAutofillButton?.addEventListener('click', toggleAgentCardAutofill);
+      els.agentAutofillPromptToggle?.addEventListener('click', toggleAgentAutofillPromptPanel);
+      els.agentAutofillPromptSaveButton?.addEventListener('click', saveAgentAutofillPrompt);
+      els.agentAutofillPromptResetButton?.addEventListener('click', resetAgentAutofillPrompt);
       els.agentRunsList?.addEventListener('click', handleAgentRunSelection);
       els.agentRunButton?.addEventListener('click', enqueueAgentTask);
       els.agentTaskInput?.addEventListener('input', syncAgentTaskInputHeight);
@@ -6412,9 +6491,10 @@ BOARD_WEB_APP_HTML = "".join(
       const recentRuns = Array.isArray(payload.recent_runs) ? payload.recent_runs : [];
       const latestRun = recentRuns.length ? recentRuns[0] : null;
       const latestRunStatus = String(latestRun?.status || '').trim().toLowerCase();
+      const agentAvailable = Boolean(payload.agent?.available ?? payload.agent?.enabled);
       let stateLabel = 'ОФЛАЙН';
       let stateValue = 'idle';
-      if (payload.agent?.enabled) {
+      if (agentAvailable) {
         stateLabel = 'ГОТОВ';
         stateValue = 'online';
       }
@@ -6448,7 +6528,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     function renderAgentAutofillControls(statusPayload) {
       const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
-      const agentEnabled = Boolean(payload.agent?.enabled);
+      const agentEnabled = Boolean(payload.agent?.available ?? payload.agent?.enabled);
       const card = currentAgentContextCard();
       const activeTask = currentCardAutofillTask(state.agentLatestTasks);
       const active = Boolean(card?.ai_autofill_active);
@@ -6465,7 +6545,7 @@ BOARD_WEB_APP_HTML = "".join(
           disabled = true;
         } else if (activeTask) {
           const trigger = String(activeTask?.metadata?.trigger || '').trim().toLowerCase();
-          statusText = trigger === 'adaptive_followup' ? 'ПОВТОРНЫЙ ПРОХОД' : 'ПЕРВЫЙ ПРОХОД';
+          statusText = (trigger === 'adaptive_followup' || trigger === 'retry_after_error') ? 'ПОВТОРНЫЙ ПРОХОД' : 'ПЕРВЫЙ ПРОХОД';
           stateValue = 'active';
           disabled = false;
         } else if (active) {
@@ -6491,6 +6571,57 @@ BOARD_WEB_APP_HTML = "".join(
         els.agentAutofillStatus.textContent = statusText;
         els.agentAutofillStatus.dataset.state = stateValue;
       }
+      syncAgentAutofillPromptPanel(card);
+    }
+
+    function syncAgentAutofillPromptPanel(card) {
+      const promptValue = String(card?.ai_autofill_prompt || '').trim();
+      if (els.agentAutofillPromptInput && document.activeElement !== els.agentAutofillPromptInput) {
+        els.agentAutofillPromptInput.value = promptValue;
+      }
+      if (els.agentAutofillPromptPanel) {
+        els.agentAutofillPromptPanel.hidden = !state.agentAutofillPromptOpen;
+      }
+      if (els.agentAutofillPromptToggle) {
+        els.agentAutofillPromptToggle.dataset.open = state.agentAutofillPromptOpen ? 'true' : 'false';
+      }
+    }
+
+    function toggleAgentAutofillPromptPanel() {
+      state.agentAutofillPromptOpen = !state.agentAutofillPromptOpen;
+      syncAgentAutofillPromptPanel(currentAgentContextCard());
+      if (state.agentAutofillPromptOpen) {
+        window.setTimeout(() => els.agentAutofillPromptInput?.focus(), 0);
+      }
+    }
+
+    async function saveAgentAutofillPrompt() {
+      const card = currentAgentContextCard();
+      const cardId = String(card?.id || '').trim();
+      if (!cardId) return setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ MINI-PROMPT.', true);
+      try {
+        const data = await api('/api/set_card_ai_autofill', {
+          method: 'POST',
+          body: {
+            card_id: cardId,
+            prompt: String(els.agentAutofillPromptInput?.value || '').trim(),
+            actor_name: state.actor,
+          },
+        });
+        if (data?.card) {
+          state.activeCard = data.card;
+          if (els.cardModal?.classList.contains('is-open')) applyCardModalState(data.card);
+        }
+        setStatus('MINI-PROMPT СОХРАНЁН.', false);
+        await refreshAgentModalState();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    async function resetAgentAutofillPrompt() {
+      if (els.agentAutofillPromptInput) els.agentAutofillPromptInput.value = '';
+      await saveAgentAutofillPrompt();
     }
 
     async function toggleAgentCardAutofill() {
@@ -6505,6 +6636,7 @@ BOARD_WEB_APP_HTML = "".join(
           body: {
             card_id: cardId,
             enabled: nextEnabled,
+            prompt: String(els.agentAutofillPromptInput?.value || card?.ai_autofill_prompt || '').trim(),
             actor_name: state.actor,
           },
         });
@@ -7103,7 +7235,7 @@ BOARD_WEB_APP_HTML = "".join(
           seen.add(key);
           return true;
         })
-        .slice(-24);
+        .slice(-40);
     }
 
     function renderAgentConsole(entries) {
@@ -7253,6 +7385,7 @@ BOARD_WEB_APP_HTML = "".join(
       state.agentContext = buildAgentContext(kind);
       state.agentTaskId = '';
       state.agentTaskStatus = '';
+      state.agentAutofillPromptOpen = false;
       if (els.agentContextLabel) els.agentContextLabel.textContent = formatAgentContextLabel(state.agentContext);
       renderAgentQuickActions(state.agentContext);
       if (els.agentTaskInput) {
@@ -7286,6 +7419,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     function closeAgentModal() {
       els.agentModal.classList.remove('is-open');
+      state.agentAutofillPromptOpen = false;
       if (state.agentRefreshTimer) {
         window.clearTimeout(state.agentRefreshTimer);
         state.agentRefreshTimer = null;

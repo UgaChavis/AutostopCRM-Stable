@@ -46,6 +46,13 @@ class _FakeModelClient:
 class _FakeBoardApi:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
+        self.cards = {
+            "card-1": {
+                "id": "card-1",
+                "title": "Черновик",
+                "description": "Исходный текст карточки.\nЦена детали 5000.\nАртикул ABC-123.",
+            }
+        }
 
     def health(self) -> dict:
         self.calls.append(("health", {}))
@@ -55,8 +62,17 @@ class _FakeBoardApi:
         self.calls.append(("review_board", kwargs))
         return {"ok": True, "data": {"summary": {"active_cards": 1}}, "text": "board summary"}
 
+    def get_card(self, card_id: str) -> dict:
+        self.calls.append(("get_card", {"card_id": card_id}))
+        return {"card": dict(self.cards.get(card_id, {"id": card_id, "description": ""}))}
+
     def update_card(self, **kwargs) -> dict:
         self.calls.append(("update_card", kwargs))
+        card_id = str(kwargs.get("card_id") or "").strip()
+        if card_id:
+            card = dict(self.cards.get(card_id, {"id": card_id}))
+            card.update({key: value for key, value in kwargs.items() if key in {"title", "description", "vehicle", "tags", "vehicle_profile"}})
+            self.cards[card_id] = card
         return {
             "ok": True,
             "card_id": kwargs.get("card_id"),
@@ -141,6 +157,8 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertIn("tidy up, clean up, or structure a card", prompt)
         self.assertIn("preserve all facts from the card", prompt)
         self.assertIn("apply confident changes with update_card", prompt)
+        self.assertIn("card_autofill tasks", prompt)
+        self.assertIn('must be labeled with "ИИ:" or "AI:"', prompt)
 
     def test_runner_executes_tool_and_completes_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -231,6 +249,7 @@ class AgentRunnerTests(unittest.TestCase):
                 model_client=_FakeModelClient(
                     [
                         {"type": "final", "summary": "Готово", "result": "Изменения не требуются."},
+                        {"type": "final", "summary": "done", "result": "No safe card changes were needed."},
                     ]
                 ),
                 logger=logger,
@@ -242,6 +261,51 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertIn("Первый проход автосопровождения запущен.", log_messages)
             self.assertIn("Начат анализ карточки.", log_messages)
             self.assertIn("Изменений не обнаружено.", log_messages)
+
+    def test_runner_merges_card_autofill_description_in_additive_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Дополняй карточку краткими ИИ-комментариями по делу.",
+                metadata={
+                    "purpose": "card_autofill",
+                    "trigger": "manual_activate",
+                    "context": {"kind": "card", "card_id": "card-1", "title": "Черновик"},
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.autofill.apply")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _FakeBoardApi()
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=_FakeModelClient(
+                    [
+                        {
+                            "type": "final",
+                            "summary": "Карточка дополнена",
+                            "result": "Добавлены ИИ-комментарии.",
+                            "apply": {
+                                "type": "update_card",
+                                "card_id": "card-1",
+                                "payload": {
+                                    "description": "Проверить VIN и уточнить комплектацию.",
+                                },
+                            },
+                        }
+                    ]
+                ),
+                logger=logger,
+            )
+            self.assertTrue(runner.run_once())
+            update_call = next(call for call in board_api.calls if call[0] == "update_card")
+            self.assertIn("Исходный текст карточки.", update_call[1]["description"])
+            self.assertIn("Цена детали 5000.", update_call[1]["description"])
+            self.assertIn("Артикул ABC-123.", update_call[1]["description"])
+            self.assertIn("ИИ:", update_call[1]["description"])
+            self.assertIn("Проверить VIN и уточнить комплектацию.", update_call[1]["description"])
 
     def test_runner_includes_card_context_in_model_messages(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

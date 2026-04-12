@@ -389,18 +389,31 @@ class CardService:
             card = self._find_card(cards, payload.get("card_id"))
             self._ensure_not_archived(card)
             actor_name, source = self._audit_identity(payload, default_source="ui")
-            enabled = self._validated_optional_bool(payload, "enabled", default=True)
+            enabled_requested = "enabled" in payload
+            prompt_requested = "prompt" in payload or "ai_autofill_prompt" in payload
+            previous_enabled = bool(card.ai_autofill_active)
+            enabled = self._validated_optional_bool(payload, "enabled", default=previous_enabled)
+            prompt_text = normalize_text(
+                payload.get("prompt", payload.get("ai_autofill_prompt", card.ai_autofill_prompt)),
+                default=card.ai_autofill_prompt,
+                limit=800,
+            )
             now = utc_now()
             now_iso = now.isoformat()
-            card.ai_autofill_active = enabled
-            card.ai_autofill_until = (now + timedelta(hours=4)).isoformat() if enabled else ""
-            card.ai_next_run_at = now_iso if enabled else ""
-            if not enabled:
+            prompt_updated = prompt_text != str(card.ai_autofill_prompt or "").strip()
+            card.ai_autofill_prompt = prompt_text
+            if enabled_requested:
+                card.ai_autofill_active = enabled
+                card.ai_autofill_until = (now + timedelta(hours=4)).isoformat() if enabled else ""
+                card.ai_next_run_at = now_iso if enabled else ""
+            if enabled_requested and not enabled:
                 card.last_card_fingerprint = ""
                 card.ai_run_count = 0
                 self._append_card_ai_log(card, level="DONE", message="Автосопровождение остановлено.")
+            if prompt_requested and prompt_updated:
+                self._append_card_ai_log(card, level="INFO", message="ИИ-подсказка автосопровождения обновлена.")
             launched_task_id = ""
-            if enabled:
+            if enabled_requested and enabled and not previous_enabled:
                 self._append_card_ai_log(card, level="RUN", message="Автосопровождение включено.")
                 for level, message in self._card_ai_context_messages(card):
                     self._append_card_ai_log(card, level=level, message=message)
@@ -412,6 +425,8 @@ class CardService:
                             "title": card.title,
                             "vehicle": card.vehicle_display(),
                             "requested_by": actor_name,
+                            "ai_autofill_prompt": card.ai_autofill_prompt,
+                            "ai_log_tail": list(card.ai_autofill_log[-8:]),
                         },
                         source="ui_card_autofill",
                         trigger="manual_activate",
@@ -429,16 +444,22 @@ class CardService:
             self._touch_card(card, actor_name)
             if enabled:
                 card.last_card_fingerprint = self._card_ai_fingerprint(card)
+            event_action = "card_ai_autofill_enabled" if enabled else "card_ai_autofill_disabled"
+            event_message = f"{actor_name} {'включил' if enabled else 'выключил'} автосопровождение карточки"
+            if prompt_requested and not enabled_requested:
+                event_action = "card_ai_autofill_prompt_updated"
+                event_message = f"{actor_name} обновил mini-prompt автосопровождения"
             self._append_event(
                 events,
                 actor_name=actor_name,
                 source=source,
-                action="card_ai_autofill_enabled" if enabled else "card_ai_autofill_disabled",
+                action=event_action,
                 message=f"{actor_name} {'включил' if enabled else 'выключил'} автосопровождение карточки",
                 card_id=card.id,
                 details={
                     "enabled": enabled,
                     "ai_autofill_until": card.ai_autofill_until,
+                    "ai_autofill_prompt": card.ai_autofill_prompt,
                     "task_id": launched_task_id,
                 },
             )
@@ -448,6 +469,7 @@ class CardService:
                 "meta": {
                     "enabled": enabled,
                     "launched": bool(launched_task_id),
+                    "prompt_updated": prompt_updated,
                     "task_id": launched_task_id,
                 },
             }
@@ -491,13 +513,16 @@ class CardService:
                     self._append_card_ai_log(card, level="WAIT", message="Проход уже выполняется.")
                     changed_any = True
                     continue
+                latest_task = self._agent_control.latest_task_for_card(card.id, purpose="card_autofill")
+                retry_after_failure = str(latest_task.get("status", "") if isinstance(latest_task, dict) else "").strip().lower() == "failed"
                 fingerprint = self._card_ai_fingerprint(card)
                 changed = fingerprint != str(card.last_card_fingerprint or "").strip()
-                if not changed:
+                if not changed and not retry_after_failure:
                     card.ai_next_run_at = (now + timedelta(minutes=self._card_ai_next_interval_minutes(card, changed=False))).isoformat()
                     self._append_card_ai_log(card, level="WAIT", message="Изменений не обнаружено. Повторная проверка отложена.")
                     changed_any = True
                     continue
+                followup_trigger = "retry_after_error" if retry_after_failure and not changed else "adaptive_followup"
                 try:
                     task = self._agent_control.enqueue_card_autofill_task(
                         {
@@ -506,9 +531,11 @@ class CardService:
                             "title": card.title,
                             "vehicle": card.vehicle_display(),
                             "requested_by": "scheduler",
+                            "ai_autofill_prompt": card.ai_autofill_prompt,
+                            "ai_log_tail": list(card.ai_autofill_log[-8:]),
                         },
                         source="agent_card_followup",
-                        trigger="adaptive_followup",
+                        trigger=followup_trigger,
                     )
                     if task is None:
                         self._append_card_ai_log(card, level="WAIT", message="Не удалось запустить повторный проход.")
@@ -519,6 +546,8 @@ class CardService:
                     card.ai_run_count = max(0, int(card.ai_run_count)) + 1
                     card.last_card_fingerprint = fingerprint
                     card.ai_next_run_at = (now + timedelta(minutes=self._card_ai_next_interval_minutes(card, changed=True))).isoformat()
+                    if retry_after_failure and not changed:
+                        self._append_card_ai_log(card, level="WARN", message="Предыдущий проход завершился ошибкой. Запущен безопасный повтор.", task_id=launched[-1])
                     self._append_card_ai_log(card, level="RUN", message="Обнаружены изменения. Запущен повторный проход.", task_id=launched[-1])
                     changed_any = True
                 except Exception as exc:

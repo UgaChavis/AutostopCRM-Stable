@@ -60,6 +60,16 @@ CARD_CLEANUP_RULES = """Card cleanup rules:
 """
 
 
+CARD_AUTOFILL_RULES = """Card autofill rules:
+- In card_autofill tasks, first read get_card_context(card_id).
+- Preserve existing numbers, prices, part numbers, VINs, notes, and customer statements.
+- Do not delete useful text; only supplement, structure, or carefully rephrase it.
+- AI-added comments, explanations, and next questions inside the card description must be labeled with "ИИ:" or "AI:".
+- Prefer update_card or apply.update_card before the final answer.
+- If recent ai_autofill_log entries are present in the card context, treat them as continuation context for the next pass.
+"""
+
+
 SOURCES_RULES = f"""Preferred source groups:
 {describe_sources()}
 """
@@ -73,6 +83,7 @@ def build_default_system_prompt() -> str:
             CONTEXT_RULES,
             AUTOMOTIVE_RULES,
             CARD_CLEANUP_RULES,
+            CARD_AUTOFILL_RULES,
             SOURCES_RULES,
         )
         if part.strip()

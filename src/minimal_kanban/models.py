@@ -729,6 +729,7 @@ class Card:
     seen_by_users: dict[str, str] = field(default_factory=dict)
     ai_autofill_active: bool = False
     ai_autofill_until: str = ""
+    ai_autofill_prompt: str = ""
     ai_next_run_at: str = ""
     last_ai_run_at: str = ""
     ai_run_count: int = 0
@@ -741,6 +742,7 @@ class Card:
         self.seen_by_users = normalize_seen_by_users(self.seen_by_users)
         self.ai_autofill_active = normalize_bool(self.ai_autofill_active, default=False)
         self.ai_autofill_until = normalize_text(self.ai_autofill_until, default="", limit=64)
+        self.ai_autofill_prompt = normalize_text(self.ai_autofill_prompt, default="", limit=800)
         self.ai_next_run_at = normalize_text(self.ai_next_run_at, default="", limit=64)
         self.last_ai_run_at = normalize_text(self.last_ai_run_at, default="", limit=64)
         self.ai_run_count = normalize_int(self.ai_run_count, default=0, minimum=0)
@@ -907,6 +909,7 @@ class Card:
             "has_unseen_update": self.has_unseen_update_for(viewer_username),
             "ai_autofill_active": self.ai_autofill_active,
             "ai_autofill_until": self.ai_autofill_until,
+            "ai_autofill_prompt": self.ai_autofill_prompt,
             "ai_next_run_at": self.ai_next_run_at,
             "last_ai_run_at": self.last_ai_run_at,
             "ai_run_count": self.ai_run_count,
@@ -949,6 +952,7 @@ class Card:
             "seen_by_users": dict(self.seen_by_users),
             "ai_autofill_active": self.ai_autofill_active,
             "ai_autofill_until": self.ai_autofill_until,
+            "ai_autofill_prompt": self.ai_autofill_prompt,
             "ai_next_run_at": self.ai_next_run_at,
             "last_ai_run_at": self.last_ai_run_at,
             "ai_run_count": self.ai_run_count,
@@ -1023,6 +1027,7 @@ class Card:
             seen_by_users=normalize_seen_by_users(payload.get("seen_by_users")),
             ai_autofill_active=normalize_bool(payload.get("ai_autofill_active"), default=False),
             ai_autofill_until=normalize_text(payload.get("ai_autofill_until"), default="", limit=64),
+            ai_autofill_prompt=normalize_text(payload.get("ai_autofill_prompt"), default="", limit=800),
             ai_next_run_at=normalize_text(payload.get("ai_next_run_at"), default="", limit=64),
             last_ai_run_at=normalize_text(payload.get("last_ai_run_at"), default="", limit=64),
             ai_run_count=normalize_int(payload.get("ai_run_count"), default=0, minimum=0),
