@@ -1493,15 +1493,6 @@ class AgentRunner:
                 return value
         return ""
 
-    def _summarize_part_numbers(self, payload: dict[str, Any]) -> str:
-        candidates = payload.get("part_numbers") if isinstance(payload.get("part_numbers"), list) else []
-        values = [
-            str(item.get("value", "") or "").strip()
-            for item in candidates[:3]
-            if isinstance(item, dict) and str(item.get("value", "") or "").strip()
-        ]
-        return ", ".join(values)
-
     def _summarize_part_matches(self, payload: dict[str, Any]) -> tuple[str, str]:
         candidates = payload.get("part_numbers") if isinstance(payload.get("part_numbers"), list) else []
         values = [

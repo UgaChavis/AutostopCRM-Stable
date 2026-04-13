@@ -29,8 +29,10 @@ class AgentControlService:
         self._storage = storage
         self._board_service: Any | None = None
         self._scheduler_interval_seconds = max(5.0, float(scheduler_interval_seconds))
+        self._scheduler_poll_throttle_seconds = min(self._scheduler_interval_seconds, 5.0)
         self._scheduler_stop = threading.Event()
         self._scheduler_thread: threading.Thread | None = None
+        self._last_scheduler_tick_monotonic = 0.0
         self._worker_stop = threading.Event()
         self._worker_thread: threading.Thread | None = None
         if start_scheduler:
@@ -93,7 +95,7 @@ class AgentControlService:
 
     def agent_status(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
-        self.trigger_scheduled_tasks()
+        self.trigger_scheduled_tasks(force=False)
         pending_total = len(self._storage.list_tasks(limit=1000, statuses={"pending"}))
         running_total = len(self._storage.list_tasks(limit=1000, statuses={"running"}))
         status = self._storage.read_status()
@@ -177,7 +179,7 @@ class AgentControlService:
         }
 
     def agent_scheduled_tasks(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        self.trigger_scheduled_tasks()
+        self.trigger_scheduled_tasks(force=False)
         tasks = [self._serialize_schedule(item) for item in self._storage.list_schedules()]
         return {"tasks": tasks, "meta": {"total": len(tasks)}}
 
@@ -187,7 +189,7 @@ class AgentControlService:
         task = self._normalize_schedule_payload(payload, existing=existing)
         stored = self._storage.upsert_schedule(task)
         if stored.get("active"):
-            self.trigger_scheduled_tasks()
+            self.trigger_scheduled_tasks(force=True)
         return {"task": self._serialize_schedule(stored)}
 
     def delete_agent_scheduled_task(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -203,7 +205,7 @@ class AgentControlService:
 
     def resume_agent_scheduled_task(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         task = self._set_schedule_active(payload, active=True)
-        self.trigger_scheduled_tasks()
+        self.trigger_scheduled_tasks(force=True)
         return {"task": self._serialize_schedule(task)}
 
     def run_agent_scheduled_task(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -294,7 +296,15 @@ class AgentControlService:
             metadata=metadata,
         )
 
-    def trigger_scheduled_tasks(self) -> dict[str, Any]:
+    def trigger_scheduled_tasks(self, *, force: bool = False) -> dict[str, Any]:
+        now_monotonic = time.monotonic()
+        if (
+            not force
+            and self._last_scheduler_tick_monotonic
+            and now_monotonic - self._last_scheduler_tick_monotonic < self._scheduler_poll_throttle_seconds
+        ):
+            return {"launched": [], "failed": [], "throttled": True}
+        self._last_scheduler_tick_monotonic = now_monotonic
         now_text = utc_now_iso()
         launched: list[str] = []
         failed: list[dict[str, str]] = []
@@ -329,12 +339,12 @@ class AgentControlService:
                         failed.append({"task_id": str(item.get("card_id", "") or "").strip(), "error": str(item.get("error", "") or "").strip()})
             except Exception as exc:
                 failed.append({"task_id": "card_autofill", "error": str(exc)})
-        return {"launched": launched, "failed": failed}
+        return {"launched": launched, "failed": failed, "throttled": False}
 
     def _scheduler_loop(self) -> None:
         while not self._scheduler_stop.wait(self._scheduler_interval_seconds):
             try:
-                self.trigger_scheduled_tasks()
+                self.trigger_scheduled_tasks(force=True)
             except Exception:
                 continue
 

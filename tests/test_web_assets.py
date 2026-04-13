@@ -176,6 +176,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function openAgentTasksModal()", BOARD_WEB_APP_HTML)
         self.assertIn("function refreshAgentTasksModalState()", BOARD_WEB_APP_HTML)
         self.assertIn("function renderAgentAutofillControls(statusPayload)", BOARD_WEB_APP_HTML)
+        self.assertIn("const displayActive = Boolean(active || activeTask);", BOARD_WEB_APP_HTML)
         self.assertIn("function syncAgentAutofillPromptPanel(card)", BOARD_WEB_APP_HTML)
         self.assertIn("function toggleAgentAutofillPromptPanel()", BOARD_WEB_APP_HTML)
         self.assertIn("async function saveAgentAutofillPrompt()", BOARD_WEB_APP_HTML)
@@ -238,6 +239,10 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("state.agentAutofillCountdownTimer = window.setInterval(() => {", BOARD_WEB_APP_HTML)
         self.assertIn("renderAgentConsole(buildAgentConsoleEntries(state.agentLatestTasks, state.agentLatestActions, task));", BOARD_WEB_APP_HTML)
         self.assertIn("statusText = nextRunText ? ('ОЖИДАНИЕ · ' + nextRunText) : 'АВТОСОПРОВОЖДЕНИЕ АКТИВНО';", BOARD_WEB_APP_HTML)
+        self.assertLess(
+            BOARD_WEB_APP_HTML.index("if (activeTask) {"),
+            BOARD_WEB_APP_HTML.index("} else if (!agentEnabled) {"),
+        )
         self.assertNotIn("АКТИВНО ДО ", BOARD_WEB_APP_HTML)
         self.assertIn('data-agent-follow-up="', BOARD_WEB_APP_HTML)
 

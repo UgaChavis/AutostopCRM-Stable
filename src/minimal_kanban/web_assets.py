@@ -6532,18 +6532,15 @@ BOARD_WEB_APP_HTML = "".join(
       const card = currentAgentContextCard();
       const activeTask = currentCardAutofillTask(state.agentLatestTasks);
       const active = Boolean(card?.ai_autofill_active);
+      const displayActive = Boolean(active || activeTask);
       const untilText = String(card?.ai_autofill_until || '').trim();
-      const countdown = active ? formatAgentCountdown(untilText) : '';
-      let buttonLabel = active ? 'АВТО' : 'АВТОЗАПОЛНЕНИЕ';
+      const countdown = displayActive ? formatAgentCountdown(untilText) : '';
+      let buttonLabel = displayActive ? 'АВТО' : 'АВТОЗАПОЛНЕНИЕ';
       let statusText = 'ОТКРОЙ КАРТОЧКУ';
       let stateValue = 'offline';
       let disabled = !String(card?.id || '').trim();
       if (String(card?.id || '').trim()) {
-        if (!agentEnabled) {
-          statusText = 'SERVER AI OFFLINE';
-          stateValue = 'offline';
-          disabled = true;
-        } else if (activeTask) {
+        if (activeTask) {
           const trigger = String(activeTask?.metadata?.trigger || '').trim().toLowerCase();
           statusText = (trigger === 'adaptive_followup' || trigger === 'retry_after_error') ? 'ПОВТОРНЫЙ ПРОХОД' : 'ПЕРВЫЙ ПРОХОД';
           stateValue = 'active';
@@ -6554,6 +6551,10 @@ BOARD_WEB_APP_HTML = "".join(
           stateValue = 'waiting';
           buttonLabel = 'АВТО';
           disabled = false;
+        } else if (!agentEnabled) {
+          statusText = 'SERVER AI OFFLINE';
+          stateValue = 'offline';
+          disabled = true;
         } else {
           statusText = 'SERVER AI READY';
           stateValue = 'online';
@@ -6561,11 +6562,11 @@ BOARD_WEB_APP_HTML = "".join(
         }
       }
       if (els.agentAutofillButton) {
-        els.agentAutofillButton.innerHTML = active
+        els.agentAutofillButton.innerHTML = displayActive
           ? '<span class="agent-autofill-button__label">' + escapeHtml(buttonLabel) + '</span><span class="agent-autofill-button__timer">' + escapeHtml(countdown || '00:00') + '</span>'
           : '<span class="agent-autofill-button__label">' + escapeHtml(buttonLabel) + '</span>';
         els.agentAutofillButton.disabled = disabled;
-        els.agentAutofillButton.dataset.state = active ? 'active' : 'inactive';
+        els.agentAutofillButton.dataset.state = displayActive ? 'active' : 'inactive';
       }
       if (els.agentAutofillStatus) {
         els.agentAutofillStatus.textContent = statusText;

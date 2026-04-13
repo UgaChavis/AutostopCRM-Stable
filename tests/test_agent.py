@@ -333,6 +333,31 @@ class AgentControlStatusTests(unittest.TestCase):
             self.assertTrue(payload["agent"]["available"])
             self.assertTrue(payload["worker"]["heartbeat_fresh"])
 
+    def test_agent_status_throttles_scheduler_side_effects_between_fast_polls(self) -> None:
+        class _BoardService:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def trigger_due_ai_followups(self) -> dict:
+                self.calls += 1
+                return {"launched": [], "failed": []}
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "os.environ",
+            {
+                "MINIMAL_KANBAN_AGENT_ENABLED": "1",
+                "OPENAI_API_KEY": "",
+            },
+            clear=False,
+        ):
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage, scheduler_interval_seconds=20.0)
+            board = _BoardService()
+            service.bind_board_service(board)
+            service.agent_status()
+            service.agent_status()
+            self.assertEqual(board.calls, 1)
+
 
 class AgentRunnerTests(unittest.TestCase):
     def test_default_prompt_includes_card_cleanup_rules(self) -> None:
