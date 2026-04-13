@@ -18,7 +18,6 @@ from typing import Any
 from ..config import get_attachments_dir
 from ..demo_seed import build_demo_board
 from ..models import (
-    ARCHIVE_PREVIEW_LIMIT,
     CARD_DESCRIPTION_LIMIT,
     CARD_TITLE_LIMIT,
     CARD_VEHICLE_LIMIT,
@@ -41,7 +40,6 @@ from ..models import (
     normalize_bool,
     normalize_cash_direction,
     normalize_file_name,
-    normalize_int,
     normalize_money_minor,
     normalize_source,
     normalize_tag_label,
@@ -69,9 +67,7 @@ from ..repair_order import (
 )
 from ..vehicle_profile import (
     VEHICLE_COMPACT_FIELDS,
-    VEHICLE_PRIMARY_FIELDS,
     VehicleProfile,
-    normalize_vehicle_field_names,
 )
 from ..agent.openai_client import AgentModelError, OpenAIJsonAgentClient
 from ..agent.config import get_agent_name
@@ -461,7 +457,7 @@ class CardService:
                 actor_name=actor_name,
                 source=source,
                 action=event_action,
-                message=f"{actor_name} {'включил' if enabled else 'выключил'} автосопровождение карточки",
+                message=event_message,
                 card_id=card.id,
                 details={
                     "enabled": enabled,

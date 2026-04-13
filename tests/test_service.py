@@ -289,6 +289,10 @@ class CardServiceTests(unittest.TestCase):
             "Не переписывай цены и артикулы, добавляй только ИИ-комментарии.",
         )
         self.assertIn("ИИ-подсказка автосопровождения обновлена.", [item["message"] for item in updated["card"]["ai_autofill_log"]])
+        log = self.service.get_card_log({"card_id": card_id, "limit": 5})
+        prompt_events = [item for item in log["events"] if item["action"] == "card_ai_autofill_prompt_updated"]
+        self.assertTrue(prompt_events)
+        self.assertIn("обновил mini-prompt", prompt_events[-1]["message"])
 
     def test_trigger_due_ai_followups_skips_unchanged_then_enqueues_after_change(self) -> None:
         agent = _FakeAgentControl()
