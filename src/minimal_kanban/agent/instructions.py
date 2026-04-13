@@ -71,6 +71,10 @@ CARD_AUTOFILL_RULES = """Card autofill rules:
 - If recent ai_autofill_log entries are present in the card context, treat them as continuation context for the next pass.
 - Treat existing vehicle_profile and repair_order fields as grounded known facts. Do not say model, year, engine, gearbox, or drivetrain are missing if the card already has them.
 - If VIN decoding returns only generic facts, append only the new confirmed facts and avoid repeating what the card already shows.
+- Card autofill must stay card-context-grounded: select external scenarios only when the current card text explicitly supports them.
+- Do not use ai_autofill_prompt, ai_autofill_log, or generic workflow habits as evidence for maintenance, parts, DTC, or fault scenarios.
+- VIN-only cards stay VIN-only unless the card itself also contains explicit part, maintenance, DTC, or symptom triggers.
+- If evidence is weak, do not expand the card speculatively; add at most a short AI note about what is confirmed and what is still missing.
 """
 
 

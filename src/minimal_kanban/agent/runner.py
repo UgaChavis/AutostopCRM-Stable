@@ -33,6 +33,49 @@ _AUTOFILL_MAINTENANCE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _AUTOFILL_WAIT_HINTS = ("ожид", "в пути", "клиент дума", "согласован", "заказали", "ждем", "ждём")
+_AUTOFILL_MAINTENANCE_SCOPE_HINTS = (
+    "регламент",
+    "замена масла",
+    "oil service",
+    "service",
+    "масло",
+    "фильтр",
+    "свеч",
+    "жидкост",
+)
+_AUTOFILL_PART_LOOKUP_STRONG_HINTS = (
+    "артикул",
+    "каталож",
+    "oem",
+    "подобрать",
+    "подбор",
+    "номер детали",
+    "аналог",
+    "цена",
+    "проценить",
+    "стоимость",
+    "найти",
+)
+_AUTOFILL_SYMPTOM_HINTS = (
+    "теч",
+    "бежит",
+    "стук",
+    "шум",
+    "гул",
+    "вибрац",
+    "троит",
+    "не завод",
+    "перегрев",
+    "дым",
+    "пина",
+    "дерга",
+    "рывк",
+    "скрип",
+    "свист",
+    "ошибк",
+    "антифриз",
+    "не едет",
+)
 _AUTOFILL_PART_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("радиатор", ("радиатор", "radiator")),
     ("рычаг подвески", ("рычаг", "control arm")),
@@ -968,6 +1011,7 @@ class AgentRunner:
         recent_events = context_data.get("events") if isinstance(context_data.get("events"), list) else []
         ai_log_tail = card.get("ai_autofill_log") if isinstance(card.get("ai_autofill_log"), list) else []
         ai_prompt = str(card.get("ai_autofill_prompt", "") or "").strip()
+        grounded_description = self._strip_existing_ai_notes(str(card.get("description", "") or ""))
         known_vehicle_facts = {
             "make": str(vehicle_profile.get("make_display", "") or "").strip(),
             "model": str(vehicle_profile.get("model_display", "") or "").strip(),
@@ -977,12 +1021,12 @@ class AgentRunner:
             "drivetrain": str(vehicle_profile.get("drivetrain", "") or "").strip(),
             "vin": str(vehicle_profile.get("vin", "") or repair_order.get("vin", "") or "").strip().upper(),
         }
-        source_text = "\n".join(
+        grounded_text = "\n".join(
             part
             for part in (
                 str(card.get("title", "") or "").strip(),
                 str(card.get("vehicle", "") or "").strip(),
-                str(card.get("description", "") or "").strip(),
+                grounded_description,
                 str(repair_order.get("reason", "") or "").strip(),
                 str(repair_order.get("comment", "") or "").strip(),
                 str(repair_order.get("note", "") or "").strip(),
@@ -995,23 +1039,54 @@ class AgentRunner:
             for entry in ai_log_tail[-8:]
             if isinstance(entry, dict) and str(entry.get("message", "") or "").strip()
         )
-        analysis_text = "\n".join(part for part in (source_text, ai_prompt, ai_log_text, str(task_text or "").strip()) if part)
-        haystack = analysis_text.casefold()
-        vin_match = _AUTOFILL_VIN_PATTERN.search(analysis_text.upper())
+        analysis_text = "\n".join(part for part in (grounded_text, ai_prompt, ai_log_text, str(task_text or "").strip()) if part)
+        grounded_haystack = grounded_text.casefold()
+        vin_match = _AUTOFILL_VIN_PATTERN.search(grounded_text.upper())
         vin = known_vehicle_facts["vin"] or (vin_match.group(0) if vin_match else "")
-        mileage = self._extract_autofill_mileage(card=card, repair_order=repair_order, source_text=analysis_text)
-        dtc_codes = list(dict.fromkeys(match.upper() for match in _AUTOFILL_DTC_PATTERN.findall(analysis_text)))[:2]
-        part_queries = self._extract_autofill_part_queries(analysis_text)
-        maintenance_needed = bool(_AUTOFILL_MAINTENANCE_PATTERN.search(analysis_text)) or ("пробег" in haystack and "масл" in haystack)
+        mileage = self._extract_autofill_mileage(card=card, repair_order=repair_order, source_text=grounded_text)
+        dtc_codes = list(dict.fromkeys(match.upper() for match in _AUTOFILL_DTC_PATTERN.findall(grounded_text)))[:2]
+        part_queries = self._extract_autofill_part_queries(grounded_text)
+        maintenance_trigger_found = self._has_explicit_maintenance_trigger(grounded_text)
+        maintenance_confident = maintenance_trigger_found and (bool(mileage) or self._has_maintenance_scope_hint(grounded_haystack))
         maintenance_query = f"ТО на пробеге {mileage}" if mileage else "ТО"
-        if "торм" in haystack:
+        if "торм" in grounded_haystack:
             maintenance_query = "ТО и тормоза"
-        symptom_query = self._extract_autofill_symptom_query(source_text)
+        symptom_trigger_found = self._has_explicit_symptom_trigger(grounded_haystack)
+        symptom_query = self._extract_autofill_symptom_query(grounded_text) if symptom_trigger_found else ""
+        force_vin_decode = bool(vin) and any(token in grounded_haystack for token in ("vin", "расшифр", "комплектац", "подтверд"))
+        missing_vehicle_fields = self._profile_missing_fields(vehicle_profile)
+        scenario_evidence = {
+            "vin_enrichment": {
+                "trigger_found": bool(vin),
+                "confidence_enough": bool(vin) and (bool(missing_vehicle_fields) or force_vin_decode),
+            },
+            "parts_lookup": {
+                "trigger_found": bool(part_queries),
+                "confidence_enough": bool(part_queries) and self._has_strong_part_lookup_hint(grounded_haystack, part_queries),
+            },
+            "maintenance_lookup": {
+                "trigger_found": maintenance_trigger_found,
+                "confidence_enough": maintenance_confident,
+            },
+            "dtc_lookup": {
+                "trigger_found": bool(dtc_codes),
+                "confidence_enough": bool(dtc_codes),
+            },
+            "fault_research": {
+                "trigger_found": symptom_trigger_found and bool(symptom_query),
+                "confidence_enough": symptom_trigger_found
+                and bool(symptom_query)
+                and not bool(part_queries)
+                and not maintenance_trigger_found
+                and not bool(dtc_codes),
+            },
+        }
         return {
             "card": card,
             "repair_order": repair_order,
             "vehicle_profile": vehicle_profile,
-            "source_text": source_text,
+            "source_text": grounded_text,
+            "grounded_text": grounded_text,
             "analysis_text": analysis_text,
             "ai_prompt": ai_prompt,
             "recent_events": recent_events[-10:],
@@ -1021,24 +1096,27 @@ class AgentRunner:
             "mileage": mileage,
             "dtc_codes": dtc_codes,
             "part_queries": part_queries,
-            "maintenance_needed": maintenance_needed,
+            "maintenance_needed": maintenance_trigger_found,
             "maintenance_query": maintenance_query,
             "symptom_query": symptom_query,
-            "waiting_state": any(token in haystack for token in _AUTOFILL_WAIT_HINTS),
-            "force_vin_decode": bool(vin) and any(token in haystack for token in ("vin", "расшифр", "комплектац", "подтверд")),
-            "missing_vehicle_fields": self._profile_missing_fields(vehicle_profile),
+            "waiting_state": any(token in grounded_haystack for token in _AUTOFILL_WAIT_HINTS),
+            "force_vin_decode": force_vin_decode,
+            "missing_vehicle_fields": missing_vehicle_fields,
             "known_vehicle_facts": known_vehicle_facts,
             "vehicle_context": self._extract_autofill_vehicle_context(card=card, repair_order=repair_order, vehicle_profile=vehicle_profile, vin=vin),
+            "scenario_evidence": scenario_evidence,
             "related_cards": [],
         }
 
     def _select_card_autofill_scenarios(self, facts: dict[str, Any]) -> list[dict[str, Any]]:
         budget = 5
         scenarios: list[dict[str, Any]] = []
-        if self._autofill_vin_should_run(facts) and budget >= 1:
+        vin_evidence = self._scenario_evidence(facts, "vin_enrichment")
+        if vin_evidence["trigger_found"] and vin_evidence["confidence_enough"] and budget >= 1:
             scenarios.append({"name": "vin_enrichment", "label": "VIN", "cost": 1})
             budget -= 1
-        if facts["part_queries"] and budget >= 1:
+        parts_evidence = self._scenario_evidence(facts, "parts_lookup")
+        if parts_evidence["trigger_found"] and parts_evidence["confidence_enough"] and budget >= 1:
             with_price = budget >= 2
             scenarios.append(
                 {
@@ -1050,13 +1128,16 @@ class AgentRunner:
                 }
             )
             budget -= 2 if with_price else 1
-        if facts["maintenance_needed"] and budget >= 1:
+        maintenance_evidence = self._scenario_evidence(facts, "maintenance_lookup")
+        if maintenance_evidence["trigger_found"] and maintenance_evidence["confidence_enough"] and budget >= 1:
             scenarios.append({"name": "maintenance_lookup", "label": "ТО", "cost": 1})
             budget -= 1
-        if facts["dtc_codes"] and budget >= 1:
+        dtc_evidence = self._scenario_evidence(facts, "dtc_lookup")
+        if dtc_evidence["trigger_found"] and dtc_evidence["confidence_enough"] and budget >= 1:
             scenarios.append({"name": "dtc_lookup", "label": "DTC", "cost": 1, "code": facts["dtc_codes"][0]})
             budget -= 1
-        if facts["symptom_query"] and not facts["waiting_state"] and budget >= 1:
+        fault_evidence = self._scenario_evidence(facts, "fault_research")
+        if fault_evidence["trigger_found"] and fault_evidence["confidence_enough"] and not facts["waiting_state"] and budget >= 1:
             scenarios.append({"name": "fault_research", "label": "СИМПТОМЫ", "cost": 1})
         scenarios.append({"name": "normalization", "label": "СТРУКТУРА", "cost": 0})
         return scenarios
@@ -1068,7 +1149,7 @@ class AgentRunner:
             if isinstance(item, dict) and str(item.get("label", "") or "").strip() and str(item.get("name", "") or "").strip().lower() != "normalization"
         ]
         if not labels:
-            message = "План: контекст прочитан, внешние сценарии не требуются, будет только аккуратная нормализация."
+            message = "План: карточка прочитана, подтверждённых внешних сценариев нет, будет только аккуратная нормализация."
         else:
             message = "План: " + " -> ".join(labels + ["СТРУКТУРА"])
         related_cards = facts.get("related_cards") if isinstance(facts.get("related_cards"), list) else []
@@ -1117,6 +1198,51 @@ class AgentRunner:
                 break
         return matches
 
+    def _strip_existing_ai_notes(self, text: str) -> str:
+        cleaned: list[str] = []
+        inside_ai_block = False
+        for raw_line in str(text or "").splitlines():
+            line = str(raw_line or "")
+            stripped = " ".join(line.strip().split())
+            normalized = stripped.casefold()
+            if not stripped:
+                inside_ai_block = False
+                cleaned.append("")
+                continue
+            if normalized in {"ии:", "ai:"}:
+                inside_ai_block = True
+                continue
+            if normalized.startswith("ии:") or normalized.startswith("ai:"):
+                continue
+            if inside_ai_block and stripped.startswith("-"):
+                continue
+            inside_ai_block = False
+            cleaned.append(line.rstrip())
+        return "\n".join(cleaned).strip()
+
+    def _has_explicit_maintenance_trigger(self, source_text: str) -> bool:
+        haystack = source_text.casefold()
+        return bool(_AUTOFILL_MAINTENANCE_PATTERN.search(source_text)) or "регламент" in haystack
+
+    def _has_maintenance_scope_hint(self, haystack: str) -> bool:
+        return any(token in haystack for token in _AUTOFILL_MAINTENANCE_SCOPE_HINTS)
+
+    def _has_strong_part_lookup_hint(self, haystack: str, part_queries: list[str]) -> bool:
+        if any(token in haystack for token in _AUTOFILL_PART_LOOKUP_STRONG_HINTS):
+            return True
+        return any(query not in {"масло", "фильтр"} for query in part_queries)
+
+    def _has_explicit_symptom_trigger(self, haystack: str) -> bool:
+        return any(token in haystack for token in _AUTOFILL_SYMPTOM_HINTS)
+
+    def _scenario_evidence(self, facts: dict[str, Any], name: str) -> dict[str, bool]:
+        payload = facts.get("scenario_evidence") if isinstance(facts.get("scenario_evidence"), dict) else {}
+        evidence = payload.get(name) if isinstance(payload.get(name), dict) else {}
+        return {
+            "trigger_found": bool(evidence.get("trigger_found")),
+            "confidence_enough": bool(evidence.get("confidence_enough")),
+        }
+
     def _extract_existing_ai_notes(self, description_text: str) -> list[str]:
         notes: list[str] = []
         inside_ai_block = False
@@ -1163,7 +1289,8 @@ class AgentRunner:
         return missing
 
     def _autofill_vin_should_run(self, facts: dict[str, Any]) -> bool:
-        return bool(facts["vin"])
+        evidence = self._scenario_evidence(facts, "vin_enrichment")
+        return evidence["trigger_found"] and evidence["confidence_enough"]
 
     def _merge_vehicle_context(self, current: dict[str, Any], decoded: dict[str, Any]) -> dict[str, Any]:
         merged = dict(current)
@@ -1542,17 +1669,21 @@ class AgentRunner:
         orchestration_results: dict[str, Any],
     ) -> list[str]:
         lines: list[str] = []
-        if facts["part_queries"] and not isinstance(orchestration_results.get("find_part_numbers"), dict):
+        parts_evidence = self._scenario_evidence(facts, "parts_lookup")
+        maintenance_evidence = self._scenario_evidence(facts, "maintenance_lookup")
+        dtc_evidence = self._scenario_evidence(facts, "dtc_lookup")
+        fault_evidence = self._scenario_evidence(facts, "fault_research")
+        if parts_evidence["trigger_found"] and not isinstance(orchestration_results.get("find_part_numbers"), dict):
             missing_bits = self._humanize_missing_vehicle_fields(facts["missing_vehicle_fields"])
             if missing_bits:
                 lines.append(f"Следующему исполнителю: для точного подбора {facts['part_queries'][0]} уточнить {missing_bits}.")
             elif not facts.get("vin"):
                 lines.append(f"Следующему исполнителю: для точного подбора {facts['part_queries'][0]} нужен VIN или точный номер снятой детали.")
-        if facts["maintenance_needed"] and not facts["mileage"]:
+        if maintenance_evidence["trigger_found"] and not facts["mileage"]:
             lines.append("Следующему исполнителю: уточнить пробег, чтобы подтвердить состав ТО и расходники.")
-        if facts["dtc_codes"] and not isinstance(orchestration_results.get("decode_dtc"), dict):
+        if dtc_evidence["trigger_found"] and not isinstance(orchestration_results.get("decode_dtc"), dict):
             lines.append(f"Следующему исполнителю: повторно проверить код {facts['dtc_codes'][0]} и приложить скрин диагностики.")
-        if facts["symptom_query"] and not isinstance(orchestration_results.get("search_fault_info"), dict) and not facts["waiting_state"]:
+        if fault_evidence["trigger_found"] and fault_evidence["confidence_enough"] and not isinstance(orchestration_results.get("search_fault_info"), dict) and not facts["waiting_state"]:
             lines.append("Следующему исполнителю: зафиксировать симптомы точнее — когда проявляется, на холодную или на горячую, под нагрузкой или на месте.")
         return lines[:2]
 

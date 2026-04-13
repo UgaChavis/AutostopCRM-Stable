@@ -369,6 +369,141 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertIn("Do not repeat the current description verbatim", prompt)
         self.assertIn("Treat existing vehicle_profile and repair_order fields as grounded known facts", prompt)
         self.assertIn('must be labeled with "ИИ:" or "AI:"', prompt)
+        self.assertIn("card-context-grounded", prompt)
+        self.assertIn("VIN-only cards stay VIN-only", prompt)
+
+    def test_card_autofill_scenario_selection_keeps_vin_only_cards_vin_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.scenario.vin"),
+            )
+            facts = runner._analyze_card_autofill_context(
+                {
+                    "card": {
+                        "id": "card-1",
+                        "title": "Проверить VIN",
+                        "vehicle": "",
+                        "description": "VIN: WBAPF71060A798127",
+                        "vehicle_profile": {},
+                        "repair_order": {},
+                        "ai_autofill_prompt": "Подготовь ТО",
+                        "ai_autofill_log": [{"message": "Раньше искали ТО"}],
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                },
+                task_text="Сделай ТО и подбери запчасти.",
+            )
+            scenario_names = [item["name"] for item in runner._select_card_autofill_scenarios(facts)]
+            self.assertEqual(scenario_names, ["vin_enrichment", "normalization"])
+            self.assertFalse(facts["scenario_evidence"]["maintenance_lookup"]["trigger_found"])
+            self.assertFalse(facts["scenario_evidence"]["parts_lookup"]["trigger_found"])
+
+    def test_card_autofill_scenario_selection_runs_parts_only_from_explicit_part_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.scenario.parts"),
+            )
+            facts = runner._analyze_card_autofill_context(
+                {
+                    "card": {
+                        "id": "card-1",
+                        "title": "BMW 320i",
+                        "vehicle": "BMW 320i",
+                        "description": "VIN: WBAPF71060A798127\nБежит антифриз.\nНужно найти радиатор и сориентировать по цене.",
+                        "vehicle_profile": {},
+                        "repair_order": {},
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                }
+            )
+            scenario_names = [item["name"] for item in runner._select_card_autofill_scenarios(facts)]
+            self.assertEqual(scenario_names, ["vin_enrichment", "parts_lookup", "normalization"])
+
+    def test_card_autofill_scenario_selection_runs_maintenance_only_with_explicit_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.scenario.maintenance"),
+            )
+            facts = runner._analyze_card_autofill_context(
+                {
+                    "card": {
+                        "id": "card-1",
+                        "title": "ТО",
+                        "vehicle": "BMW 320i",
+                        "description": "Пробег: 120000\nНужно большое ТО с заменой масла.",
+                        "vehicle_profile": {},
+                        "repair_order": {},
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                }
+            )
+            scenario_names = [item["name"] for item in runner._select_card_autofill_scenarios(facts)]
+            self.assertEqual(scenario_names, ["maintenance_lookup", "normalization"])
+            self.assertFalse(facts["scenario_evidence"]["parts_lookup"]["confidence_enough"])
+
+    def test_card_autofill_scenario_selection_runs_dtc_only_from_explicit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.scenario.dtc"),
+            )
+            facts = runner._analyze_card_autofill_context(
+                {
+                    "card": {
+                        "id": "card-1",
+                        "title": "Ошибка двигателя",
+                        "vehicle": "BMW 320i",
+                        "description": "Горит check engine. DTC P0300.",
+                        "vehicle_profile": {},
+                        "repair_order": {},
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                }
+            )
+            scenario_names = [item["name"] for item in runner._select_card_autofill_scenarios(facts)]
+            self.assertEqual(scenario_names, ["dtc_lookup", "normalization"])
+
+    def test_card_autofill_scenario_selection_skips_external_steps_for_weak_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.scenario.weak"),
+            )
+            facts = runner._analyze_card_autofill_context(
+                {
+                    "card": {
+                        "id": "card-1",
+                        "title": "Осмотр",
+                        "vehicle": "",
+                        "description": "Нужно посмотреть машину.",
+                        "vehicle_profile": {},
+                        "repair_order": {},
+                        "ai_autofill_prompt": "Поищи ТО и детали",
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                },
+                task_text="Сделай полное ТО и оцени запчасти.",
+            )
+            scenario_names = [item["name"] for item in runner._select_card_autofill_scenarios(facts)]
+            self.assertEqual(scenario_names, ["normalization"])
 
     def test_runner_executes_tool_and_completes_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
