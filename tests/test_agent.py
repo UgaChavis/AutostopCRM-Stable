@@ -505,6 +505,36 @@ class AgentRunnerTests(unittest.TestCase):
             scenario_names = [item["name"] for item in runner._select_card_autofill_scenarios(facts)]
             self.assertEqual(scenario_names, ["normalization"])
 
+    def test_card_autofill_analysis_builds_explicit_evidence_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.scenario.evidence"),
+            )
+            facts = runner._analyze_card_autofill_context(
+                {
+                    "card": {
+                        "id": "card-1",
+                        "title": "BMW 320i",
+                        "vehicle": "",
+                        "description": "VIN: WBAPF71060A798127\nНужно найти радиатор.\nПробег: 120000\nНужно ТО с заменой масла.\nDTC P0300.",
+                        "vehicle_profile": {},
+                        "repair_order": {},
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                }
+            )
+            evidence = facts["evidence_model"]
+            self.assertTrue(evidence["vin_found"])
+            self.assertTrue(evidence["explicit_part_found"])
+            self.assertTrue(evidence["maintenance_context_found"])
+            self.assertTrue(evidence["mileage_found"])
+            self.assertTrue(evidence["dtc_found"])
+            self.assertFalse(evidence["fault_symptoms_found"])
+
     def test_runner_executes_tool_and_completes_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = AgentStorage(base_dir=Path(temp_dir))
@@ -767,6 +797,62 @@ class AgentRunnerTests(unittest.TestCase):
             log_messages = [item.get("message", "") for item in storage.list_actions(limit=50) if item.get("kind") == "log"]
             self.assertIn("decode_vin requested.", log_messages)
             self.assertIn("decode_vin insufficient.", log_messages)
+
+    def test_runner_card_autofill_skips_blind_parts_lookup_after_failed_vin_gate(self) -> None:
+        class _BlankVehicleWrappedBoardApi(_FakeWrappedBoardApi):
+            def get_card_context(self, card_id: str, **kwargs) -> dict:
+                payload = super().get_card_context(card_id, **kwargs)
+                payload["data"]["card"]["vehicle"] = ""
+                payload["data"]["card"]["vehicle_profile"] = {"vin": "WBAPF71060A798127"}
+                return payload
+
+        class _FailedVinAutomotive(_FakeAutomotiveService):
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def decode_vin(self, vin: str) -> dict:
+                self.calls.append("decode_vin")
+                return {}
+
+            def find_part_numbers(self, *, query: str, vehicle: dict[str, object] | str | None = None, limit: int = 5) -> dict:
+                self.calls.append("find_part_numbers")
+                return super().find_part_numbers(query=query, vehicle=vehicle, limit=limit)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Автосопровождение карточки.",
+                metadata={
+                    "purpose": "card_autofill",
+                    "trigger": "manual_activate",
+                    "context": {"kind": "card", "card_id": "card-1", "title": "Радиатор"},
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.autofill.vin.gated.parts")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _BlankVehicleWrappedBoardApi()
+            board_api.cards["card-1"]["description"] = (
+                "VIN: WBAPF71060A798127\n"
+                "Течет основной радиатор.\n"
+                "Нужно найти радиатор и сориентировать по цене."
+            )
+            automotive = _FailedVinAutomotive()
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=_FakeModelClient([{"type": "final", "summary": "unused", "result": "unused"}]),
+                logger=logger,
+            )
+            runner._tools._automotive = automotive
+            self.assertTrue(runner.run_once())
+            self.assertEqual(automotive.calls, ["decode_vin"])
+            update_call = next(call for call in board_api.calls if call[0] == "update_card")
+            self.assertIn("внешней расшифровки", update_call[1]["description"])
+            self.assertNotIn("OEM", update_call[1]["description"])
+            log_messages = [item.get("message", "") for item in storage.list_actions(limit=50) if item.get("kind") == "log"]
+            self.assertIn("parts lookup skipped: no trusted vehicle context after VIN gate.", log_messages)
 
     def test_runner_unwraps_wrapped_card_context_for_deterministic_autofill(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

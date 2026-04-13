@@ -413,11 +413,18 @@ class CardService:
             if prompt_requested and prompt_updated:
                 self._append_card_ai_log(card, level="INFO", message="ИИ-подсказка автосопровождения обновлена.")
             launched_task_id = ""
+            server_available = self._agent_control is not None
+            if self._agent_control is not None:
+                try:
+                    status_payload = self._agent_control.agent_status()
+                    server_available = bool(status_payload.get("agent", {}).get("available"))
+                except Exception:
+                    server_available = True
             if enabled_requested and enabled and not previous_enabled:
                 self._append_card_ai_log(card, level="RUN", message="Автосопровождение включено.")
                 for level, message in self._card_ai_context_messages(card):
                     self._append_card_ai_log(card, level=level, message=message)
-                if self._agent_control is not None:
+                if self._agent_control is not None and server_available:
                     task = self._agent_control.enqueue_card_autofill_task(
                         {
                             "card_id": card.id,
@@ -471,6 +478,8 @@ class CardService:
                     "launched": bool(launched_task_id),
                     "prompt_updated": prompt_updated,
                     "task_id": launched_task_id,
+                    "server_available": server_available,
+                    "next_check_at": card.ai_next_run_at,
                 },
             }
 

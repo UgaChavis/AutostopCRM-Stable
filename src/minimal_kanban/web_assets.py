@@ -6629,7 +6629,7 @@ BOARD_WEB_APP_HTML = "".join(
       const card = currentAgentContextCard();
       const cardId = String(card?.id || '').trim();
       if (!cardId) return setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ АВТОЗАПОЛНЕНИЯ.', true);
-      const nextEnabled = !Boolean(card?.ai_autofill_active);
+      const nextEnabled = !(Boolean(card?.ai_autofill_active) || Boolean(currentCardAutofillTask(state.agentLatestTasks)));
       try {
         if (els.agentAutofillButton) els.agentAutofillButton.disabled = true;
         const data = await api('/api/set_card_ai_autofill', {
@@ -6645,14 +6645,46 @@ BOARD_WEB_APP_HTML = "".join(
           state.activeCard = data.card;
           if (els.cardModal?.classList.contains('is-open')) applyCardModalState(data.card);
         }
-        if (data?.meta?.task_id) state.agentTaskId = String(data.meta.task_id || '').trim();
-        renderAgentAutofillControls({ agent: { enabled: true } });
+        if (data?.meta?.task_id) {
+          state.agentTaskId = String(data.meta.task_id || '').trim();
+          state.agentLatestTasks = [
+            {
+              id: state.agentTaskId,
+              status: 'running',
+              metadata: {
+                purpose: 'card_autofill',
+                trigger: 'manual_activate',
+                context: { kind: 'card', card_id: cardId },
+              },
+            },
+            ...((Array.isArray(state.agentLatestTasks) ? state.agentLatestTasks : []).filter((item) => String(item?.id || '').trim() !== state.agentTaskId)),
+          ];
+        } else if (!nextEnabled) {
+          state.agentLatestTasks = (Array.isArray(state.agentLatestTasks) ? state.agentLatestTasks : []).filter((item) => {
+            const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+            const context = metadata.context && typeof metadata.context === 'object' ? metadata.context : {};
+            return !(String(metadata.purpose || '').trim().toLowerCase() === 'card_autofill'
+              && String(context.card_id || '').trim() === cardId);
+          });
+        }
+        if (data?.meta && Object.prototype.hasOwnProperty.call(data.meta, 'server_available')) {
+          const payload = state.agentStatusPayload && typeof state.agentStatusPayload === 'object' ? state.agentStatusPayload : {};
+          const agent = payload.agent && typeof payload.agent === 'object' ? payload.agent : {};
+          state.agentStatusPayload = {
+            ...payload,
+            agent: {
+              ...agent,
+              available: Boolean(data.meta.server_available),
+            },
+          };
+        }
+        renderAgentAutofillControls(state.agentStatusPayload || {});
         setStatus(nextEnabled ? 'АВТОСОПРОВОЖДЕНИЕ ВКЛЮЧЕНО НА 4 ЧАСА.' : 'АВТОСОПРОВОЖДЕНИЕ ОТКЛЮЧЕНО.', false);
         await refreshAgentModalState();
       } catch (error) {
         setStatus(error.message, true);
       } finally {
-        renderAgentAutofillControls({ agent: { enabled: true } });
+        renderAgentAutofillControls(state.agentStatusPayload || {});
       }
     }
 
