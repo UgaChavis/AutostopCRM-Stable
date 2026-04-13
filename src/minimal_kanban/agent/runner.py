@@ -343,111 +343,158 @@ class AgentRunner:
         )
         context_data = self._response_data(context_payload)
         facts = self._analyze_card_autofill_context(context_data, task_text=str(task.get("task_text", "") or ""))
+        if self._should_load_card_autofill_related_cards(facts):
+            related_args = {
+                "query": self._related_cards_query(facts),
+                "include_archived": True,
+                "limit": 6,
+            }
+            related_payload = self._tools.execute("search_cards", related_args)
+            tool_calls += 1
+            self._record_action(
+                task_id=task["id"],
+                run_id=run_id,
+                step=tool_calls,
+                tool_name="search_cards",
+                args=related_args,
+                reason="Collect short board context for the same VIN or vehicle before autofill",
+                result_payload=related_payload,
+            )
+            facts["related_cards"] = self._extract_related_cards_from_search(
+                card_id=card_id,
+                payload=self._response_data(related_payload),
+            )
+            if facts["related_cards"]:
+                self._record_log_action(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls,
+                    level="INFO",
+                    phase="analysis",
+                    message=f"Контекст доски: найдено связанных карточек — {len(facts['related_cards'])}.",
+                )
+        scenarios = self._select_card_autofill_scenarios(facts)
+        facts["selected_scenarios"] = scenarios
         self._record_log_action(
             task_id=task["id"],
             run_id=run_id,
             step=tool_calls,
             level="INFO",
             phase="analysis",
-            message=self._build_card_autofill_plan_message(facts),
+            message=self._build_card_autofill_plan_message(scenarios, facts=facts),
         )
         orchestration_results: dict[str, Any] = {}
-        if self._autofill_vin_should_run(facts):
-            vin_payload = self._run_autofill_tool(
-                task_id=task["id"],
-                run_id=run_id,
-                step=tool_calls + 1,
-                tool_name="decode_vin",
-                args={"vin": facts["vin"]},
-                reason="Decode VIN and fill missing vehicle facts",
-            )
-            if vin_payload is not None:
-                tool_calls += 1
-                orchestration_results["decode_vin"] = self._response_data(vin_payload) or vin_payload
-                facts["vehicle_context"] = self._merge_vehicle_context(
-                    facts["vehicle_context"],
-                    orchestration_results["decode_vin"],
+        for scenario in scenarios:
+            scenario_name = str(scenario.get("name", "") or "").strip().lower()
+            if scenario_name == "vin_enrichment":
+                vin_payload = self._run_autofill_tool(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls + 1,
+                    tool_name="decode_vin",
+                    args={"vin": facts["vin"]},
+                    reason="Decode VIN first and reuse the confirmed vehicle facts in later lookup steps",
                 )
-        if facts["dtc_codes"]:
-            dtc_payload = self._run_autofill_tool(
-                task_id=task["id"],
-                run_id=run_id,
-                step=tool_calls + 1,
-                tool_name="decode_dtc",
-                args={
-                    "code": facts["dtc_codes"][0],
-                    "vehicle_context": facts["vehicle_context"],
-                },
-                reason="Decode the first detected DTC code",
-            )
-            if dtc_payload is not None:
-                tool_calls += 1
-                orchestration_results["decode_dtc"] = self._response_data(dtc_payload) or dtc_payload
-        if facts["maintenance_needed"]:
-            maintenance_payload = self._run_autofill_tool(
-                task_id=task["id"],
-                run_id=run_id,
-                step=tool_calls + 1,
-                tool_name="estimate_maintenance",
-                args={
-                    "service_type": facts["maintenance_query"],
-                    "vehicle_context": facts["vehicle_context"],
-                },
-                reason="Build a compact maintenance plan for this card",
-            )
-            if maintenance_payload is not None:
-                tool_calls += 1
-                orchestration_results["estimate_maintenance"] = self._response_data(maintenance_payload) or maintenance_payload
-        if facts["part_queries"]:
-            part_query = facts["part_queries"][0]
-            part_payload = self._run_autofill_tool(
-                task_id=task["id"],
-                run_id=run_id,
-                step=tool_calls + 1,
-                tool_name="find_part_numbers",
-                args={
-                    "query": part_query,
-                    "vehicle": facts["vehicle_context"],
-                    "limit": 5,
-                },
-                reason="Find OEM and catalog part numbers for the main detected part",
-            )
-            if part_payload is not None:
+                if vin_payload is not None:
+                    tool_calls += 1
+                    orchestration_results["decode_vin"] = self._response_data(vin_payload) or vin_payload
+                    facts["vehicle_context"] = self._merge_vehicle_context(
+                        facts["vehicle_context"],
+                        orchestration_results["decode_vin"],
+                    )
+                continue
+            if scenario_name == "parts_lookup":
+                part_query = str(scenario.get("query", "") or "").strip() or (facts["part_queries"][0] if facts["part_queries"] else "")
+                if not part_query:
+                    continue
+                part_payload = self._run_autofill_tool(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls + 1,
+                    tool_name="find_part_numbers",
+                    args={
+                        "query": part_query,
+                        "vehicle": facts["vehicle_context"],
+                        "limit": 5,
+                    },
+                    reason="Find OEM and analog part numbers for the main detected part request",
+                )
+                if part_payload is None:
+                    continue
                 tool_calls += 1
                 orchestration_results["find_part_numbers"] = self._response_data(part_payload) or part_payload
+                if not bool(scenario.get("with_price")):
+                    continue
                 best_part_number = self._pick_best_part_number(orchestration_results["find_part_numbers"])
-                if best_part_number:
-                    price_payload = self._run_autofill_tool(
-                        task_id=task["id"],
-                        run_id=run_id,
-                        step=tool_calls + 1,
-                        tool_name="estimate_price_ru",
-                        args={
-                            "part_number": best_part_number,
-                            "vehicle": facts["vehicle_context"],
-                            "limit": 5,
-                        },
-                        reason="Estimate Russian-market price for the top matched part number",
-                    )
-                    if price_payload is not None:
-                        tool_calls += 1
-                        orchestration_results["estimate_price_ru"] = self._response_data(price_payload) or price_payload
-        if facts["symptom_query"] and not facts["waiting_state"]:
-            fault_payload = self._run_autofill_tool(
-                task_id=task["id"],
-                run_id=run_id,
-                step=tool_calls + 1,
-                tool_name="search_fault_info",
-                args={
-                    "query": facts["symptom_query"],
-                    "vehicle": facts["vehicle_context"],
-                    "limit": 5,
-                },
-                reason="Search symptom context and typical causes for the current complaint",
-            )
-            if fault_payload is not None:
-                tool_calls += 1
-                orchestration_results["search_fault_info"] = self._response_data(fault_payload) or fault_payload
+                if not best_part_number:
+                    continue
+                price_payload = self._run_autofill_tool(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls + 1,
+                    tool_name="estimate_price_ru",
+                    args={
+                        "part_number": best_part_number,
+                        "vehicle": facts["vehicle_context"],
+                        "limit": 5,
+                    },
+                    reason="Estimate Russian-market price for the strongest matched part number",
+                )
+                if price_payload is not None:
+                    tool_calls += 1
+                    orchestration_results["estimate_price_ru"] = self._response_data(price_payload) or price_payload
+                continue
+            if scenario_name == "maintenance_lookup":
+                maintenance_payload = self._run_autofill_tool(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls + 1,
+                    tool_name="estimate_maintenance",
+                    args={
+                        "service_type": facts["maintenance_query"],
+                        "vehicle_context": facts["vehicle_context"],
+                    },
+                    reason="Build a compact maintenance plan for the current mileage and vehicle context",
+                )
+                if maintenance_payload is not None:
+                    tool_calls += 1
+                    orchestration_results["estimate_maintenance"] = self._response_data(maintenance_payload) or maintenance_payload
+                continue
+            if scenario_name == "dtc_lookup":
+                dtc_code = str(scenario.get("code", "") or "").strip() or (facts["dtc_codes"][0] if facts["dtc_codes"] else "")
+                if not dtc_code:
+                    continue
+                dtc_payload = self._run_autofill_tool(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls + 1,
+                    tool_name="decode_dtc",
+                    args={
+                        "code": dtc_code,
+                        "vehicle_context": facts["vehicle_context"],
+                    },
+                    reason="Decode the highest-priority detected DTC code",
+                )
+                if dtc_payload is not None:
+                    tool_calls += 1
+                    orchestration_results["decode_dtc"] = self._response_data(dtc_payload) or dtc_payload
+                continue
+            if scenario_name == "fault_research":
+                fault_payload = self._run_autofill_tool(
+                    task_id=task["id"],
+                    run_id=run_id,
+                    step=tool_calls + 1,
+                    tool_name="search_fault_info",
+                    args={
+                        "query": facts["symptom_query"],
+                        "vehicle": facts["vehicle_context"],
+                        "limit": 5,
+                    },
+                    reason="Search short symptom context and typical causes for the current complaint",
+                )
+                if fault_payload is not None:
+                    tool_calls += 1
+                    orchestration_results["search_fault_info"] = self._response_data(fault_payload) or fault_payload
         update_args, display_sections = self._compose_card_autofill_update(
             card_id=card_id,
             facts=facts,
@@ -524,6 +571,41 @@ class AgentRunner:
                 except Exception:
                     pass
             return "get_card", {"ok": True, "data": context}
+
+    def _should_load_card_autofill_related_cards(self, facts: dict[str, Any]) -> bool:
+        vehicle_context = facts.get("vehicle_context") if isinstance(facts.get("vehicle_context"), dict) else {}
+        return bool(
+            facts.get("vin")
+            or str(vehicle_context.get("vehicle", "") or "").strip()
+        )
+
+    def _related_cards_query(self, facts: dict[str, Any]) -> str:
+        vin = str(facts.get("vin", "") or "").strip().upper()
+        if vin:
+            return vin
+        vehicle_context = facts.get("vehicle_context") if isinstance(facts.get("vehicle_context"), dict) else {}
+        return str(vehicle_context.get("vehicle", "") or "").strip()
+
+    def _extract_related_cards_from_search(self, *, card_id: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
+        related: list[dict[str, Any]] = []
+        for item in cards:
+            if not isinstance(item, dict):
+                continue
+            item_id = str(item.get("id", "") or "").strip()
+            if not item_id or item_id == card_id:
+                continue
+            related.append(
+                {
+                    "id": item_id,
+                    "vehicle": str(item.get("vehicle", "") or "").strip(),
+                    "title": str(item.get("title", "") or "").strip(),
+                    "column": str(item.get("column_label", "") or item.get("column", "") or "").strip(),
+                }
+            )
+            if len(related) >= 3:
+                break
+        return related
 
     def _run_autofill_tool(
         self,
@@ -883,6 +965,8 @@ class AgentRunner:
         repair_order = card.get("repair_order") if isinstance(card.get("repair_order"), dict) else {}
         repair_order_text = context_data.get("repair_order_text") if isinstance(context_data.get("repair_order_text"), dict) else {}
         vehicle_profile = card.get("vehicle_profile") if isinstance(card.get("vehicle_profile"), dict) else {}
+        recent_events = context_data.get("events") if isinstance(context_data.get("events"), list) else []
+        ai_log_tail = card.get("ai_autofill_log") if isinstance(card.get("ai_autofill_log"), list) else []
         ai_prompt = str(card.get("ai_autofill_prompt", "") or "").strip()
         known_vehicle_facts = {
             "make": str(vehicle_profile.get("make_display", "") or "").strip(),
@@ -906,7 +990,12 @@ class AgentRunner:
             )
             if part
         )
-        analysis_text = "\n".join(part for part in (source_text, ai_prompt, str(task_text or "").strip()) if part)
+        ai_log_text = "\n".join(
+            str(entry.get("message", "") or "").strip()
+            for entry in ai_log_tail[-8:]
+            if isinstance(entry, dict) and str(entry.get("message", "") or "").strip()
+        )
+        analysis_text = "\n".join(part for part in (source_text, ai_prompt, ai_log_text, str(task_text or "").strip()) if part)
         haystack = analysis_text.casefold()
         vin_match = _AUTOFILL_VIN_PATTERN.search(analysis_text.upper())
         vin = known_vehicle_facts["vin"] or (vin_match.group(0) if vin_match else "")
@@ -925,6 +1014,9 @@ class AgentRunner:
             "source_text": source_text,
             "analysis_text": analysis_text,
             "ai_prompt": ai_prompt,
+            "recent_events": recent_events[-10:],
+            "ai_log_tail": ai_log_tail[-8:],
+            "previous_ai_notes": self._extract_existing_ai_notes(str(card.get("description", "") or "")),
             "vin": vin,
             "mileage": mileage,
             "dtc_codes": dtc_codes,
@@ -937,23 +1029,52 @@ class AgentRunner:
             "missing_vehicle_fields": self._profile_missing_fields(vehicle_profile),
             "known_vehicle_facts": known_vehicle_facts,
             "vehicle_context": self._extract_autofill_vehicle_context(card=card, repair_order=repair_order, vehicle_profile=vehicle_profile, vin=vin),
+            "related_cards": [],
         }
 
-    def _build_card_autofill_plan_message(self, facts: dict[str, Any]) -> str:
-        steps: list[str] = []
-        if self._autofill_vin_should_run(facts):
-            steps.append("VIN")
-        if facts["dtc_codes"]:
-            steps.append("DTC")
-        if facts["maintenance_needed"]:
-            steps.append("ТО")
-        if facts["part_queries"]:
-            steps.append("ЗАПЧАСТИ")
-        if facts["symptom_query"] and not facts["waiting_state"]:
-            steps.append("СИМПТОМЫ")
-        if not steps:
-            return "План: контекст прочитан, явных внешних сценариев не найдено."
-        return "План: " + " -> ".join(steps)
+    def _select_card_autofill_scenarios(self, facts: dict[str, Any]) -> list[dict[str, Any]]:
+        budget = 5
+        scenarios: list[dict[str, Any]] = []
+        if self._autofill_vin_should_run(facts) and budget >= 1:
+            scenarios.append({"name": "vin_enrichment", "label": "VIN", "cost": 1})
+            budget -= 1
+        if facts["part_queries"] and budget >= 1:
+            with_price = budget >= 2
+            scenarios.append(
+                {
+                    "name": "parts_lookup",
+                    "label": "ЗАПЧАСТИ",
+                    "cost": 2 if with_price else 1,
+                    "query": facts["part_queries"][0],
+                    "with_price": with_price,
+                }
+            )
+            budget -= 2 if with_price else 1
+        if facts["maintenance_needed"] and budget >= 1:
+            scenarios.append({"name": "maintenance_lookup", "label": "ТО", "cost": 1})
+            budget -= 1
+        if facts["dtc_codes"] and budget >= 1:
+            scenarios.append({"name": "dtc_lookup", "label": "DTC", "cost": 1, "code": facts["dtc_codes"][0]})
+            budget -= 1
+        if facts["symptom_query"] and not facts["waiting_state"] and budget >= 1:
+            scenarios.append({"name": "fault_research", "label": "СИМПТОМЫ", "cost": 1})
+        scenarios.append({"name": "normalization", "label": "СТРУКТУРА", "cost": 0})
+        return scenarios
+
+    def _build_card_autofill_plan_message(self, scenarios: list[dict[str, Any]], *, facts: dict[str, Any]) -> str:
+        labels = [
+            str(item.get("label", "") or "").strip()
+            for item in scenarios
+            if isinstance(item, dict) and str(item.get("label", "") or "").strip() and str(item.get("name", "") or "").strip().lower() != "normalization"
+        ]
+        if not labels:
+            message = "План: контекст прочитан, внешние сценарии не требуются, будет только аккуратная нормализация."
+        else:
+            message = "План: " + " -> ".join(labels + ["СТРУКТУРА"])
+        related_cards = facts.get("related_cards") if isinstance(facts.get("related_cards"), list) else []
+        if related_cards:
+            message += f" Связанных карточек на доске: {len(related_cards)}."
+        return message
 
     def _extract_autofill_vehicle_context(
         self,
@@ -972,6 +1093,10 @@ class AgentRunner:
             "gearbox": str(vehicle_profile.get("gearbox_model", "") or "").strip(),
             "drivetrain": str(vehicle_profile.get("drivetrain", "") or "").strip(),
             "vin": str(vin or "").strip(),
+            "mileage": str(vehicle_profile.get("mileage", "") or repair_order.get("mileage", "") or "").strip(),
+            "oil_engine_capacity_l": vehicle_profile.get("oil_engine_capacity_l"),
+            "oil_gearbox_capacity_l": vehicle_profile.get("oil_gearbox_capacity_l"),
+            "coolant_capacity_l": vehicle_profile.get("coolant_capacity_l"),
         }
 
     def _extract_autofill_mileage(self, *, card: dict[str, Any], repair_order: dict[str, Any], source_text: str) -> str:
@@ -991,6 +1116,26 @@ class AgentRunner:
             if len(matches) >= 2:
                 break
         return matches
+
+    def _extract_existing_ai_notes(self, description_text: str) -> list[str]:
+        notes: list[str] = []
+        inside_ai_block = False
+        for raw_line in str(description_text or "").splitlines():
+            line = " ".join(str(raw_line or "").strip().split())
+            if not line:
+                inside_ai_block = False
+                continue
+            normalized = line.casefold()
+            if normalized in {"ии:", "ai:"}:
+                inside_ai_block = True
+                continue
+            if normalized.startswith("ии:") or normalized.startswith("ai:"):
+                notes.append(line.split(":", 1)[1].strip())
+                inside_ai_block = False
+                continue
+            if inside_ai_block:
+                notes.append(line.lstrip("- ").strip())
+        return [item for item in notes if item]
 
     def _extract_autofill_symptom_query(self, source_text: str) -> str:
         lines: list[str] = []
@@ -1018,7 +1163,7 @@ class AgentRunner:
         return missing
 
     def _autofill_vin_should_run(self, facts: dict[str, Any]) -> bool:
-        return bool(facts["vin"]) and (bool(facts["missing_vehicle_fields"]) or bool(facts.get("force_vin_decode")))
+        return bool(facts["vin"])
 
     def _merge_vehicle_context(self, current: dict[str, Any], decoded: dict[str, Any]) -> dict[str, Any]:
         merged = dict(current)
@@ -1136,6 +1281,7 @@ class AgentRunner:
         card = facts["card"]
         current_description = str(card.get("description", "") or "").strip()
         vehicle_patch = self._autofill_vehicle_patch(facts=facts, decoded_vin=orchestration_results.get("decode_vin"))
+        vehicle_label_patch = self._autofill_vehicle_label_patch(facts=facts, decoded_vin=orchestration_results.get("decode_vin"))
         ai_lines: list[str] = []
         decoded_vin = orchestration_results.get("decode_vin")
         if isinstance(decoded_vin, dict):
@@ -1158,9 +1304,13 @@ class AgentRunner:
                 ai_lines.append("По VIN подтверждено: " + ", ".join(vin_bits) + ".")
         part_lookup = orchestration_results.get("find_part_numbers")
         if isinstance(part_lookup, dict) and facts["part_queries"]:
-            part_numbers = self._summarize_part_numbers(part_lookup)
-            if part_numbers:
-                part_line = f"{facts['part_queries'][0].capitalize()}: OEM/каталожные номера {part_numbers}."
+            primary_part, analog_parts = self._summarize_part_matches(part_lookup)
+            if primary_part:
+                part_line = f"{facts['part_queries'][0].capitalize()}: OEM {primary_part}"
+                if analog_parts:
+                    part_line += f"; аналоги: {analog_parts}."
+                else:
+                    part_line += "."
                 price_lookup = orchestration_results.get("estimate_price_ru")
                 if isinstance(price_lookup, dict):
                     price_line = self._summarize_price_summary(price_lookup)
@@ -1190,6 +1340,13 @@ class AgentRunner:
                 line += f" работы — {works_preview}."
             if materials_preview:
                 line += f" Расходники — {materials_preview}."
+            notes_preview = "; ".join(
+                str(item or "").strip()
+                for item in (maintenance.get("notes") if isinstance(maintenance.get("notes"), list) else [])[:2]
+                if str(item or "").strip()
+            )
+            if notes_preview:
+                line += f" {notes_preview}"
             ai_lines.append(line)
         dtc_result = orchestration_results.get("decode_dtc")
         if isinstance(dtc_result, dict) and facts["dtc_codes"]:
@@ -1201,12 +1358,15 @@ class AgentRunner:
             snippet = self._first_search_snippet(fault_result)
             if snippet:
                 ai_lines.append(f"По симптомам: {snippet}")
+        ai_lines.extend(self._compose_card_autofill_follow_up_lines(facts=facts, orchestration_results=orchestration_results))
         filtered_ai_lines = [line for line in ai_lines if self._line_has_new_information(current_description, line)]
-        if not filtered_ai_lines and not vehicle_patch:
+        if not filtered_ai_lines and not vehicle_patch and not vehicle_label_patch:
             return None, []
         update_args: dict[str, Any] = {"card_id": card_id}
         if filtered_ai_lines:
             update_args["description"] = "ИИ:\n- " + "\n- ".join(filtered_ai_lines)
+        if vehicle_label_patch:
+            update_args["vehicle"] = vehicle_label_patch
         if vehicle_patch:
             update_args["vehicle_profile"] = vehicle_patch
         display_sections: list[dict[str, Any]] = []
@@ -1215,12 +1375,59 @@ class AgentRunner:
                 {
                     "title": "Профиль авто",
                     "body": "",
-                    "items": [f"{key}: {value}" for key, value in vehicle_patch.items() if key in {"make_display", "model_display", "production_year", "engine_model", "gearbox_model", "drivetrain", "vin"}],
+                    "items": [
+                        f"{key}: {value}"
+                        for key, value in vehicle_patch.items()
+                        if key in {"make_display", "model_display", "production_year", "engine_model", "gearbox_model", "drivetrain", "vin"}
+                    ],
+                }
+            )
+        if vehicle_label_patch:
+            display_sections.append({"title": "Обновлен ярлык авто", "body": "", "items": [vehicle_label_patch]})
+        related_cards = facts.get("related_cards") if isinstance(facts.get("related_cards"), list) else []
+        if related_cards:
+            display_sections.append(
+                {
+                    "title": "Контекст доски",
+                    "body": "",
+                    "items": [
+                        " / ".join(part for part in (str(item.get("vehicle", "") or "").strip(), str(item.get("title", "") or "").strip(), str(item.get("column", "") or "").strip()) if part)
+                        for item in related_cards[:3]
+                        if isinstance(item, dict)
+                    ],
                 }
             )
         if filtered_ai_lines:
             display_sections.append({"title": "Добавлено в карточку", "body": "", "items": filtered_ai_lines[:6]})
         return update_args, display_sections
+
+    def _autofill_vehicle_label_patch(self, *, facts: dict[str, Any], decoded_vin: dict[str, Any] | None) -> str:
+        current_vehicle = str(facts["card"].get("vehicle", "") or "").strip()
+        context = facts.get("vehicle_context") if isinstance(facts.get("vehicle_context"), dict) else {}
+        candidate = " ".join(
+            part
+            for part in (
+                str(context.get("make", "") or "").strip(),
+                str(context.get("model", "") or "").strip(),
+                str(context.get("year", "") or "").strip(),
+            )
+            if part
+        ).strip()
+        if not candidate and isinstance(decoded_vin, dict):
+            candidate = " ".join(
+                part
+                for part in (
+                    str(decoded_vin.get("make", "") or "").strip(),
+                    str(decoded_vin.get("model", "") or "").strip(),
+                    str(decoded_vin.get("model_year", "") or "").strip(),
+                )
+                if part
+            ).strip()
+        if not candidate or candidate == current_vehicle:
+            return ""
+        if current_vehicle and candidate.casefold() in current_vehicle.casefold():
+            return ""
+        return candidate
 
     def _autofill_vehicle_patch(self, *, facts: dict[str, Any], decoded_vin: dict[str, Any] | None) -> dict[str, Any]:
         if not isinstance(decoded_vin, dict):
@@ -1295,6 +1502,19 @@ class AgentRunner:
         ]
         return ", ".join(values)
 
+    def _summarize_part_matches(self, payload: dict[str, Any]) -> tuple[str, str]:
+        candidates = payload.get("part_numbers") if isinstance(payload.get("part_numbers"), list) else []
+        values = [
+            str(item.get("value", "") or "").strip()
+            for item in candidates[:3]
+            if isinstance(item, dict) and str(item.get("value", "") or "").strip()
+        ]
+        if not values:
+            return "", ""
+        primary = values[0]
+        analogs = ", ".join(values[1:3])
+        return primary, analogs
+
     def _summarize_price_summary(self, payload: dict[str, Any]) -> str:
         price_summary = payload.get("price_summary") if isinstance(payload.get("price_summary"), dict) else {}
         if not price_summary:
@@ -1323,6 +1543,27 @@ class AgentRunner:
         normalized_current = " ".join(str(current_description or "").split()).casefold()
         normalized_line = " ".join(str(line or "").replace("ИИ:", "").replace("AI:", "").split()).casefold()
         return bool(normalized_line) and normalized_line not in normalized_current
+
+    def _compose_card_autofill_follow_up_lines(
+        self,
+        *,
+        facts: dict[str, Any],
+        orchestration_results: dict[str, Any],
+    ) -> list[str]:
+        lines: list[str] = []
+        if facts["part_queries"] and not isinstance(orchestration_results.get("find_part_numbers"), dict):
+            missing_bits = self._humanize_missing_vehicle_fields(facts["missing_vehicle_fields"])
+            if missing_bits:
+                lines.append(f"Следующему исполнителю: для точного подбора {facts['part_queries'][0]} уточнить {missing_bits}.")
+            elif not facts.get("vin"):
+                lines.append(f"Следующему исполнителю: для точного подбора {facts['part_queries'][0]} нужен VIN или точный номер снятой детали.")
+        if facts["maintenance_needed"] and not facts["mileage"]:
+            lines.append("Следующему исполнителю: уточнить пробег, чтобы подтвердить состав ТО и расходники.")
+        if facts["dtc_codes"] and not isinstance(orchestration_results.get("decode_dtc"), dict):
+            lines.append(f"Следующему исполнителю: повторно проверить код {facts['dtc_codes'][0]} и приложить скрин диагностики.")
+        if facts["symptom_query"] and not isinstance(orchestration_results.get("search_fault_info"), dict) and not facts["waiting_state"]:
+            lines.append("Следующему исполнителю: зафиксировать симптомы точнее — когда проявляется, на холодную или на горячую, под нагрузкой или на месте.")
+        return lines[:2]
 
     def _autofill_result_summary(self, applied_updates: list[str], orchestration_results: dict[str, Any]) -> str:
         if applied_updates:

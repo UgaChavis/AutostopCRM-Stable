@@ -64,6 +64,36 @@ class _FakeBoardApi:
         self.calls.append(("review_board", kwargs))
         return {"ok": True, "data": {"summary": {"active_cards": 1}}, "text": "board summary"}
 
+    def get_board_context(self) -> dict:
+        self.calls.append(("get_board_context", {}))
+        return {"context": {"board_name": "Current AutoStop CRM Board", "active_cards_total": len(self.cards)}}
+
+    def search_cards(self, **kwargs) -> dict:
+        self.calls.append(("search_cards", kwargs))
+        query = str(kwargs.get("query", "") or "").strip().upper()
+        cards: list[dict[str, object]] = []
+        for card_id, card in self.cards.items():
+            haystack = " ".join(
+                [
+                    str(card.get("id", "") or ""),
+                    str(card.get("title", "") or ""),
+                    str(card.get("vehicle", "") or ""),
+                    str(card.get("description", "") or ""),
+                ]
+            ).upper()
+            if query and query not in haystack:
+                continue
+            cards.append(
+                {
+                    "id": card_id,
+                    "vehicle": card.get("vehicle", ""),
+                    "title": card.get("title", ""),
+                    "column": "inbox",
+                    "tags": [],
+                }
+            )
+        return {"cards": cards}
+
     def get_card(self, card_id: str) -> dict:
         self.calls.append(("get_card", {"card_id": card_id}))
         return {"card": dict(self.cards.get(card_id, {"id": card_id, "description": ""}))}
@@ -456,8 +486,9 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertIn("Артикул ABC-123.", update_call[1]["description"])
             self.assertIn("ИИ:", update_call[1]["description"])
             self.assertIn("По VIN подтверждено", update_call[1]["description"])
-            self.assertIn("Радиатор: OEM/каталожные номера 17118625431, AVA BW2285.", update_call[1]["description"])
+            self.assertIn("Радиатор: OEM 17118625431; аналоги: AVA BW2285.", update_call[1]["description"])
             self.assertIn("Ориентир по РФ: 14 500-21 900 ₽ (3 предложений).", update_call[1]["description"])
+            self.assertEqual(update_call[1]["vehicle"], "BMW 320i 2016")
             self.assertIsInstance(update_call[1]["vehicle_profile"], dict)
             self.assertEqual(update_call[1]["vehicle_profile"]["make_display"], "BMW")
 
@@ -503,7 +534,37 @@ class AgentRunnerTests(unittest.TestCase):
             update_call = next(call for call in board_api.calls if call[0] == "update_card")
             self.assertIn("VIN: WBAPF71060A798127", update_call[1]["description"])
             self.assertIn("По VIN подтверждено: BMW, 320i, 2016", update_call[1]["description"])
+            self.assertEqual(update_call[1]["vehicle"], "BMW 320i 2016")
             self.assertEqual(update_call[1]["vehicle_profile"]["production_year"], 2016)
+
+    def test_runner_adds_maintenance_context_with_mileage_and_capacities(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Подготовь полезное ТО по этой карточке.",
+                metadata={
+                    "purpose": "card_autofill",
+                    "trigger": "manual_activate",
+                    "context": {"kind": "card", "card_id": "card-1", "title": "ТО"},
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.autofill.maintenance")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _FakeWrappedBoardApi()
+            board_api.cards["card-1"]["description"] = "Пробег: 120000\nНужно большое ТО с заменой масла."
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=_FakeModelClient([{"type": "final", "summary": "unused", "result": "unused"}]),
+                logger=logger,
+            )
+            runner._tools._automotive = _FakeAutomotiveService()
+            self.assertTrue(runner.run_once())
+            update_call = next(call for call in board_api.calls if call[0] == "update_card")
+            self.assertIn("ТО", update_call[1]["description"])
+            self.assertIn("Расходники", update_call[1]["description"])
 
     def test_runner_merges_card_autofill_description_with_wrapped_get_card_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -764,6 +825,57 @@ class AutomotiveLookupServiceTests(unittest.TestCase):
         self.assertEqual(result["vehicle_context"]["vehicle"], "Mitsubishi L200 2022")
         self.assertTrue(calls)
         self.assertIn("MMCJJKL10NH019836", calls[0])
+
+    def test_search_part_numbers_expands_russian_part_aliases(self) -> None:
+        calls: list[str] = []
+
+        class _RecordingSearch(self._FakeSearch):
+            def search(self, query: str, *, limit: int = 5, allowed_domains: list[str] | None = None) -> list:
+                calls.append(query)
+                return []
+
+        service = AutomotiveLookupService()
+        service._search = _RecordingSearch()
+        result = service.search_part_numbers(
+            vehicle_context={"make": "BMW", "model": "320i", "year": "2016", "vin": "WBAPF71060A798127"},
+            part_query="радиатор",
+            limit=3,
+        )
+        self.assertIn("radiator", " | ".join(calls).lower())
+        self.assertIn("query_variants", result)
+        self.assertIn("radiator", [item.lower() for item in result["query_variants"]])
+
+    def test_search_part_numbers_prefers_plausible_oem_and_filters_catalog_noise(self) -> None:
+        service = AutomotiveLookupService()
+        service._search = self._FakeSearch(
+            search_results=[
+                self._FakeResult(
+                    title="BMW exterior radiator",
+                    url="https://partsouq.com/en/catalog/example-radiator",
+                    snippet="Exterior radiator for BMW 320i",
+                    domain="partsouq.com",
+                )
+            ],
+            excerpts={
+                "https://partsouq.com/en/catalog/example-radiator": {
+                    "url": "https://partsouq.com/en/catalog/example-radiator",
+                    "domain": "partsouq.com",
+                    "excerpt": "OEM 17118625431. Analog BW2285. Exterior radiator. Fits 17-20 model years.",
+                }
+            },
+        )
+        result = service.search_part_numbers(
+            vehicle_context={"make": "BMW", "model": "320i", "year": "2016", "vin": "WBAPF71060A798127"},
+            part_query="radiator",
+            limit=3,
+        )
+        values = [str(item.get("value", "")) for item in result["part_numbers"]]
+        self.assertTrue(values)
+        self.assertEqual(values[0], "17118625431")
+        self.assertIn("BW2285", values)
+        self.assertNotIn("RADIATOR", values)
+        self.assertNotIn("EXTERIOR", values)
+        self.assertNotIn("17-20", values)
 
 
 class AgentApiTests(unittest.TestCase):

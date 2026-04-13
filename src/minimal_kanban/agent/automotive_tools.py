@@ -10,7 +10,7 @@ from .source_registry import PARTS_CATALOG_SOURCES, PARTS_PRICE_SOURCES, trusted
 from .web_tools import DuckDuckGoSearchClient, InternetToolError
 
 
-_PART_NUMBER_PATTERN = re.compile(r"\b(?=[A-Z0-9-]{5,15}\b)(?=.*\d)(?=.*[A-Z])[A-Z0-9-]+\b")
+_PART_NUMBER_PATTERN = re.compile(r"\b[A-Z0-9-]{5,18}\b")
 
 
 _PRICE_PATTERN = re.compile(r"(\d[\d\s]{2,}(?:[.,]\d{1,2})?)\s*(₽|руб(?:\.|лей|ля)?|KZT|₸|\$|€)", re.I)
@@ -19,6 +19,39 @@ _MAINTENANCE_HINTS = ("то", "техобслуж", "техничес", "service
 _BRAKE_HINTS = ("торм", "brake")
 _SUSPENSION_HINTS = ("подвес", "ходов", "suspension")
 _SPARK_HINTS = ("свеч", "spark")
+_PART_NUMBER_STOPWORDS = {
+    "RADIATOR",
+    "EXTERIOR",
+    "INTERIOR",
+    "ENGINE",
+    "FILTER",
+    "COOLANT",
+    "FRONT",
+    "REAR",
+    "RIGHT",
+    "LEFT",
+    "PRICE",
+    "OEM",
+    "PART",
+    "NUMBER",
+    "CATALOG",
+}
+_PART_QUERY_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("радиатор", ("radiator", "coolant radiator")),
+    ("рычаг", ("control arm", "suspension arm")),
+    ("стойка", ("shock absorber", "strut")),
+    ("ступиц", ("wheel bearing", "hub bearing")),
+    ("колодк", ("brake pads",)),
+    ("диск", ("brake disc", "brake rotor")),
+    ("термостат", ("thermostat",)),
+    ("помп", ("water pump",)),
+    ("ремень", ("belt", "serpentine belt")),
+    ("цеп", ("timing chain",)),
+    ("масло", ("engine oil",)),
+    ("фильтр", ("filter", "oil filter")),
+    ("свеч", ("spark plug",)),
+    ("аккумулятор", ("battery",)),
+)
 
 
 class AutomotiveLookupService:
@@ -66,23 +99,26 @@ class AutomotiveLookupService:
     def search_part_numbers(self, *, vehicle_context: dict[str, Any] | None, part_query: str, limit: int = 8) -> dict[str, Any]:
         normalized_query = self._required_query(part_query)
         context = self._normalize_vehicle_context(vehicle_context)
-        queries = [
-            self._build_vehicle_query(context, normalized_query, suffix="OEM part number"),
-            self._build_vehicle_query(context, normalized_query, suffix="catalog"),
-        ]
-        if context.get("vin"):
-            queries.insert(0, f'{context["vin"]} {normalized_query} OEM part number')
+        query_variants = self._expand_part_query_variants(normalized_query)
+        queries: list[str] = []
+        for variant in query_variants[:3]:
+            if context.get("vin"):
+                queries.append(f'{context["vin"]} {variant} OEM part number')
+            queries.append(self._build_vehicle_query(context, variant, suffix="OEM part number"))
+            queries.append(self._build_vehicle_query(context, variant, suffix="catalog"))
         results = self._search_domains(
             queries,
             allowed_domains=trusted_domains(kind="catalog"),
             per_query_limit=max(2, limit),
             total_limit=limit,
         )
+        enriched_results = self._enrich_part_catalog_results(results)
         return {
             "vehicle_context": context,
             "part_query": normalized_query,
-            "results": results,
-            "part_numbers": self._extract_part_numbers_from_results(results),
+            "query_variants": query_variants,
+            "results": enriched_results,
+            "part_numbers": self._extract_part_numbers_from_results(enriched_results),
             "source_group": [item.label for item in PARTS_CATALOG_SOURCES],
         }
 
@@ -165,6 +201,11 @@ class AutomotiveLookupService:
             "Список работ и материалов предварительный.",
             "Для точной цены по материалам используйте lookup_part_prices после уточнения каталожных номеров.",
         ]
+        mileage_text = self._text(context.get("mileage"))
+        try:
+            mileage_value = int(str(mileage_text).replace(" ", "")) if mileage_text else 0
+        except ValueError:
+            mileage_value = 0
         if lower == "то" or self._contains_any(lower, _MAINTENANCE_HINTS):
             self._append_unique_rows(
                 works,
@@ -190,8 +231,27 @@ class AutomotiveLookupService:
         if self._contains_any(lower, _SPARK_HINTS):
             self._append_unique_rows(materials, [{"name": "Комплект свечей зажигания", "quantity": "1"}])
             self._append_unique_rows(works, [{"name": "Замена свечей зажигания", "quantity": "1"}])
+        if mileage_value >= 60_000:
+            self._append_unique_rows(materials, [{"name": "Тормозная жидкость", "quantity": "1"}, {"name": "Свечи зажигания", "quantity": "1 комплект"}])
+            self._append_unique_rows(works, [{"name": "Проверка свечей зажигания и катушек", "quantity": "1"}])
+        if mileage_value >= 90_000:
+            self._append_unique_rows(materials, [{"name": "Антифриз", "quantity": "по объему"}, {"name": "Ремень навесного оборудования", "quantity": "1"}])
+            self._append_unique_rows(works, [{"name": "Проверка приводного ремня и роликов", "quantity": "1"}])
+        if mileage_value >= 120_000:
+            self._append_unique_rows(works, [{"name": "Проверка масла АКПП/МКПП", "quantity": "1"}])
         if context.get("vin"):
             notes.append("VIN доступен: можно выполнить точный подбор расходников и каталожных номеров.")
+        if mileage_text:
+            notes.append(f"Пробег в карточке: {mileage_text} км.")
+        engine_oil_capacity = self._text(context.get("oil_engine_capacity_l"))
+        if engine_oil_capacity:
+            notes.append(f"Объем моторного масла: {engine_oil_capacity} л.")
+        gearbox_oil_capacity = self._text(context.get("oil_gearbox_capacity_l"))
+        if gearbox_oil_capacity:
+            notes.append(f"Объем масла КПП: {gearbox_oil_capacity} л.")
+        coolant_capacity = self._text(context.get("coolant_capacity_l"))
+        if coolant_capacity:
+            notes.append(f"Объем охлаждающей жидкости: {coolant_capacity} л.")
         return {
             "vehicle_context": context,
             "service_type": normalized_service,
@@ -273,6 +333,10 @@ class AutomotiveLookupService:
             "engine": self._text(payload.get("engine") or payload.get("engine_model")),
             "vin": self._text(payload.get("vin")),
             "vehicle": vehicle,
+            "mileage": self._text(payload.get("mileage")),
+            "oil_engine_capacity_l": self._text(payload.get("oil_engine_capacity_l")),
+            "oil_gearbox_capacity_l": self._text(payload.get("oil_gearbox_capacity_l")),
+            "coolant_capacity_l": self._text(payload.get("coolant_capacity_l")),
         }
 
     def _build_vehicle_query(self, context: dict[str, Any], item_query: str, *, suffix: str = "") -> str:
@@ -285,6 +349,18 @@ class AutomotiveLookupService:
             suffix,
         ]
         return " ".join(part for part in parts if part).strip()
+
+    def _expand_part_query_variants(self, part_query: str) -> list[str]:
+        normalized = str(part_query or "").strip()
+        lower = normalized.casefold()
+        variants = [normalized]
+        for token, aliases in _PART_QUERY_ALIASES:
+            if token not in lower:
+                continue
+            for alias in aliases:
+                if alias not in variants:
+                    variants.append(alias)
+        return variants[:4]
 
     def _search_domains(
         self,
@@ -299,17 +375,23 @@ class AutomotiveLookupService:
         for query in queries:
             if not query:
                 continue
-            try:
-                batch = self._search.search(query, limit=per_query_limit, allowed_domains=allowed_domains)
-            except InternetToolError:
-                continue
-            for result in batch:
-                if result.url in seen_urls:
+            query_variants = [query]
+            for domain in allowed_domains[:2]:
+                query_variants.append(f"site:{domain} {query}")
+            for query_variant in query_variants:
+                try:
+                    batch = self._search.search(query_variant, limit=per_query_limit, allowed_domains=allowed_domains)
+                except InternetToolError:
                     continue
-                seen_urls.add(result.url)
-                items.append(result.to_dict())
-                if len(items) >= total_limit:
-                    return items
+                for result in batch:
+                    if result.url in seen_urls:
+                        continue
+                    seen_urls.add(result.url)
+                    items.append(result.to_dict())
+                    if len(items) >= total_limit:
+                        return items
+                if batch:
+                    break
         return items
 
     def _extract_prices(self, text: str) -> list[dict[str, str]]:
@@ -324,7 +406,7 @@ class AutomotiveLookupService:
         return prices[:5]
 
     def _extract_part_numbers_from_results(self, results: list[dict[str, Any]]) -> list[dict[str, str]]:
-        candidates: list[dict[str, str]] = []
+        candidates: list[dict[str, Any]] = []
         seen: set[str] = set()
         for item in results:
             if not isinstance(item, dict):
@@ -347,20 +429,57 @@ class AutomotiveLookupService:
                         "value": value,
                         "domain": str(item.get("domain", "") or "").strip(),
                         "url": str(item.get("url", "") or "").strip(),
+                        "_score": self._part_number_score(value),
                     }
                 )
-                if len(candidates) >= 6:
-                    return candidates
-        return candidates
+        candidates.sort(
+            key=lambda item: (
+                int(item.get("_score", 0) or 0),
+                len(str(item.get("value", "") or "")),
+            ),
+            reverse=True,
+        )
+        return [
+            {
+                "value": str(item.get("value", "") or ""),
+                "domain": str(item.get("domain", "") or ""),
+                "url": str(item.get("url", "") or ""),
+            }
+            for item in candidates[:6]
+        ]
+
+    def _enrich_part_catalog_results(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        enriched: list[dict[str, Any]] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            updated = dict(item)
+            existing_text = " ".join(
+                str(part or "")
+                for part in (
+                    updated.get("title"),
+                    updated.get("snippet"),
+                    updated.get("page_excerpt"),
+                )
+            )
+            if self._extract_part_numbers(existing_text):
+                enriched.append(updated)
+                continue
+            try:
+                excerpt_payload = self._search.fetch_page_excerpt(str(updated.get("url", "") or ""), max_chars=1800)
+            except InternetToolError:
+                enriched.append(updated)
+                continue
+            updated["page_excerpt"] = str(excerpt_payload.get("excerpt", "") or "")[:600]
+            enriched.append(updated)
+        return enriched
 
     def _extract_part_numbers(self, text: str) -> list[str]:
         values: list[str] = []
         seen: set[str] = set()
         for raw in _PART_NUMBER_PATTERN.findall(str(text or "").upper()):
             candidate = str(raw or "").strip("- ")
-            if len(candidate) < 5 or len(candidate) > 15:
-                continue
-            if candidate.isdigit() or len(candidate) == 17:
+            if not self._is_plausible_part_number(candidate):
                 continue
             key = candidate.casefold()
             if key in seen:
@@ -368,6 +487,45 @@ class AutomotiveLookupService:
             seen.add(key)
             values.append(candidate)
         return values
+
+    def _is_plausible_part_number(self, candidate: str) -> bool:
+        value = str(candidate or "").strip().upper()
+        if len(value) < 5 or len(value) > 18:
+            return False
+        if len(value) == 17:
+            return False
+        if value in _PART_NUMBER_STOPWORDS:
+            return False
+        if re.fullmatch(r"(?:19|20)\d{2}", value):
+            return False
+        if re.fullmatch(r"\d{1,2}-\d{1,2}", value):
+            return False
+        letters = sum(1 for char in value if "A" <= char <= "Z")
+        digits = sum(1 for char in value if char.isdigit())
+        if digits == 0:
+            return False
+        if letters == 0:
+            return 8 <= len(value) <= 15
+        if digits < 3:
+            return False
+        if len(value) <= 6 and digits <= 2:
+            return False
+        return True
+
+    def _part_number_score(self, value: str) -> int:
+        candidate = str(value or "").strip().upper()
+        letters = sum(1 for char in candidate if "A" <= char <= "Z")
+        digits = sum(1 for char in candidate if char.isdigit())
+        hyphens = candidate.count("-")
+        if letters == 0 and 8 <= len(candidate) <= 15:
+            return 100
+        if digits >= 6 and letters >= 1:
+            return 90 - hyphens
+        if digits >= 4 and letters >= 1:
+            return 75 - hyphens
+        if digits >= 3:
+            return 60 - hyphens
+        return 10
 
     def _summarize_price_results(self, results: list[dict[str, Any]]) -> dict[str, int] | None:
         amounts: list[int] = []

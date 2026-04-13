@@ -3,27 +3,48 @@
 Current card autofill is not a free-form browser agent. It is a small deterministic orchestration pipeline.
 
 ## Pipeline
-1. `card analyzer`
+1. `context builder`
    Reads `get_card_context(card_id)`.
-   Extracts VIN, complaint, mileage, DTC, likely parts, waiting state, known vehicle facts, missing vehicle fields.
-2. `scenario selector`
-   Decides which scenarios are relevant:
-   - VIN decode
+   Collects:
+   - card fields
+   - description
+   - vehicle
+   - vehicle_profile
+   - recent events
+   - previous AI notes
+   - AI log tail
+   - a short related-card slice from `search_cards()` when VIN or stable vehicle context justifies it
+2. `card analyzer`
+   Extracts:
+   - VIN
+   - complaint
+   - mileage
+   - DTC
+   - likely parts
+   - waiting state
+   - known vehicle facts
+   - missing vehicle fields
+   - likely maintenance cues
+3. `scenario selector`
+   Chooses one or more scenarios:
+   - VIN enrichment
    - part lookup
-   - maintenance estimate
+   - maintenance lookup
    - DTC decode
-   - symptom fault search
-3. `tool router`
-   Calls only the bounded external tools needed for the detected scenario.
-4. `result normalizer`
-   Converts raw external results into short Russian operational notes.
-5. `card writer`
+   - fault research
+   - normalization
+4. `tool router`
+   Calls only the bounded external tools needed for the selected scenarios, under a small per-run budget.
+5. `result normalizer`
+   Converts raw external results into short Russian operational notes and compact vehicle-profile patches.
+6. `card writer`
    Applies safe `update_card()` changes:
    - keeps original text
    - appends only net-new `ИИ:` notes
    - patches `vehicle_profile` only where fields are missing
-6. `follow-up controller`
-   Schedules the next check, skips unchanged cards, stops after the 4-hour window or the run limit.
+   - may improve top-level `vehicle` label when new facts are strong enough
+7. `follow-up controller`
+   Schedules the next check, skips unchanged cards, blocks duplicate active runs, and stops after the 4-hour window or the run limit.
 
 ## External Tools
 - `decode_vin(vin)`
@@ -44,22 +65,26 @@ Current card autofill is not a free-form browser agent. It is a small determinis
 - Add only net-new short lines.
 - Prefix AI additions with `ИИ:`.
 - If certainty is low, write a short follow-up note for the next executor instead of fabricating facts.
+- Reuse already confirmed `vehicle_profile` facts when building later searches.
+- If a concrete part is found, prefer one compact line with OEM, analogs, and price orientation instead of a long paragraph.
 
 ## Scenario Rules
 
 ### VIN
-- Trigger when VIN exists and some vehicle fields are missing.
-- Also trigger when the task text or mini-prompt explicitly asks to decode or confirm VIN.
-- Fill only missing `vehicle_profile` fields.
+- Trigger whenever VIN exists.
+- Run before other external scenarios.
+- Fill only missing `vehicle_profile` fields, but reuse VIN facts to improve part, maintenance, and fault lookups.
 
 ### Parts
 - Trigger when the description implies a concrete part such as radiator, control arm, strut, bearing, pads, thermostat, pump, belt, chain, filters, plugs, battery.
+- Expand common Russian part names into better search variants before external lookup.
 - Add OEM or catalog numbers if found.
-- Add Russian price orientation if a good part number was found.
+- Add Russian price orientation only if a good part number was found.
 
-### ТО
-- Trigger only on real maintenance cues, not on accidental `то` substrings.
+### Maintenance
+- Trigger only on real maintenance cues, not on accidental substrings.
 - Build a compact preliminary list of works and consumables.
+- Include mileage-sensitive notes and known fluid capacities when present.
 
 ### DTC
 - Decode the first detected DTC first.
@@ -77,6 +102,7 @@ Current card autofill is not a free-form browser agent. It is a small determinis
   - waiting state -> slower revisit
 - Duplicate active processing for the same card is blocked.
 - Old AI runs do not endlessly retrigger themselves.
+- A board-context slice may be loaded again only when the card changed meaningfully.
 
 ## Operator Prompt Rules
 - Mini-prompt influences scenario selection.
