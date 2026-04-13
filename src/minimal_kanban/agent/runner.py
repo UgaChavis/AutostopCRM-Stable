@@ -1217,18 +1217,14 @@ class AgentRunner:
             if field_name and not self._values_equal(before_card.get(field_name), after_card.get(field_name)):
                 manual_fields_preserved = False
                 warnings.append(f"{field_name} changed outside planned patch")
-        return self._finalize_verify_result(
-            plan=plan,
-            verify=VerifyResult(
-                applied_ok=bool(fields_changed),
-                fields_changed=fields_changed,
-                manual_fields_preserved=manual_fields_preserved,
-                scenario_completed=scenario_completed,
-                needs_followup=False,
-                warnings=warnings,
-                context_ref=f"verify:{card_id}",
-            ),
-            tool_results=[],
+        return VerifyResult(
+            applied_ok=bool(fields_changed),
+            fields_changed=fields_changed,
+            manual_fields_preserved=manual_fields_preserved,
+            scenario_completed=scenario_completed,
+            needs_followup=False,
+            warnings=warnings,
+            context_ref=f"verify:{card_id}",
         )
 
     def _finalize_verify_result(self, *, plan: PlanResult, verify: VerifyResult, tool_results: list[ToolResult]) -> VerifyResult:

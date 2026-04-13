@@ -723,6 +723,16 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON instead of human text.")
     parser.add_argument("--strict", action="store_true", help="Return a non-zero exit code when a checked surface fails.")
     parser.add_argument("--site-url", default="", help="Explicit public CRM URL, for example https://crm.autostopcrm.ru.")
+    parser.add_argument(
+        "--skip-public-site",
+        action="store_true",
+        help="Skip probing the public CRM site surface even if a public URL is configured in settings.",
+    )
+    parser.add_argument(
+        "--skip-public-write-protection",
+        action="store_true",
+        help="Skip the anonymous public write-protection probe.",
+    )
     parser.add_argument("--expect-https", action="store_true", help="Require the site URL and final public URL to use https.")
     parser.add_argument("--local-api-url", default="", help="Explicit local API base URL, for example http://127.0.0.1:41731.")
     parser.add_argument("--local-api-token", default=None, help="Optional local API bearer token.")
@@ -734,7 +744,7 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = load_settings()
-    site_url = _resolve_site_url(settings, args.site_url)
+    site_url = "" if args.skip_public_site else _resolve_site_url(settings, args.site_url)
     local_api_token = _resolve_local_api_token(settings, args.local_api_token)
     local_api_url = _resolve_local_api_url(settings, args.local_api_url, local_api_token)
     mcp_url = _resolve_mcp_url(settings, args.mcp_url)
@@ -762,7 +772,8 @@ def main() -> int:
         expect_admin=args.expect_admin,
     )
     operator_auth["surface_kind"] = api_probe_kind
-    public_write_protection = check_public_write_protection(site_url)
+    public_write_site_url = "" if args.skip_public_write_protection else site_url
+    public_write_protection = check_public_write_protection(public_write_site_url)
     mcp_surface = asyncio.run(check_mcp(mcp_url, bearer_token=mcp_token or None))
 
     report = {

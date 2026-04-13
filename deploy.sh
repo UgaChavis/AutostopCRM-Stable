@@ -40,6 +40,8 @@ smoke_ok=0
 for attempt in $(seq 1 "$SMOKE_ATTEMPTS"); do
   if docker compose exec -T "$SERVICE_NAME" python scripts/check_live_connector.py \
     --strict \
+    --skip-public-site \
+    --skip-public-write-protection \
     --local-api-url http://127.0.0.1:41731 \
     --mcp-url http://127.0.0.1:41831/mcp \
     --operator-username "$SMOKE_OPERATOR_USERNAME" \

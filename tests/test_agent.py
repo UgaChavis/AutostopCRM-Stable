@@ -167,6 +167,42 @@ class _FakeWrappedBoardApi(_FakeBoardApi):
         return {"ok": True, "data": raw}
 
 
+class _ConsistentWrappedBoardApi(_FakeWrappedBoardApi):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cards["card-1"].update(
+            {
+                "vehicle": "BMW 320I",
+                "tags": [],
+                "vehicle_profile": {"vin": "WBAPF71060A798127"},
+                "repair_order": {"number": "", "status": "open", "works": [], "materials": [], "vin": ""},
+            }
+        )
+
+    def get_card_context(self, card_id: str, **kwargs) -> dict:
+        self.calls.append(("get_card_context", {"card_id": card_id, **kwargs}))
+        card = dict(self.cards.get(card_id, {"id": card_id, "description": ""}))
+        vehicle_profile = dict(card.get("vehicle_profile") or {})
+        repair_order = dict(card.get("repair_order") or {"number": "", "status": "open", "works": [], "materials": [], "vin": ""})
+        return {
+            "ok": True,
+            "data": {
+                "card": {
+                    **card,
+                    "vehicle": str(card.get("vehicle", "") or ""),
+                    "title": str(card.get("title", "") or ""),
+                    "column": "inbox",
+                    "tags": list(card.get("tags") or []),
+                    "ai_autofill_prompt": "",
+                    "ai_autofill_log": [],
+                    "vehicle_profile": vehicle_profile,
+                    "repair_order": repair_order,
+                },
+                "events": [{"action": "card_created"}],
+            },
+        }
+
+
 class _FakeAutomotiveService:
     def decode_vin(self, vin: str) -> dict:
         return {
@@ -622,6 +658,51 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertIn("Policy gate", model.calls[1]["messages"][-1]["content"])
             run = storage.list_runs(limit=1)[0]
             self.assertIn("decode_vin", run["orchestration"]["plan"]["required_tools"])
+
+    def test_runner_verify_uses_completed_tool_results_for_required_tool_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Расшифруй VIN по этой карточке и внеси подтвержденные данные.",
+                metadata={"context": {"kind": "card", "card_id": "card-1", "title": "Диагностика"}},
+            )
+            logger = logging.getLogger("test.agent.runner.verify.required")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _ConsistentWrappedBoardApi()
+            model = _FakeModelClient(
+                [
+                    {"type": "tool", "tool": "decode_vin", "args": {"vin": "WBAPF71060A798127"}, "reason": "Need VIN facts"},
+                    {
+                        "type": "final",
+                        "summary": "VIN decoded",
+                        "result": "Applied VIN data.",
+                        "apply": {
+                            "type": "update_card",
+                            "card_id": "card-1",
+                            "payload": {
+                                "description": "ИИ: VIN подтвержден.",
+                                "vehicle_profile": {"vin": "WBAPF71060A798127"},
+                            },
+                        },
+                    },
+                ]
+            )
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=model,
+                logger=logger,
+            )
+            runner._tools._automotive = _FakeAutomotiveService()
+            self.assertTrue(runner.run_once())
+            run = storage.list_runs(limit=1)[0]
+            verify = run["orchestration"]["verify"]
+            self.assertTrue(verify["applied_ok"])
+            self.assertTrue(verify["scenario_completed"])
+            self.assertFalse(verify["needs_followup"])
+            self.assertNotIn("missing required tools: decode_vin", verify["warnings"])
 
     def test_runner_persists_structured_display_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
