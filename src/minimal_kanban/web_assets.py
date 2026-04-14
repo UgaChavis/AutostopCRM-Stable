@@ -3759,8 +3759,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 12px;
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      gap: 14px;
       align-items: start;
     }
     .employees-pane {
@@ -3771,6 +3771,8 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-pane--list {
       align-content: start;
       align-self: start;
+      position: sticky;
+      top: 0;
     }
     .employees-list-tools {
       display: grid;
@@ -3809,7 +3811,7 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-list {
       display: grid;
       gap: 6px;
-      max-height: 448px;
+      max-height: min(68vh, 640px);
       overflow: auto;
       padding-right: 4px;
     }
@@ -3877,11 +3879,35 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-card-head {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .employees-card-head-main {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .employees-card-title {
+      display: grid;
+      gap: 4px;
+    }
+    .employees-card-title strong {
+      font-size: 18px;
+      line-height: 1.1;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+    .employees-card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
     }
     .employees-card-mode {
       font-size: 11px;
@@ -3979,7 +4005,7 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-summary-strip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 6px;
+      gap: 8px;
       margin-top: 10px;
     }
     .employees-summary-strip:empty {
@@ -3988,9 +4014,14 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-kpi {
       display: grid;
       gap: 3px;
-      padding: 7px 9px;
+      padding: 9px 10px;
       border: 1px solid rgba(164, 173, 138, 0.12);
       background: rgba(18, 24, 20, 0.44);
+    }
+    .employees-kpi--accent {
+      background: rgba(182, 177, 116, 0.09);
+      border-color: rgba(182, 177, 116, 0.26);
+      box-shadow: inset 0 0 0 1px rgba(182, 177, 116, 0.08);
     }
     .employees-kpi__label {
       font-size: 10px;
@@ -4002,6 +4033,34 @@ BOARD_WEB_APP_HTML = "".join(
       font-size: 14px;
       font-weight: 700;
       line-height: 1.2;
+    }
+    .employees-kpi--accent .employees-kpi__value {
+      font-size: 19px;
+    }
+    .employees-report-shell {
+      display: grid;
+      gap: 10px;
+    }
+    .employees-report-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .employees-report-tabs .btn {
+      min-height: 30px;
+      padding: 6px 10px;
+      font-size: 10.5px;
+    }
+    .employees-report-tabs .btn.is-active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(182, 177, 116, 0.08);
+    }
+    .employees-report-panel {
+      display: none;
+    }
+    .employees-report-panel.is-active {
+      display: block;
     }
     .employees-table-wrap {
       overflow: auto;
@@ -4046,6 +4105,23 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-table th.is-num {
       text-align: right;
       white-space: nowrap;
+    }
+    @media (max-width: 1160px) {
+      .employees-layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .employees-pane--list {
+        position: static;
+      }
+    }
+    @media (max-width: 760px) {
+      .employees-summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .employees-card-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
     }
     .repair-order-table__select {
       width: 100%;
@@ -4749,6 +4825,7 @@ BOARD_WEB_APP_HTML = "".join(
       employees: [],
       activeEmployeeId: '',
       employeeCreateMode: false,
+      employeesReportTab: 'summary',
       employeesQuery: '',
       employeesVisibilityFilter: 'active',
       employeeFormBaseline: null,
@@ -5038,7 +5115,17 @@ BOARD_WEB_APP_HTML = "".join(
                 + '</div>'
                 + '<div class="employees-pane">'
                   + '<div class="subpanel">'
-                    + '<div class="employees-card-head"><div class="panel-title">ПРОФИЛЬ</div><div class="employees-card-mode" id="employeesCardMode">НОВЫЙ СОТРУДНИК</div></div>'
+                    + '<div class="employees-card-head">'
+                      + '<div class="employees-card-head-main">'
+                        + '<div class="panel-title">ПРОФИЛЬ</div>'
+                        + '<div class="employees-card-title"><strong id="employeesCardMode">НОВЫЙ СОТРУДНИК</strong><div class="employees-profile-meta" id="employeesMeta">НОВЫЙ СОТРУДНИК</div></div>'
+                      + '</div>'
+                      + '<div class="employees-card-actions">'
+                        + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">НОВЫЙ</button>'
+                        + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
+                        + '<button class="btn btn--ghost" id="employeeDeleteButton" type="button">УДАЛИТЬ</button>'
+                      + '</div>'
+                    + '</div>'
                     + '<div class="employees-form-grid">'
                       + '<div class="field employees-field--span-6"><label for="employeeNameInput">ИМЯ</label><input id="employeeNameInput" type="text" maxlength="80"></div>'
                       + '<div class="field employees-field--span-6"><label for="employeePositionInput">ДОЛЖНОСТЬ</label><input id="employeePositionInput" type="text" maxlength="80"></div>'
@@ -5048,23 +5135,18 @@ BOARD_WEB_APP_HTML = "".join(
                       + '<label class="employees-check employees-field--span-2 employees-field--active"><input id="employeeActiveInput" type="checkbox" checked> АКТИВЕН</label>'
                     + '</div>'
                     + '<details class="employees-note-details" id="employeeNoteDetails"><summary>ЗАМЕТКА</summary><div class="field field--secondary"><input id="employeeNoteInput" type="text" maxlength="240"></div></details>'
-                    + '<div class="employees-actions" style="margin-top:12px;">'
-                      + '<div class="employees-profile-meta" id="employeesMeta">НОВЫЙ СОТРУДНИК</div>'
-                      + '<div style="display:flex; gap:8px;">'
-                        + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">НОВЫЙ</button>'
-                        + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
-                        + '<button class="btn btn--ghost" id="employeeDeleteButton" type="button">УДАЛИТЬ</button>'
-                      + '</div>'
-                    + '</div>'
                     + '<div class="employees-summary-strip" id="employeesSummaryStrip"></div>'
                   + '</div>'
                   + '<div class="subpanel">'
-                    + '<div class="employees-panel-head"><div class="panel-title">НАЧИСЛЕНИЯ</div><div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><div class="employees-report-meta" id="employeesReportMeta">0 СТРОК</div><input class="repair-orders-search" id="employeesMonthInput" type="month"></div></div>'
-                    + '<div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>СОТРУДНИК</th><th>ДОЛЖНОСТЬ</th><th class="is-num">КОЛ-ВО</th><th class="is-num">НАЧИСЛЕНО %</th><th class="is-num">ОКЛАД</th><th class="is-num">ИТОГ</th></tr></thead><tbody id="employeesSummaryTable"></tbody></table></div>'
-                  + '</div>'
-                  + '<div class="subpanel">'
-                    + '<div class="panel-title">СТРОКИ СОТРУДНИКА</div>'
-                    + '<div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>ДАТА</th><th>НАРЯД</th><th>АВТО</th><th>РАБОТА</th><th class="is-num">СУММА</th><th class="is-num">НАЧИСЛЕНО</th></tr></thead><tbody id="employeesDetailTable"></tbody></table></div>'
+                    + '<div class="employees-panel-head"><div class="panel-title">ОТЧЁТ ПО СОТРУДНИКУ</div><div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><div class="employees-report-meta" id="employeesReportMeta">0 СТРОК</div><input class="repair-orders-search" id="employeesMonthInput" type="month"></div></div>'
+                    + '<div class="employees-report-shell">'
+                      + '<div class="employees-report-tabs" id="employeesReportTabs">'
+                        + '<button class="btn is-active" type="button" data-employees-report-tab="summary">СВОДКА</button>'
+                        + '<button class="btn btn--ghost" type="button" data-employees-report-tab="details">СТРОКИ</button>'
+                      + '</div>'
+                      + '<div class="employees-report-panel is-active" id="employeesSummaryPanel"><div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>СОТРУДНИК</th><th>ДОЛЖНОСТЬ</th><th class="is-num">КОЛ-ВО</th><th class="is-num">НАЧИСЛЕНО %</th><th class="is-num">ОКЛАД</th><th class="is-num">ИТОГ</th></tr></thead><tbody id="employeesSummaryTable"></tbody></table></div></div>'
+                      + '<div class="employees-report-panel" id="employeesDetailsPanel"><div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>ДАТА</th><th>НАРЯД</th><th>АВТО</th><th>РАБОТА</th><th class="is-num">СУММА</th><th class="is-num">НАЧИСЛЕНО</th></tr></thead><tbody id="employeesDetailTable"></tbody></table></div></div>'
+                    + '</div>'
                   + '</div>'
                 + '</div>'
               + '</div>'
@@ -5132,6 +5214,9 @@ BOARD_WEB_APP_HTML = "".join(
       employeesSearchInput: document.getElementById('employeesSearchInput'),
       employeesVisibilityFilters: document.getElementById('employeesVisibilityFilters'),
       employeesListMeta: document.getElementById('employeesListMeta'),
+      employeesReportTabs: document.getElementById('employeesReportTabs'),
+      employeesSummaryPanel: document.getElementById('employeesSummaryPanel'),
+      employeesDetailsPanel: document.getElementById('employeesDetailsPanel'),
       employeesMonthInput: document.getElementById('employeesMonthInput'),
       employeesMeta: document.getElementById('employeesMeta'),
       employeesReportMeta: document.getElementById('employeesReportMeta'),
@@ -5293,6 +5378,9 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeesSearchInput = document.getElementById('employeesSearchInput');
       els.employeesVisibilityFilters = document.getElementById('employeesVisibilityFilters');
       els.employeesListMeta = document.getElementById('employeesListMeta');
+      els.employeesReportTabs = document.getElementById('employeesReportTabs');
+      els.employeesSummaryPanel = document.getElementById('employeesSummaryPanel');
+      els.employeesDetailsPanel = document.getElementById('employeesDetailsPanel');
       els.employeesMonthInput = document.getElementById('employeesMonthInput');
       els.employeesMeta = document.getElementById('employeesMeta');
       els.employeesReportMeta = document.getElementById('employeesReportMeta');
@@ -5429,6 +5517,7 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeDeleteButton?.addEventListener('click', deleteEmployee);
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
       els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
+      els.employeesReportTabs?.addEventListener('click', handleEmployeesReportTabClick);
       els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);
       els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);
       els.employeesList?.addEventListener('click', handleEmployeesListClick);
@@ -6010,6 +6099,24 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeesMeta.textContent = parts.join(' · ');
     }
 
+    function normalizeEmployeesReportTab(value) {
+      return String(value || '').trim() === 'details' ? 'details' : 'summary';
+    }
+
+    function syncEmployeesReportTabUi() {
+      const activeTab = normalizeEmployeesReportTab(state.employeesReportTab);
+      if (els.employeesReportTabs) {
+        els.employeesReportTabs.querySelectorAll('[data-employees-report-tab]').forEach((button) => {
+          if (!(button instanceof HTMLElement)) return;
+          const isActive = String(button.dataset.employeesReportTab || '') === activeTab;
+          button.classList.toggle('is-active', isActive);
+          button.classList.toggle('btn--ghost', !isActive);
+        });
+      }
+      els.employeesSummaryPanel?.classList.toggle('is-active', activeTab === 'summary');
+      els.employeesDetailsPanel?.classList.toggle('is-active', activeTab === 'details');
+    }
+
     function syncEmployeeSalaryModeUi() {
       const mode = String(els.employeeSalaryModeInput?.value || 'salary_plus_percent').trim();
       const salaryDisabled = mode === 'percent_only';
@@ -6069,7 +6176,7 @@ BOARD_WEB_APP_HTML = "".join(
         if (!employees.length) {
           els.employeesListMeta.textContent = 'СПИСОК ПУСТ';
         } else {
-          els.employeesListMeta.textContent = 'ПОКАЗАНО ' + visibleEmployees.length + ' / ' + employees.length;
+          els.employeesListMeta.textContent = 'ПОКАЗАНО ' + visibleEmployees.length + ' / ' + employees.length + ' · ЛИМИТ 15';
         }
       }
       if (!els.employeesList) return;
@@ -6082,7 +6189,7 @@ BOARD_WEB_APP_HTML = "".join(
         return;
       }
       els.employeesList.innerHTML = visibleEmployees.map((employee) => {
-        const isActive = employee.id === state.activeEmployeeId;
+        const isActive = !state.employeeCreateMode && employee.id === state.activeEmployeeId;
         const modeLabel = employeeSalaryModeLabel(employee.salary_mode);
         const comp = [
           employee.base_salary ? ('Оклад ' + employee.base_salary) : '',
@@ -6131,11 +6238,11 @@ BOARD_WEB_APP_HTML = "".join(
       const kpis = [
         { label: 'ОКЛАД', value: selectedSummary?.base_salary || selectedEmployee.base_salary || '0' },
         { label: '%', value: selectedEmployee.work_percent || '0' },
-        { label: 'КОЛ-ВО', value: selectedSummary?.works_count || '0' },
-        { label: 'ИТОГ', value: selectedSummary?.total_salary || '0' },
+        { label: 'РАБОТ', value: selectedSummary?.works_count || '0' },
+        { label: 'ИТОГ', value: selectedSummary?.total_salary || '0', accent: true },
       ];
       els.employeesSummaryStrip.innerHTML = kpis.map((item) => (
-        '<div class="employees-kpi"><div class="employees-kpi__label">' + escapeHtml(item.label) + '</div><div class="employees-kpi__value">' + escapeHtml(item.value) + '</div></div>'
+        '<div class="employees-kpi' + (item.accent ? ' employees-kpi--accent' : '') + '"><div class="employees-kpi__label">' + escapeHtml(item.label) + '</div><div class="employees-kpi__value">' + escapeHtml(item.value) + '</div></div>'
       )).join('');
     }
 
@@ -6182,6 +6289,7 @@ BOARD_WEB_APP_HTML = "".join(
       renderEmployeesSummary();
       renderEmployeesSummaryStrip();
       renderEmployeesDetails();
+      syncEmployeesReportTabUi();
       const summaryRows = Array.isArray(state.payrollReport?.summary) ? state.payrollReport.summary : [];
       const detailRows = Array.isArray(state.payrollReport?.detail_rows) ? state.payrollReport.detail_rows : [];
       renderEmployeeProfileMeta();
@@ -6331,6 +6439,15 @@ BOARD_WEB_APP_HTML = "".join(
       if (!(button instanceof HTMLElement)) return;
       state.employeesVisibilityFilter = normalizeEmployeesVisibilityFilter(button.dataset.filter);
       renderEmployeesList();
+    }
+
+    function handleEmployeesReportTabClick(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-employees-report-tab]');
+      if (!(button instanceof HTMLElement)) return;
+      state.employeesReportTab = normalizeEmployeesReportTab(button.dataset.employeesReportTab);
+      syncEmployeesReportTabUi();
     }
 
     function handleEmployeesModalFormInput(event) {
