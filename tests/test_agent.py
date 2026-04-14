@@ -18,7 +18,7 @@ if str(SRC) not in sys.path:
 
 from minimal_kanban.agent.control import AgentControlService
 from minimal_kanban.agent.automotive_tools import AutomotiveLookupService
-from minimal_kanban.agent.contracts import ToolResult, VerifyResult
+from minimal_kanban.agent.contracts import PatchResult, ToolResult, VerifyResult
 from minimal_kanban.agent.instructions import build_default_system_prompt
 from minimal_kanban.agent.runner import AgentRunner
 from minimal_kanban.agent.storage import AgentStorage
@@ -869,6 +869,60 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertTrue(final.scenario_completed)
         self.assertFalse(final.manual_fields_preserved)
         self.assertFalse(final.needs_followup)
+
+    def test_verify_contract_write_requires_full_patch_match_for_confirmed_success(self) -> None:
+        runner = AgentRunner(
+            storage=AgentStorage(base_dir=Path(tempfile.mkdtemp())),
+            board_api=_FakeBoardApi(),
+            model_client=_FakeModelClient([]),
+            logger=logging.getLogger("test.agent.runner.verify.partial_patch"),
+        )
+        plan = runner._policy.build_plan(
+            scenario_chain=["vin_enrichment"],
+            execution_mode="structured_card",
+            followup_enabled=True,
+        )
+        before_state = {
+            "card": {
+                "id": "card-1",
+                "description": "Исходный текст карточки.",
+                "title": "Черновик",
+                "vehicle": "BMW 320I",
+                "tags": [],
+                "vehicle_profile": {},
+            }
+        }
+        after_state = {
+            "card": {
+                "id": "card-1",
+                "description": "Исходный текст карточки.\nИИ: VIN подтвержден.",
+                "title": "Черновик",
+                "vehicle": "BMW 320I",
+                "tags": [],
+                "vehicle_profile": {},
+            }
+        }
+        patch = runner._policy.filter_patch(
+            plan,
+            PatchResult(
+                card_patch={
+                    "description": "Исходный текст карточки.\nИИ: VIN подтвержден.",
+                    "vehicle_profile": {"vin": "WBAPF71060A798127"},
+                }
+            ),
+        )
+        with mock.patch.object(runner, "_read_verification_state", return_value=after_state):
+            verify = runner._verify_contract_write(
+                tool_name="update_card",
+                card_id="card-1",
+                before_state=before_state,
+                patch=patch,
+                plan=plan,
+            )
+        self.assertFalse(verify.applied_ok)
+        self.assertFalse(verify.scenario_completed)
+        self.assertIn("description", verify.fields_changed)
+        self.assertIn("vehicle_profile verification mismatch", verify.warnings)
 
     def test_runner_persists_structured_display_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1073,11 +1073,21 @@ class AgentRunner:
             context_payload = self._board_api.get_card_context(card_id, event_limit=5, include_repair_order_text=True)
             state = self._response_data(context_payload)
         except Exception:
-            try:
-                card_payload = self._board_api.get_card(card_id)
-                state = self._response_data(card_payload)
-            except Exception:
-                state = {}
+            state = {}
+        try:
+            card_payload = self._board_api.get_card(card_id)
+            card_state = self._response_data(card_payload)
+        except Exception:
+            card_state = {}
+        if "card" not in state:
+            state = {"card": state} if isinstance(state, dict) else {}
+        if isinstance(card_state, dict):
+            incoming_card = card_state.get("card") if isinstance(card_state.get("card"), dict) else card_state
+            current_card = state.get("card") if isinstance(state.get("card"), dict) else {}
+            if isinstance(incoming_card, dict):
+                merged_card = dict(current_card)
+                merged_card.update(incoming_card)
+                state["card"] = merged_card
         if "card" not in state:
             state = {"card": state} if isinstance(state, dict) else {}
         card = state.get("card") if isinstance(state.get("card"), dict) else {}
@@ -1099,11 +1109,13 @@ class AgentRunner:
         fields_changed: list[str] = []
         manual_fields_preserved = True
         scenario_completed = False
+        expected_targets = 0
         before_card = before_state.get("card") if isinstance(before_state.get("card"), dict) else {}
         after_card = after_state.get("card") if isinstance(after_state.get("card"), dict) else {}
         before_repair_order = before_state.get("repair_order") if isinstance(before_state.get("repair_order"), dict) else {}
         after_repair_order = after_state.get("repair_order") if isinstance(after_state.get("repair_order"), dict) else {}
         if tool_name == "update_card":
+            expected_targets = len(patch.card_patch)
             for field_name, expected_value in patch.card_patch.items():
                 if field_name == "vehicle_profile" and isinstance(expected_value, dict):
                     actual_profile = after_card.get("vehicle_profile") if isinstance(after_card.get("vehicle_profile"), dict) else {}
@@ -1125,22 +1137,24 @@ class AgentRunner:
                 if previous_description != current_description:
                     manual_fields_preserved = False
                     warnings.append("description changed outside planned patch")
-            scenario_completed = bool(fields_changed) or patch.is_empty()
+            scenario_completed = (len(fields_changed) == expected_targets) or patch.is_empty()
         elif tool_name == "update_repair_order":
+            expected_targets = len(patch.repair_order_patch)
             for field_name, expected_value in patch.repair_order_patch.items():
                 if self._values_equal(after_repair_order.get(field_name), expected_value):
                     fields_changed.append(field_name)
                 else:
                     warnings.append(f"repair_order.{field_name} verification mismatch")
-            scenario_completed = bool(fields_changed)
+            scenario_completed = len(fields_changed) == expected_targets
         elif tool_name in {"replace_repair_order_works", "replace_repair_order_materials"}:
             expected_rows = patch.repair_order_works if tool_name == "replace_repair_order_works" else patch.repair_order_materials
+            expected_targets = 1 if expected_rows else 0
             actual_rows = after_repair_order.get("works" if tool_name == "replace_repair_order_works" else "materials")
             if isinstance(actual_rows, list) and len(actual_rows) == len(expected_rows):
                 fields_changed.append("repair_order_works" if tool_name == "replace_repair_order_works" else "repair_order_materials")
             else:
                 warnings.append(f"{tool_name} verification mismatch")
-            scenario_completed = bool(fields_changed)
+            scenario_completed = len(fields_changed) == expected_targets
         else:
             scenario_completed = False
         non_target_card_fields = {"title", "description", "tags", "vehicle"} - set(patch.card_patch)
@@ -1148,13 +1162,14 @@ class AgentRunner:
             if field_name and not self._values_equal(before_card.get(field_name), after_card.get(field_name)):
                 manual_fields_preserved = False
                 warnings.append(f"{field_name} changed outside planned patch")
+        applied_ok = scenario_completed
         return VerifyResult(
-            applied_ok=bool(fields_changed),
+            applied_ok=applied_ok,
             fields_changed=fields_changed,
             manual_fields_preserved=manual_fields_preserved,
             scenario_completed=scenario_completed,
             needs_followup=False,
-            outcome_state="write_applied" if fields_changed else "write_unverified",
+            outcome_state="write_applied" if applied_ok else "write_unverified",
             warnings=warnings,
             context_ref=f"verify:{card_id}",
         )

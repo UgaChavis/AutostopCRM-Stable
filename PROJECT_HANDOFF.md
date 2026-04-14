@@ -43,9 +43,9 @@ Not the active line for current production work:
 
 Known current environment alignment at the time of this update:
 
-- local repo: `fd891d9`
-- GitHub `autostopCRM`: `fd891d9`
-- working production server `crm.autostopcrm.ru`: `fd891d9`
+- local repo: `d8dd67c`
+- GitHub `autostopCRM`: `d8dd67c`
+- working production server `crm.autostopcrm.ru`: `d8dd67c`
 
 Working production DNS:
 
@@ -215,6 +215,9 @@ Latest completed development wave:
 - formalized evidence / plan / tool / patch / verify contracts
 - added policy-gated required tools
 - made write verification rely on completed tool results correctly
+- tightened verify outcome handling so manual-field drift escalates to `needs_human_review`
+- made post-write verification merge `get_card_context` with `get_card` so stale wrapped payloads do not hide real card state
+- changed contract write verification to require full target-patch confirmation instead of treating one matched field as a fully confirmed write
 - fixed deploy smoke behavior so server-side checks do not fail only because public URL is not reachable from inside the container
 - refreshed project overview docs
 
