@@ -69,6 +69,8 @@ async def open_mcp_session(url: str, *, http_client: httpx.AsyncClient | None = 
                 await read_stream.aclose()
             with suppress(Exception):
                 await write_stream.aclose()
+            await asyncio.sleep(0.05)
+            gc.collect()
 
 
 class McpServerTests(unittest.IsolatedAsyncioTestCase):
@@ -125,7 +127,9 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.stop()
         self.api_server.stop()
         await asyncio.sleep(0.1)
+        gc.collect()
         await close_lingering_memory_streams()
+        await asyncio.sleep(0.05)
         gc.collect()
 
     def tearDown(self) -> None:

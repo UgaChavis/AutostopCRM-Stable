@@ -667,7 +667,7 @@ class AgentRunnerTests(unittest.TestCase):
             )
             plan = runner._build_card_autofill_plan(facts)
             labels = [item.get("label", "") for item in plan["scenarios"] if item.get("name") != "normalization"]
-            self.assertEqual(labels, ["VIN", "PARTS", "DTC"])
+            self.assertEqual(labels, ["VIN", "ЗАПЧАСТИ", "DTC"])
 
     def test_card_autofill_plan_message_uses_clean_ascii_labels(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -680,15 +680,15 @@ class AgentRunnerTests(unittest.TestCase):
             message = runner._build_card_autofill_plan_message(
                 [
                     {"name": "vin_enrichment", "label": "VIN"},
-                    {"name": "parts_lookup", "label": "PARTS"},
-                    {"name": "normalization", "label": "STRUCTURE"},
+                    {"name": "parts_lookup", "label": "ЗАПЧАСТИ"},
+                    {"name": "normalization", "label": "СТРУКТУРА"},
                 ],
                 facts={
                     "autofill_plan": {"skipped": [{"name": "maintenance_lookup", "reason": "no mileage"}]},
                     "related_cards": [{"id": "card-2"}],
                 },
             )
-            self.assertIn("План: VIN -> PARTS -> STRUCTURE", message)
+            self.assertIn("План: VIN -> ЗАПЧАСТИ -> СТРУКТУРА", message)
             self.assertIn("Gated: maintenance_lookup.", message)
             self.assertIn("Связанных карточек на доске: 1.", message)
             self.assertNotIn("Р ", message)

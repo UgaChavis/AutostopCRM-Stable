@@ -2107,7 +2107,7 @@ class AgentRunner:
             scenarios.append(
                 {
                     "name": "parts_lookup",
-                    "label": "Р—РђРџР§РђРЎРўР",
+                    "label": "ЗАПЧАСТИ",
                     "cost": 2 if with_price else 1,
                     "query": facts["part_queries"][0],
                     "with_price": with_price,
@@ -2118,7 +2118,7 @@ class AgentRunner:
         else:
             skipped.append({"name": "parts_lookup", "reason": self._scenario_skip_reason("parts_lookup", facts)})
         if bool(eligibility.get("maintenance_lookup", {}).get("eligible")) and budget >= 1:
-            scenarios.append({"name": "maintenance_lookup", "label": "РўРћ", "cost": 1})
+            scenarios.append({"name": "maintenance_lookup", "label": "ТО", "cost": 1})
             budget -= 1
         else:
             skipped.append({"name": "maintenance_lookup", "reason": self._scenario_skip_reason("maintenance_lookup", facts)})
@@ -2128,8 +2128,8 @@ class AgentRunner:
         else:
             skipped.append({"name": "dtc_lookup", "reason": self._scenario_skip_reason("dtc_lookup", facts)})
         if bool(eligibility.get("fault_research", {}).get("eligible")) and not facts["waiting_state"] and budget >= 1:
-            scenarios.append({"name": "fault_research", "label": "РЎРРњРџРўРћРњР«", "cost": 1})
-        scenarios.append({"name": "normalization", "label": "РЎРўР РЈРљРўРЈР Рђ", "cost": 0})
+            scenarios.append({"name": "fault_research", "label": "СИМПТОМЫ", "cost": 1})
+        scenarios.append({"name": "normalization", "label": "СТРУКТУРА", "cost": 0})
         return {"scenarios": scenarios, "skipped": skipped, "budget_left": budget}
 
     def _build_card_autofill_plan(self, facts: dict[str, Any]) -> dict[str, Any]:
@@ -2144,11 +2144,11 @@ class AgentRunner:
         normalized: list[dict[str, Any]] = []
         fallback_labels = {
             "vin_enrichment": "VIN",
-            "parts_lookup": "PARTS",
-            "maintenance_lookup": "MAINT",
+            "parts_lookup": "ЗАПЧАСТИ",
+            "maintenance_lookup": "ТО",
             "dtc_lookup": "DTC",
-            "fault_research": "SYMPTOMS",
-            "normalization": "STRUCTURE",
+            "fault_research": "СИМПТОМЫ",
+            "normalization": "СТРУКТУРА",
         }
         for item in scenarios:
             if not isinstance(item, dict):
@@ -2165,49 +2165,6 @@ class AgentRunner:
             "budget_left": int(plan.get("budget_left", 0) or 0),
         }
 
-        budget = 5
-        scenarios: list[dict[str, Any]] = []
-        skipped: list[dict[str, str]] = []
-        vin_evidence = self._scenario_evidence(facts, "vin_enrichment")
-        if vin_evidence["trigger_found"] and vin_evidence["confidence_enough"] and budget >= 1:
-            scenarios.append({"name": "vin_enrichment", "label": "VIN", "cost": 1})
-            budget -= 1
-        else:
-            skipped.append({"name": "vin_enrichment", "reason": self._scenario_skip_reason("vin_enrichment", facts)})
-        parts_evidence = self._scenario_evidence(facts, "parts_lookup")
-        if parts_evidence["trigger_found"] and parts_evidence["confidence_enough"] and budget >= 1:
-            with_price = budget >= 2
-            scenarios.append(
-                {
-                    "name": "parts_lookup",
-                    "label": "ЗАПЧАСТИ",
-                    "cost": 2 if with_price else 1,
-                    "query": facts["part_queries"][0],
-                    "with_price": with_price,
-                    "vin_gate_required": bool(facts.get("vin")),
-                }
-            )
-            budget -= 2 if with_price else 1
-        else:
-            skipped.append({"name": "parts_lookup", "reason": self._scenario_skip_reason("parts_lookup", facts)})
-        maintenance_evidence = self._scenario_evidence(facts, "maintenance_lookup")
-        if maintenance_evidence["trigger_found"] and maintenance_evidence["confidence_enough"] and budget >= 1:
-            scenarios.append({"name": "maintenance_lookup", "label": "ТО", "cost": 1})
-            budget -= 1
-        else:
-            skipped.append({"name": "maintenance_lookup", "reason": self._scenario_skip_reason("maintenance_lookup", facts)})
-        dtc_evidence = self._scenario_evidence(facts, "dtc_lookup")
-        if dtc_evidence["trigger_found"] and dtc_evidence["confidence_enough"] and budget >= 1:
-            scenarios.append({"name": "dtc_lookup", "label": "DTC", "cost": 1, "code": facts["dtc_codes"][0]})
-            budget -= 1
-        else:
-            skipped.append({"name": "dtc_lookup", "reason": self._scenario_skip_reason("dtc_lookup", facts)})
-        fault_evidence = self._scenario_evidence(facts, "fault_research")
-        if fault_evidence["trigger_found"] and fault_evidence["confidence_enough"] and not facts["waiting_state"] and budget >= 1:
-            scenarios.append({"name": "fault_research", "label": "СИМПТОМЫ", "cost": 1})
-        scenarios.append({"name": "normalization", "label": "СТРУКТУРА", "cost": 0})
-        return {"scenarios": scenarios, "skipped": skipped, "budget_left": budget}
-
     def _build_card_autofill_plan_message(self, scenarios: list[dict[str, Any]], *, facts: dict[str, Any]) -> str:
         labels = [
             str(item.get("label", "") or "").strip()
@@ -2218,24 +2175,7 @@ class AgentRunner:
         if not safe_labels:
             message = "План: карточка прочитана, подтвержденных внешних сценариев нет, будет только аккуратная нормализация."
         else:
-            message = "План: " + " -> ".join(safe_labels + ["STRUCTURE"])
-        plan = facts.get("autofill_plan") if isinstance(facts.get("autofill_plan"), dict) else {}
-        skipped = plan.get("skipped") if isinstance(plan.get("skipped"), list) else []
-        gated = [
-            str(item.get("name", "") or "").strip()
-            for item in skipped
-            if isinstance(item, dict) and str(item.get("reason", "") or "").strip()
-        ][:3]
-        if gated:
-            message += " Gated: " + ", ".join(gated) + "."
-        related_cards = facts.get("related_cards") if isinstance(facts.get("related_cards"), list) else []
-        if related_cards:
-            message += f" Связанных карточек на доске: {len(related_cards)}."
-        return message
-        if not labels:
-            message = "План: карточка прочитана, подтверждённых внешних сценариев нет, будет только аккуратная нормализация."
-        else:
-            message = "План: " + " -> ".join(labels + ["СТРУКТУРА"])
+            message = "План: " + " -> ".join(safe_labels + ["СТРУКТУРА"])
         plan = facts.get("autofill_plan") if isinstance(facts.get("autofill_plan"), dict) else {}
         skipped = plan.get("skipped") if isinstance(plan.get("skipped"), list) else []
         gated = [
