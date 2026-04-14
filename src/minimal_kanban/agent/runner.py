@@ -1232,8 +1232,9 @@ class AgentRunner:
         outcome_state = str(verify.outcome_state or "").strip() or "unknown"
         scenario_completed = bool(verify.scenario_completed)
         needs_followup = bool(verify.needs_followup)
+        scenario_chain = [str(item or "").strip().lower() for item in plan.scenario_chain if str(item or "").strip()]
         primary = str(plan.scenario_id or "").strip().lower()
-        if primary == "vin_enrichment" and str(facts.get("vin", "") or "").strip():
+        if "vin_enrichment" in scenario_chain and str(facts.get("vin", "") or "").strip():
             vin_status = str(facts.get("vin_decode_status", "") or "").strip().lower()
             if vin_status == "insufficient":
                 warnings.append("vin enrichment blocked by sparse decoder output")
@@ -1247,8 +1248,40 @@ class AgentRunner:
                 needs_followup = bool(plan.followup_policy.get("enabled"))
                 followup_reason = followup_reason or "vin_decode_failed"
                 outcome_state = "blocked_missing_source_data"
+        if "parts_lookup" in scenario_chain:
+            part_lookup = orchestration_results.get("find_part_numbers")
+            if isinstance(part_lookup, dict) and not self._part_lookup_has_useful_result(part_lookup):
+                warnings.append("parts lookup completed without reliable candidate parts")
+                scenario_completed = False
+                needs_followup = bool(plan.followup_policy.get("enabled"))
+                followup_reason = followup_reason or "parts_lookup_insufficient"
+                outcome_state = "completed_partial" if verify.applied_ok else "blocked_missing_source_data"
         if primary == "parts_lookup" and orchestration_results.get("find_part_numbers") and outcome_state == "completed_no_write":
             outcome_state = "completed_partial"
+        if "dtc_lookup" in scenario_chain:
+            dtc_lookup = orchestration_results.get("decode_dtc")
+            if isinstance(dtc_lookup, dict) and not self._search_payload_has_useful_result(dtc_lookup):
+                warnings.append("dtc lookup completed without a reliable diagnostic excerpt")
+                scenario_completed = False
+                needs_followup = bool(plan.followup_policy.get("enabled"))
+                followup_reason = followup_reason or "dtc_lookup_insufficient"
+                outcome_state = "completed_partial" if verify.applied_ok else "blocked_missing_source_data"
+        if "fault_research" in scenario_chain:
+            fault_lookup = orchestration_results.get("search_fault_info")
+            if isinstance(fault_lookup, dict) and not self._search_payload_has_useful_result(fault_lookup):
+                warnings.append("fault research completed without a reliable symptom result")
+                scenario_completed = False
+                needs_followup = bool(plan.followup_policy.get("enabled"))
+                followup_reason = followup_reason or "fault_research_insufficient"
+                outcome_state = "completed_partial" if verify.applied_ok else "blocked_missing_source_data"
+        if "maintenance_lookup" in scenario_chain:
+            maintenance_lookup = orchestration_results.get("estimate_maintenance")
+            if isinstance(maintenance_lookup, dict) and not self._maintenance_lookup_has_useful_result(maintenance_lookup):
+                warnings.append("maintenance lookup completed without a usable service plan")
+                scenario_completed = False
+                needs_followup = bool(plan.followup_policy.get("enabled"))
+                followup_reason = followup_reason or "maintenance_lookup_insufficient"
+                outcome_state = "completed_partial" if verify.applied_ok else "blocked_missing_source_data"
         if primary == "fault_research" and orchestration_results.get("search_fault_info") and outcome_state == "completed_no_write":
             outcome_state = "completed_partial"
         return VerifyResult(
@@ -1262,6 +1295,27 @@ class AgentRunner:
             context_ref=verify.context_ref,
             followup_reason=followup_reason,
         )
+
+    def _part_lookup_has_useful_result(self, payload: dict[str, Any]) -> bool:
+        part_numbers = payload.get("part_numbers") if isinstance(payload.get("part_numbers"), list) else []
+        if any(isinstance(item, dict) and str(item.get("value", "") or "").strip() for item in part_numbers):
+            return True
+        return self._search_payload_has_useful_result(payload)
+
+    def _search_payload_has_useful_result(self, payload: dict[str, Any]) -> bool:
+        results = payload.get("results") if isinstance(payload.get("results"), list) else []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("snippet", "") or "").strip() or str(item.get("title", "") or "").strip():
+                return True
+        return False
+
+    def _maintenance_lookup_has_useful_result(self, payload: dict[str, Any]) -> bool:
+        works = payload.get("works") if isinstance(payload.get("works"), list) else []
+        materials = payload.get("materials") if isinstance(payload.get("materials"), list) else []
+        notes = payload.get("notes") if isinstance(payload.get("notes"), list) else []
+        return bool(works or materials or notes)
 
     def _build_tool_result(
         self,

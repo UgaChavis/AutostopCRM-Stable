@@ -1218,6 +1218,53 @@ class AgentRunnerTests(unittest.TestCase):
             log_messages = [item.get("message", "") for item in storage.list_actions(limit=50) if item.get("kind") == "log"]
             self.assertIn("parts lookup skipped: no trusted vehicle context after VIN gate.", log_messages)
 
+    def test_runner_card_autofill_marks_empty_parts_lookup_as_partial_followup(self) -> None:
+        class _EmptyPartsAutomotive(_FakeAutomotiveService):
+            def find_part_numbers(self, *, query: str, vehicle: dict[str, object] | str | None = None, limit: int = 5) -> dict:
+                return {
+                    "query": query,
+                    "vehicle_context": vehicle if isinstance(vehicle, dict) else {"vehicle": str(vehicle or "").strip()},
+                    "part_numbers": [],
+                    "results": [],
+                }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Автосопровождение карточки.",
+                metadata={
+                    "purpose": "card_autofill",
+                    "trigger": "manual_activate",
+                    "context": {"kind": "card", "card_id": "card-1", "title": "Радиатор"},
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.autofill.parts.partial")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _FakeWrappedBoardApi()
+            board_api.cards["card-1"]["description"] = (
+                "VIN: WBAPF71060A798127\n"
+                "Течет основной радиатор.\n"
+                "Нужно найти радиатор и сориентировать по цене."
+            )
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=_FakeModelClient([{"type": "final", "summary": "unused", "result": "unused"}]),
+                logger=logger,
+            )
+            runner._tools._automotive = _EmptyPartsAutomotive()
+            self.assertTrue(runner.run_once())
+            run = storage.list_runs(limit=1)[0]
+            verify = run["orchestration"]["verify"]
+            self.assertTrue(verify["applied_ok"])
+            self.assertFalse(verify["scenario_completed"])
+            self.assertTrue(verify["needs_followup"])
+            self.assertEqual(verify["outcome_state"], "completed_partial")
+            self.assertEqual(verify["followup_reason"], "parts_lookup_insufficient")
+            self.assertIn("parts lookup completed without reliable candidate parts", verify["warnings"])
+
     def test_runner_unwraps_wrapped_card_context_for_deterministic_autofill(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = AgentStorage(base_dir=Path(temp_dir))
