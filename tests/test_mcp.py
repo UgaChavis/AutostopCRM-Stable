@@ -42,19 +42,25 @@ def reserve_port() -> int:
         return sock.getsockname()[1]
 
 
-async def close_lingering_memory_streams() -> int:
-    closed = 0
-    for obj in list(gc.get_objects()):
-        if not isinstance(obj, (MemoryObjectReceiveStream, MemoryObjectSendStream)):
-            continue
-        if getattr(obj, "_closed", True):
-            continue
-        try:
-            await obj.aclose()
-            closed += 1
-        except Exception:
-            continue
-    return closed
+async def close_lingering_memory_streams(*, max_passes: int = 3) -> int:
+    total_closed = 0
+    for _ in range(max(1, int(max_passes))):
+        closed = 0
+        for obj in list(gc.get_objects()):
+            if not isinstance(obj, (MemoryObjectReceiveStream, MemoryObjectSendStream)):
+                continue
+            if getattr(obj, "_closed", True):
+                continue
+            try:
+                await obj.aclose()
+                closed += 1
+            except Exception:
+                continue
+        total_closed += closed
+        if not closed:
+            break
+        await asyncio.sleep(0)
+    return total_closed
 
 
 @asynccontextmanager
@@ -69,6 +75,7 @@ async def open_mcp_session(url: str, *, http_client: httpx.AsyncClient | None = 
                 await read_stream.aclose()
             with suppress(Exception):
                 await write_stream.aclose()
+            await close_lingering_memory_streams()
             await asyncio.sleep(0.05)
             gc.collect()
 
