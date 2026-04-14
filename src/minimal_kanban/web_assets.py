@@ -6023,6 +6023,7 @@ BOARD_WEB_APP_HTML = "".join(
         card_label: String(source.card_label || '').trim(),
         repair_order_label: String(source.repair_order_label || '').trim(),
         context_label: String(source.context_label || '').trim(),
+        wall_digest_label: String(source.wall_digest?.summary_label || '').trim(),
         wall_view: String(source.wall_context?.view || '').trim(),
         wall_available: Boolean(source.wall_context?.has_wall),
         attachments_ready: Boolean(source.attachments_intake?.ready),
@@ -6116,6 +6117,128 @@ BOARD_WEB_APP_HTML = "".join(
       return cardDraft;
     }
 
+    function aiWallDigestShortText(source, fallback = '') {
+      const value = String(source || fallback || '').replace(/\\r?\\n/g, ' ').replace(/\\s+/g, ' ').trim();
+      if (!value) return '';
+      if (value.length <= 160) return value;
+      return value.slice(0, 157).replace(/[,.;:-]+$/, '') + '…';
+    }
+
+    function aiWallDigestEventSummary(event) {
+      if (!event || typeof event !== 'object') return '';
+      const parts = [];
+      const timestamp = String(event.timestamp || '').trim();
+      const actor = String(event.actor_name || '').trim();
+      const card = String(event.card_short_id || event.card_id || '').trim();
+      const message = aiWallDigestShortText(event.message || event.details_text || event.card_heading || '');
+      if (timestamp) parts.push(timestamp);
+      if (actor) parts.push(actor);
+      if (card) parts.push(card);
+      if (message) parts.push(message);
+      return parts.join(' · ');
+    }
+
+    function aiWallDigestCardSignal(card) {
+      const payload = card && typeof card === 'object' ? card : {};
+      const cardId = String(payload.short_id || payload.id || '').trim();
+      const vehicle = String(payload.vehicle || '').trim();
+      const title = String(payload.title || '').trim();
+      const columnLabel = String(payload.column_label || payload.column || '').trim();
+      const status = String(payload.status || '').trim();
+      const repairOrder = payload.repair_order && typeof payload.repair_order === 'object' ? payload.repair_order : {};
+      const signalParts = [];
+      if (vehicle) signalParts.push(vehicle);
+      if (title) signalParts.push(title);
+      if (repairOrder.client) signalParts.push('клиент: ' + aiWallDigestShortText(repairOrder.client, repairOrder.client));
+      if (repairOrder.reason) signalParts.push('симптом: ' + aiWallDigestShortText(repairOrder.reason, repairOrder.reason));
+      if (repairOrder.comment || repairOrder.note) signalParts.push('договорённость: ' + aiWallDigestShortText(repairOrder.comment || repairOrder.note, repairOrder.comment || repairOrder.note));
+      if (repairOrder.works?.length) signalParts.push('работы: ' + repairOrder.works.length);
+      if (repairOrder.materials?.length) signalParts.push('материалы: ' + repairOrder.materials.length);
+      if (status) signalParts.push('статус: ' + status);
+      if (columnLabel) signalParts.push('колонка: ' + columnLabel);
+      return {
+        card_id: cardId,
+        summary: signalParts.join(' · '),
+      };
+    }
+
+    function buildAiWallDigestPacket(wall = state.gptWall) {
+      const source = wall && typeof wall === 'object' ? wall : null;
+      const meta = source?.meta && typeof source.meta === 'object' ? source.meta : {};
+      const boardContext = source?.board_context && typeof source.board_context === 'object' ? source.board_context : {};
+      const cards = Array.isArray(source?.cards) ? source.cards : [];
+      const events = Array.isArray(source?.events) ? source.events : [];
+      const stickies = Array.isArray(source?.stickies) ? source.stickies : [];
+      const orderedCards = cards.slice().sort((left, right) => {
+        const leftKey = String(right?.updated_at || right?.created_at || right?.id || '').trim();
+        const rightKey = String(left?.updated_at || left?.created_at || left?.id || '').trim();
+        return leftKey.localeCompare(rightKey);
+      });
+      const priorityCards = orderedCards.slice(0, 5);
+      const keyFacts = [
+        meta.columns !== undefined ? 'Колонок: ' + meta.columns : '',
+        meta.active_cards !== undefined ? 'Активных карточек: ' + meta.active_cards : '',
+        meta.archived_cards !== undefined ? 'Архивных карточек: ' + meta.archived_cards : '',
+        meta.stickies !== undefined ? 'Стикеров: ' + meta.stickies : '',
+        meta.events_total !== undefined ? 'Событий: ' + meta.events_total : '',
+      ].filter(Boolean);
+      const notableChanges = events.slice(0, 5).map((event) => aiWallDigestEventSummary(event)).filter(Boolean);
+      const importantNotes = [];
+      for (const sticky of stickies.slice(0, 4)) {
+        const stickyText = aiWallDigestShortText(sticky?.text || sticky?.content || sticky?.message || '');
+        if (stickyText) importantNotes.push(stickyText);
+      }
+      for (const card of priorityCards) {
+        const signal = aiWallDigestCardSignal(card);
+        if (signal.summary) importantNotes.push(signal.card_id ? signal.card_id + ': ' + signal.summary : signal.summary);
+      }
+      const vehicleSignals = [];
+      const clientSignals = [];
+      const workSignals = [];
+      const symptomSignals = [];
+      const agreementSignals = [];
+      for (const card of priorityCards) {
+        const repairOrder = card?.repair_order && typeof card.repair_order === 'object' ? card.repair_order : {};
+        const cardLabel = String(card?.short_id || card?.id || '').trim();
+        const vehicle = String(card?.vehicle || repairOrder?.vehicle || '').trim();
+        if (vehicle) vehicleSignals.push((cardLabel ? cardLabel + ': ' : '') + vehicle);
+        if (repairOrder.client) clientSignals.push((cardLabel ? cardLabel + ': ' : '') + aiWallDigestShortText(repairOrder.client, repairOrder.client));
+        if (repairOrder.works?.length || repairOrder.materials?.length) {
+          workSignals.push((cardLabel ? cardLabel + ': ' : '') + 'работы ' + (repairOrder.works?.length || 0) + ' / материалы ' + (repairOrder.materials?.length || 0));
+        }
+        if (repairOrder.reason || card?.description) symptomSignals.push((cardLabel ? cardLabel + ': ' : '') + aiWallDigestShortText(repairOrder.reason || card?.description || '', repairOrder.reason || card?.description || ''));
+        if (repairOrder.comment || repairOrder.note || repairOrder.prepayment_display) {
+          agreementSignals.push((cardLabel ? cardLabel + ': ' : '') + aiWallDigestShortText(repairOrder.comment || repairOrder.note || repairOrder.prepayment_display || '', repairOrder.comment || repairOrder.note || repairOrder.prepayment_display || ''));
+        }
+      }
+      const summaryLabel = source
+        ? 'СТЕНА · КОМПАКТНЫЙ ДАЙДЖЕСТ'
+        : 'СТЕНА · ДАЙДЖЕСТ НЕДОСТУПЕН';
+      return {
+        kind: 'wall_digest',
+        source_kind: source ? 'gpt_wall' : 'none',
+        has_wall: Boolean(source),
+        label: summaryLabel,
+        generated_at: String(meta.generated_at || '').trim(),
+        view: normalizeGptWallView(state.gptWallView),
+        board_label: String(boardContext?.board_name || boardContext?.label || '').trim(),
+        key_facts,
+        notable_changes,
+        important_notes,
+        vehicle_signals: vehicleSignals,
+        client_signals: clientSignals,
+        work_signals: workSignals,
+        symptom_signals: symptomSignals,
+        agreement_signals: agreementSignals,
+        summary_text: [
+          summaryLabel,
+          key_facts.join(' · '),
+          notableChanges.slice(0, 3).join(' · '),
+          importantNotes.slice(0, 5).join(' · '),
+        ].filter(Boolean).join('\n'),
+      };
+    }
+
     function buildAiCompactContextPacket() {
       const card = state.activeCard && typeof state.activeCard === 'object' ? state.activeCard : null;
       const currentCard = card ? {
@@ -6130,6 +6253,7 @@ BOARD_WEB_APP_HTML = "".join(
       const cardLabel = aiChatContextCardLabel(card);
       const repairOrderLabel = aiChatContextRepairOrderLabel(repairOrder);
       const wall = state.gptWall && typeof state.gptWall === 'object' ? state.gptWall : null;
+      const wallDigest = buildAiWallDigestPacket(wall);
       const wallView = normalizeGptWallView(state.gptWallView);
       const wallMeta = wall?.meta && typeof wall.meta === 'object' ? wall.meta : {};
       const cardAttachmentCount = Number(card?.attachment_count ?? currentCard?.attachment_count ?? 0) || 0;
@@ -6159,6 +6283,7 @@ BOARD_WEB_APP_HTML = "".join(
           revision: String(wallMeta.revision || '').trim(),
           label: wallLabel,
         },
+        wall_digest: wallDigest,
         attachments_intake: {
           kind: 'attachments_intake',
           source_kind: attachmentReady ? (currentCard?.id ? 'card' : 'repair_order') : 'workspace',
@@ -6188,7 +6313,9 @@ BOARD_WEB_APP_HTML = "".join(
       const lines = [
         packet.card_label || 'AI-ЧАТ · СВОБОДНАЯ СЕССИЯ',
         packet.repair_order_label ? 'Заказ-наряд: ' + packet.repair_order_label : 'Заказ-наряд: не привязан.',
-        packet.wall_context?.label || 'СТЕНА · НЕ ЗАГРУЖЕНА',
+        packet.wall_digest?.label || packet.wall_context?.label || 'СТЕНА · НЕ ЗАГРУЖЕНА',
+        packet.wall_digest?.key_facts?.length ? packet.wall_digest.key_facts.slice(0, 3).join(' · ') : '',
+        packet.wall_digest?.notable_changes?.length ? packet.wall_digest.notable_changes.slice(0, 2).join(' · ') : '',
         packet.attachments_intake?.label || 'ВЛОЖЕНИЯ · НЕ ДОСТУПНЫ',
       ];
       return lines.join('\n');
@@ -6337,7 +6464,9 @@ BOARD_WEB_APP_HTML = "".join(
         prompt ? 'Запрос: ' + prompt : 'Запрос пустой.',
         context.card_label ? 'Карточка: ' + context.card_label : 'Карточка: нет активного scope.',
         context.repair_order_label ? 'Заказ-наряд: ' + context.repair_order_label : 'Заказ-наряд: не привязан.',
-        context.wall_context?.label ? 'Контекст стены: ' + context.wall_context.label : '',
+        context.wall_digest?.label ? 'Контекст стены: ' + context.wall_digest.label : (context.wall_context?.label ? 'Контекст стены: ' + context.wall_context.label : ''),
+        context.wall_digest?.key_facts?.length ? 'Ключевые факты стены: ' + context.wall_digest.key_facts.slice(0, 3).join(' · ') : '',
+        context.wall_digest?.notable_changes?.length ? 'Последние изменения: ' + context.wall_digest.notable_changes.slice(0, 2).join(' · ') : '',
         context.attachments_intake?.label ? 'Вложенная зона: ' + context.attachments_intake.label : '',
         'Compact context: ' + aiChatCompactContextSummary(context).replace(/\n/g, ' · '),
         profile.user_tune ? 'Пользовательская настройка: ' + profile.user_tune : '',
@@ -6346,7 +6475,7 @@ BOARD_WEB_APP_HTML = "".join(
       const bulletLine = [
         context.has_card_scope ? '- card scope available' : '- card scope unavailable',
         context.has_repair_order_scope ? '- repair order scope available' : '- repair order scope unavailable',
-        context.wall_context?.has_wall ? '- wall context available' : '- wall context unavailable',
+        context.wall_digest?.has_wall ? '- wall digest available' : '- wall digest unavailable',
         context.attachments_intake?.ready ? '- attachments intake ready' : '- attachments intake unavailable',
       ];
       return responseParts.join('\n') + '\n\n' + bulletLine.join('\n');
@@ -6471,7 +6600,8 @@ BOARD_WEB_APP_HTML = "".join(
       }
       if (els.aiChatWindowSubtitle) {
         const compactTail = [
-          context.wall_context?.label || '',
+          context.wall_digest?.label || context.wall_context?.label || '',
+          context.wall_digest?.key_facts?.slice(0, 2).join(' · ') || '',
           context.attachments_intake?.label || '',
         ].filter(Boolean).join(' · ');
         els.aiChatWindowSubtitle.textContent = [subtitleParts.join(' · '), compactTail].filter(Boolean).join(' · ');
