@@ -2156,7 +2156,7 @@ class AgentRunner:
             row = dict(item)
             name = str(row.get("name", "") or "").strip().lower()
             label = str(row.get("label", "") or "").strip()
-            if not label or "Р" in label:
+            if not label:
                 row["label"] = fallback_labels.get(name, label or name.upper())
             normalized.append(row)
         return {
@@ -2171,7 +2171,7 @@ class AgentRunner:
             for item in scenarios
             if isinstance(item, dict) and str(item.get("label", "") or "").strip() and str(item.get("name", "") or "").strip().lower() != "normalization"
         ]
-        safe_labels = [label for label in labels if label and "Р" not in label]
+        safe_labels = [label for label in labels if label]
         if not safe_labels:
             message = "План: карточка прочитана, подтвержденных внешних сценариев нет, будет только аккуратная нормализация."
         else:

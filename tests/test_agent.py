@@ -680,19 +680,39 @@ class AgentRunnerTests(unittest.TestCase):
             message = runner._build_card_autofill_plan_message(
                 [
                     {"name": "vin_enrichment", "label": "VIN"},
-                    {"name": "parts_lookup", "label": "ЗАПЧАСТИ"},
-                    {"name": "normalization", "label": "СТРУКТУРА"},
+                    {"name": "parts_lookup", "label": "PARTS"},
+                    {"name": "normalization", "label": "STRUCTURE"},
                 ],
                 facts={
                     "autofill_plan": {"skipped": [{"name": "maintenance_lookup", "reason": "no mileage"}]},
                     "related_cards": [{"id": "card-2"}],
                 },
             )
-            self.assertIn("План: VIN -> ЗАПЧАСТИ -> СТРУКТУРА", message)
+            self.assertIn("План: VIN -> PARTS -> СТРУКТУРА", message)
             self.assertIn("Gated: maintenance_lookup.", message)
-            self.assertIn("Связанных карточек на доске: 1.", message)
-            self.assertNotIn("Р ", message)
-            self.assertNotIn("вЂ", message)
+            self.assertIn("\u0421\u0432\u044f\u0437\u0430\u043d\u043d\u044b\u0445 \u043a\u0430\u0440\u0442\u043e\u0447\u0435\u043a \u043d\u0430 \u0434\u043e\u0441\u043a\u0435: 1.", message)
+
+    def test_card_autofill_plan_preserves_readable_russian_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.plan.russian_labels"),
+            )
+            plan = runner._normalize_card_autofill_plan_labels(
+                {
+                    "scenarios": [
+                        {"name": "parts_lookup", "label": "\u0420\u0415\u041c\u041e\u041d\u0422"},
+                        {"name": "maintenance_lookup", "label": "\u0422\u041e"},
+                        {"name": "normalization", "label": "\u0421\u0422\u0420\u0423\u041a\u0422\u0423\u0420\u0410"},
+                    ],
+                    "skipped": [],
+                    "budget_left": 1,
+                }
+            )
+            labels = [item.get("label", "") for item in plan["scenarios"]]
+            self.assertEqual(labels, ["\u0420\u0415\u041c\u041e\u041d\u0422", "\u0422\u041e", "\u0421\u0422\u0420\u0423\u041a\u0422\u0423\u0420\u0410"])
 
     def test_runner_executes_tool_and_completes_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
