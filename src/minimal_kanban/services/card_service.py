@@ -979,22 +979,43 @@ class CardService:
         with self._lock:
             payload = payload or {}
             actor_name, source = self._audit_identity(payload, default_source="ui")
-            board_scale = self._validated_board_scale(payload.get("board_scale"))
             bundle = self._store.read_bundle()
             previous_scale = float(bundle["settings"].get("board_scale", 1.0))
+            previous_board_control = self._normalized_ai_board_control_settings(bundle["settings"].get("ai_board_control"))
+            board_scale = self._validated_board_scale(payload.get("board_scale")) if "board_scale" in payload else previous_scale
+            board_control_payload = self._extract_ai_board_control_settings_payload(payload)
+            board_control_settings = (
+                self._validated_ai_board_control_settings(board_control_payload, default=previous_board_control)
+                if board_control_payload is not None
+                else previous_board_control
+            )
             settings = dict(bundle["settings"])
             settings["board_scale"] = board_scale
-            if previous_scale != board_scale:
+            settings["ai_board_control"] = board_control_settings
+            scale_changed = previous_scale != board_scale
+            board_control_changed = previous_board_control != board_control_settings
+            if scale_changed or board_control_changed:
                 events = bundle["events"]
-                self._append_event(
-                    events,
-                    actor_name=actor_name,
-                    source=source,
-                    action="board_scale_changed",
+                if scale_changed:
+                    self._append_event(
+                        events,
+                        actor_name=actor_name,
+                        source=source,
+                        action="board_scale_changed",
                     message=f"{actor_name} изменил масштаб доски",
-                    card_id=None,
-                    details={"before": previous_scale, "after": board_scale},
-                )
+                        card_id=None,
+                        details={"before": previous_scale, "after": board_scale},
+                    )
+                if board_control_changed:
+                    self._append_event(
+                        events,
+                        actor_name=actor_name,
+                        source=source,
+                        action="board_ai_control_changed",
+                        message=f"{actor_name} РѕР±РЅРѕРІРёР» С‚РёС…РёРµ РЅР°СЃС‚СЂРѕР№РєРё board_control",
+                        card_id=None,
+                        details={"before": previous_board_control, "after": board_control_settings},
+                    )
                 self._store.write_bundle(
                     columns=bundle["columns"],
                     cards=bundle["cards"],
@@ -1013,9 +1034,18 @@ class CardService:
                 "meta": {
                     "board_scale": board_scale,
                     "previous_board_scale": previous_scale,
-                    "changed": previous_scale != board_scale,
+                    "ai_board_control": board_control_settings,
+                    "previous_ai_board_control": previous_board_control,
+                    "changed": scale_changed or board_control_changed,
+                    "board_scale_changed": scale_changed,
+                    "board_control_changed": board_control_changed,
                 },
             }
+
+    def get_ai_board_control_settings(self) -> dict[str, Any]:
+        with self._lock:
+            bundle = self._store.read_bundle()
+            return self._normalized_ai_board_control_settings(bundle["settings"].get("ai_board_control"))
 
     def get_gpt_wall(self, payload: dict | None = None) -> dict:
         return self._snapshot_service.get_gpt_wall(payload)
@@ -6331,6 +6361,42 @@ class CardService:
                 details={"field": "board_scale", "minimum": 0.5, "maximum": 1.5},
             )
         return round(scale, 2)
+
+    def _normalized_ai_board_control_settings(self, value: Any) -> dict[str, Any]:
+        payload = value if isinstance(value, dict) else {}
+        enabled = normalize_bool(payload.get("enabled"), default=False)
+        try:
+            interval_minutes = int(payload.get("interval_minutes", 20))
+        except (TypeError, ValueError):
+            interval_minutes = 20
+        try:
+            cooldown_minutes = int(payload.get("cooldown_minutes", 60))
+        except (TypeError, ValueError):
+            cooldown_minutes = 60
+        return {
+            "enabled": bool(enabled),
+            "interval_minutes": min(max(interval_minutes, 5), 240),
+            "cooldown_minutes": min(max(cooldown_minutes, 5), 1440),
+        }
+
+    def _extract_ai_board_control_settings_payload(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        nested = payload.get("ai_board_control")
+        if isinstance(nested, dict):
+            return dict(nested)
+        flat_keys = {"ai_board_control_enabled", "ai_board_control_interval_minutes", "ai_board_control_cooldown_minutes"}
+        if not any(key in payload for key in flat_keys):
+            return None
+        return {
+            "enabled": payload.get("ai_board_control_enabled"),
+            "interval_minutes": payload.get("ai_board_control_interval_minutes"),
+            "cooldown_minutes": payload.get("ai_board_control_cooldown_minutes"),
+        }
+
+    def _validated_ai_board_control_settings(self, value: Any, *, default: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(default)
+        if isinstance(value, dict):
+            payload.update(value)
+        return self._normalized_ai_board_control_settings(payload)
 
     def _next_column_id(self, columns: list[Column], label: str) -> str:
         existing_ids = {column.id for column in columns}

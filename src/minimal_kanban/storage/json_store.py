@@ -45,6 +45,11 @@ DEFAULT_STATE = {
     "settings": {
         "has_seen_onboarding": False,
         "board_scale": 1.0,
+        "ai_board_control": {
+            "enabled": False,
+            "interval_minutes": 20,
+            "cooldown_minutes": 60,
+        },
     },
 }
 
@@ -573,6 +578,12 @@ class JsonStore:
             return deepcopy(DEFAULT_STATE["settings"]), True
         normalized = deepcopy(DEFAULT_STATE["settings"])
         normalized.update(settings)
+        board_control_settings = settings.get("ai_board_control", {})
+        if not isinstance(board_control_settings, dict):
+            board_control_settings = {}
+        normalized_board_control = deepcopy(DEFAULT_STATE["settings"]["ai_board_control"])
+        normalized_board_control.update(board_control_settings)
+        normalized["ai_board_control"] = normalized_board_control
         repaired = normalized != settings
         return normalized, repaired
 

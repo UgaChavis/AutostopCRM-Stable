@@ -17,6 +17,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from minimal_kanban.agent.control import AgentControlService
+from minimal_kanban.agent.compact_context import build_ai_compact_context_packet
 from minimal_kanban.agent.automotive_tools import AutomotiveLookupService
 from minimal_kanban.agent.contracts import PatchResult, ToolResult, VerifyResult
 from minimal_kanban.agent.instructions import build_default_system_prompt
@@ -201,6 +202,82 @@ class _ConsistentWrappedBoardApi(_FakeWrappedBoardApi):
                 },
                 "events": [{"action": "card_created"}],
             },
+        }
+
+
+class _BoardControlBoardService:
+    def __init__(self) -> None:
+        self.followup_calls = 0
+        self.context_calls: list[str] = []
+        self.snapshot_cards = [
+            {
+                "id": "card-delta",
+                "short_id": "A-1",
+                "title": "Новая диагностика",
+                "vehicle": "",
+                "description": "VIN: WBAPF71060A798127\nКлиент просит проверить стук подвески.\nПробег: 154000",
+                "column": "inbox",
+                "status": "ok",
+                "indicator": "green",
+                "created_at": "2026-04-15T09:00:00+00:00",
+                "updated_at": "2026-04-15T09:00:00+00:00",
+                "archived": False,
+                "vehicle_profile": {},
+                "repair_order": {
+                    "number": "15",
+                    "status": "open",
+                    "client": "Иван",
+                    "vehicle": "",
+                    "vin": "",
+                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1500"}],
+                    "materials": [],
+                    "reason": "Стук подвески",
+                    "comment": "",
+                    "note": "",
+                },
+            },
+            {
+                "id": "card-old",
+                "short_id": "A-2",
+                "title": "Старый осмотр",
+                "vehicle": "Toyota Corolla",
+                "description": "Без изменений",
+                "column": "inbox",
+                "status": "ok",
+                "indicator": "green",
+                "created_at": "2026-04-14T09:00:00+00:00",
+                "updated_at": "2026-04-14T09:00:00+00:00",
+                "archived": False,
+                "vehicle_profile": {"vin": "", "make_display": "Toyota", "model_display": "Corolla"},
+                "repair_order": {},
+            },
+        ]
+
+    def trigger_due_ai_followups(self) -> dict:
+        self.followup_calls += 1
+        return {"launched": [], "failed": []}
+
+    def get_ai_board_control_settings(self) -> dict:
+        return {"enabled": True, "interval_minutes": 20, "cooldown_minutes": 60}
+
+    def get_board_snapshot(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"columns": [{"id": "inbox", "cards": [dict(card) for card in self.snapshot_cards]}]}
+
+    def get_card_context(self, payload: dict | None = None) -> dict:
+        card_id = str((payload or {}).get("card_id", "") or "").strip()
+        self.context_calls.append(card_id)
+        card = next(item for item in self.snapshot_cards if item["id"] == card_id)
+        return {
+            "card": dict(card),
+            "events": [
+                {"action": "card_created", "message": "Создана карточка"},
+                {"action": "diagnostic_note", "message": "Есть VIN и пробег, часть полей пустые"},
+            ],
+            "attachments": [
+                {"id": "att-1", "card_id": card_id, "file_name": "scan.pdf", "mime_type": "application/pdf"},
+            ],
+            "repair_order_text": {"text": "Диагностика подвески и осмотр VIN"},
         }
 
 
@@ -467,6 +544,26 @@ class AgentControlStatusTests(unittest.TestCase):
             self.assertIn("backend_component_registry", payload["ai_remodel"])
             self.assertIn("backend_legacy_only", payload["ai_remodel"])
 
+    def test_agent_status_exposes_board_control_block_disabled_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "os.environ",
+            {
+                "MINIMAL_KANBAN_AGENT_ENABLED": "1",
+                "OPENAI_API_KEY": "",
+                "MINIMAL_KANBAN_BOARD_CONTROL_ENABLED": "0",
+            },
+            clear=False,
+        ):
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage)
+            payload = service.agent_status()
+            self.assertIn("board_control", payload)
+            self.assertFalse(payload["board_control"]["enabled"])
+            self.assertFalse(payload["board_control"]["feature_enabled"])
+            self.assertEqual(payload["board_control"]["interval_minutes"], 20)
+            self.assertEqual(payload["board_control"]["cooldown_minutes"], 60)
+            self.assertEqual(payload["board_control"]["recent_traces"], [])
+
     def test_agent_status_accepts_invalid_run_limit_without_crashing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
             "os.environ",
@@ -525,8 +622,140 @@ class AgentControlStatusTests(unittest.TestCase):
             self.assertIn("card-2", status["last_scheduler_error"])
             self.assertIn("boom", status["last_scheduler_error"])
 
+    def test_board_control_scheduler_enqueues_only_delta_cards(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "os.environ",
+            {
+                "MINIMAL_KANBAN_AGENT_ENABLED": "1",
+                "OPENAI_API_KEY": "",
+                "MINIMAL_KANBAN_BOARD_CONTROL_ENABLED": "1",
+            },
+            clear=False,
+        ):
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.update_status(
+                board_control={
+                    "last_baseline_at": "2026-04-15T08:00:00+00:00",
+                    "last_pass_at": "2026-04-15T07:00:00+00:00",
+                }
+            )
+            service = AgentControlService(storage)
+            board = _BoardControlBoardService()
+            service.bind_board_service(board)
+
+            result = service.trigger_scheduled_tasks(force=True)
+            tasks = storage.list_tasks(limit=10)
+            status = service.agent_status()["board_control"]
+
+            self.assertEqual(len(result["launched"]), 1)
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0]["mode"], "board_control")
+            self.assertEqual(tasks[0]["metadata"]["purpose"], "board_control")
+            self.assertEqual(tasks[0]["metadata"]["context"]["card_id"], "card-delta")
+            self.assertEqual(tasks[0]["metadata"]["scenario_context"]["scenario_id"], "board_control")
+            self.assertEqual(board.context_calls, ["card-delta"])
+            self.assertEqual(status["considered_count"], 1)
+            self.assertEqual(status["triggered_count"], 1)
+            self.assertEqual(status["enqueued_count"], 1)
+
+    def test_board_control_scheduler_respects_interval_and_cooldown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "os.environ",
+            {
+                "MINIMAL_KANBAN_AGENT_ENABLED": "1",
+                "OPENAI_API_KEY": "",
+                "MINIMAL_KANBAN_BOARD_CONTROL_ENABLED": "1",
+            },
+            clear=False,
+        ):
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.update_status(
+                board_control={
+                    "last_baseline_at": "2026-04-15T08:00:00+00:00",
+                    "last_pass_at": utc_now_iso(),
+                    "card_cache": {
+                        "card-delta": {
+                            "cooldown_until": "2999-01-01T00:00:00+00:00",
+                            "last_fingerprint": "",
+                            "last_processed_at": "2026-04-15T08:10:00+00:00",
+                            "last_updated_at": "",
+                            "last_result": "written",
+                        }
+                    },
+                }
+            )
+            service = AgentControlService(storage)
+            board = _BoardControlBoardService()
+            service.bind_board_service(board)
+
+            throttled = service.trigger_scheduled_tasks(force=False)
+            self.assertEqual(throttled["launched"], [])
+            self.assertEqual(storage.list_tasks(limit=10), [])
+
+            storage.update_status(board_control={"last_pass_at": "2026-04-15T07:00:00+00:00"})
+            result = service.trigger_scheduled_tasks(force=True)
+            status = service.agent_status()["board_control"]
+
+            self.assertEqual(result["launched"], [])
+            self.assertEqual(storage.list_tasks(limit=10), [])
+            self.assertEqual(status["considered_count"], 1)
+            self.assertEqual(status["triggered_count"], 0)
+            self.assertEqual(status["enqueued_count"], 0)
+            self.assertTrue(any(item.get("reason") == "cooldown" for item in status["recent_traces"]))
+
 
 class AgentRunnerTests(unittest.TestCase):
+    def test_backend_compact_context_packet_is_trimmed_and_stable(self) -> None:
+        payload = {
+            "card": {
+                "id": "card-1",
+                "short_id": "A-1",
+                "title": "Диагностика",
+                "vehicle": "",
+                "description": "\n".join(
+                    [
+                        "VIN: WBAPF71060A798127",
+                        "Клиент просит проверить шум подвески и течь антифриза.",
+                        "Пробег: 154000",
+                    ]
+                    + [f"Повтор строки {index}" for index in range(20)]
+                ),
+                "column": "inbox",
+                "status": "ok",
+                "indicator": "green",
+                "vehicle_profile": {},
+                "repair_order": {
+                    "number": "15",
+                    "status": "open",
+                    "client": "Иван",
+                    "vehicle": "",
+                    "vin": "",
+                    "works": [{"name": f"Работа {index}", "quantity": "1", "price": "1000"} for index in range(10)],
+                    "materials": [{"name": f"Материал {index}", "quantity": "1", "price": "500"} for index in range(10)],
+                    "reason": "Шум подвески",
+                    "comment": "Течь антифриза",
+                    "note": "Согласовать смету",
+                },
+            },
+            "events": [{"action": "diagnostic_note", "message": f"Важное изменение {index}"} for index in range(20)],
+            "attachments": [{"id": f"att-{index}", "card_id": "card-1", "file_name": f"scan-{index}.pdf", "mime_type": "application/pdf"} for index in range(12)],
+            "repair_order_text": {"text": "Полный сырой текст заказ-наряда"},
+        }
+
+        packet = build_ai_compact_context_packet(payload, scenario_id="board_control", source="backend")
+
+        self.assertEqual(packet["kind"], "compact_context")
+        self.assertEqual(packet["scenario_id"], "board_control")
+        self.assertEqual(packet["source"], "backend")
+        self.assertIn("fingerprint", packet)
+        self.assertEqual(packet["card_context"]["card_id"], "card-1")
+        self.assertLessEqual(len(packet["wall_digest"]["facts"]), 8)
+        self.assertLessEqual(len(packet["wall_digest"]["recent_changes"]), 6)
+        self.assertLessEqual(len(packet["card_context"]["ai_relevant_facts"]), 10)
+        self.assertLessEqual(len(packet["repair_order_context"]["works"]), 6)
+        self.assertLessEqual(len(packet["repair_order_context"]["materials"]), 6)
+        self.assertLessEqual(len(packet["attachments_intake"]["items"]), 8)
+
     def test_default_prompt_includes_card_cleanup_rules(self) -> None:
         prompt = build_default_system_prompt()
         self.assertIn("tidy up, clean up, or structure a card", prompt)
@@ -568,6 +797,46 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertEqual(scenario_names, ["vin_enrichment", "normalization"])
             self.assertFalse(facts["scenario_evidence"]["maintenance_lookup"]["trigger_found"])
             self.assertFalse(facts["scenario_evidence"]["parts_lookup"]["trigger_found"])
+
+    def test_board_control_plan_uses_structured_card_mode_and_card_only_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = AgentRunner(
+                storage=AgentStorage(base_dir=Path(temp_dir)),
+                board_api=_FakeBoardApi(),
+                model_client=_FakeModelClient([]),
+                logger=logging.getLogger("test.agent.runner.board-control"),
+            )
+            evidence, facts = runner._build_orchestration_evidence(
+                task={"task_text": "board control"},
+                metadata={"purpose": "board_control", "context": {"kind": "card", "card_id": "card-1"}},
+                task_type="card_cleanup",
+                context_kind="card",
+                context_data={
+                    "card": {
+                        "id": "card-1",
+                        "title": "Диагностика",
+                        "vehicle": "",
+                        "description": "VIN: WBAPF71060A798127\nПробег: 154000\nСтук подвески",
+                        "vehicle_profile": {},
+                        "repair_order": {"status": "open", "works": [], "materials": []},
+                    },
+                    "events": [],
+                    "repair_order_text": {"text": ""},
+                },
+                raw_context_ref="ctx:test",
+            )
+            plan = runner._build_orchestration_plan(
+                metadata={"purpose": "board_control", "context": {"kind": "card", "card_id": "card-1"}},
+                task_type="card_cleanup",
+                context_kind="card",
+                evidence=evidence,
+                facts=facts,
+            )
+            self.assertEqual(plan.execution_mode, "structured_card")
+            self.assertIn(plan.scenario_id, {"vin_enrichment", "normalization"})
+            self.assertTrue(set(plan.scenario_chain).issubset({"vin_enrichment", "normalization"}))
+            self.assertEqual(plan.allowed_write_targets, ["description", "vehicle", "vehicle_profile"])
+            self.assertNotIn("repair_order", plan.allowed_write_targets)
 
     def test_card_autofill_scenario_selection_runs_parts_only_from_explicit_part_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

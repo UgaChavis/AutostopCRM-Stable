@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import Any
 
 from ..models import parse_datetime, utc_now, utc_now_iso
+from .compact_context import build_ai_compact_context_packet
 from .config import (
     get_agent_board_api_url,
     get_agent_enabled,
@@ -15,8 +16,31 @@ from .config import (
     get_agent_openai_model,
     get_agent_poll_interval_seconds,
 )
-from .remodel import get_ai_remodel_status_payload
+from .remodel import get_ai_feature_flags, get_ai_remodel_status_payload
 from .storage import AgentStorage
+
+
+DEFAULT_BOARD_CONTROL_SETTINGS = {
+    "enabled": False,
+    "interval_minutes": 20,
+    "cooldown_minutes": 60,
+}
+DEFAULT_BOARD_CONTROL_STATUS = {
+    "running": False,
+    "last_pass_at": "",
+    "last_success_at": "",
+    "last_error": "",
+    "last_baseline_at": "",
+    "considered_count": 0,
+    "triggered_count": 0,
+    "enqueued_count": 0,
+    "written_count": 0,
+    "error_count": 0,
+    "recent_traces": [],
+    "card_cache": {},
+}
+BOARD_CONTROL_TRACE_LIMIT = 24
+BOARD_CONTROL_CACHE_LIMIT = 120
 
 
 class AgentControlService:
@@ -129,6 +153,7 @@ class AgentControlService:
                 "board_api_url": get_agent_board_api_url() or "",
             },
             "ai_remodel": get_ai_remodel_status_payload(),
+            "board_control": self._board_control_status_payload(status),
             "worker": {
                 "embedded": True,
                 "running": worker_running,
@@ -317,6 +342,50 @@ class AgentControlService:
             metadata=metadata,
         )
 
+    def enqueue_board_control_task(
+        self,
+        payload: dict[str, Any] | None = None,
+        *,
+        source: str = "agent_board_control",
+        trigger: str = "scheduled_board_control",
+    ) -> dict[str, Any] | None:
+        payload = payload or {}
+        card_id = str(payload.get("card_id", "") or "").strip()
+        if not card_id:
+            raise ValueError("card_id is required")
+        if self._storage.has_active_task_for_card(card_id, purpose="board_control"):
+            return None
+        compact_context = payload.get("context_packet") if isinstance(payload.get("context_packet"), dict) else None
+        task_text = str(payload.get("task_text", "") or "").strip() or self._build_board_control_prompt(payload)
+        metadata = {
+            "requested_by": str(payload.get("requested_by", "") or "board_control").strip() or "board_control",
+            "purpose": "board_control",
+            "scenario_id": "board_control",
+            "trigger": str(trigger or "scheduled_board_control").strip() or "scheduled_board_control",
+            "context": {
+                "kind": "card",
+                "card_id": card_id,
+            },
+            "scope": {
+                "type": "current_card",
+                "card_id": card_id,
+                "card_label": str(payload.get("card_heading", "") or payload.get("title", "") or "").strip(),
+            },
+            "board_control": {
+                "card_id": card_id,
+                "trigger_reasons": list(payload.get("trigger_reasons") or []),
+                "allowed_actions": ["normalize_description", "fill_safe_vehicle_fields", "safe_vin_enrichment", "append_ai_trace"],
+            },
+        }
+        if compact_context:
+            metadata["scenario_context"] = compact_context
+        return self._storage.enqueue_task(
+            task_text=task_text,
+            source=source,
+            mode="board_control",
+            metadata=metadata,
+        )
+
     def trigger_scheduled_tasks(self, *, force: bool = False) -> dict[str, Any]:
         now_monotonic = time.monotonic()
         if (
@@ -362,6 +431,19 @@ class AgentControlService:
                             failed.append({"task_id": str(item.get("card_id", "") or "").strip(), "error": str(item.get("error", "") or "").strip()})
                 except Exception as exc:
                     failed.append({"task_id": "card_autofill", "error": str(exc)})
+                try:
+                    board_control_payload = self._trigger_board_control(force=force)
+                    launched.extend([str(item) for item in board_control_payload.get("launched", []) if str(item or "").strip()])
+                    for item in board_control_payload.get("failed", []):
+                        if isinstance(item, dict):
+                            failed.append(
+                                {
+                                    "task_id": str(item.get("card_id", "") or item.get("task_id", "") or "board_control").strip(),
+                                    "error": str(item.get("error", "") or "").strip(),
+                                }
+                            )
+                except Exception as exc:
+                    failed.append({"task_id": "board_control", "error": str(exc)})
         except Exception as exc:
             self._storage.update_status(last_scheduler_error=str(exc))
             raise
@@ -463,6 +545,284 @@ class AgentControlService:
                 self._worker_stop.wait(idle_sleep)
                 continue
             self._worker_stop.wait(0.2 if processed else idle_sleep)
+
+    def _board_control_status_payload(self, status: dict[str, Any] | None = None) -> dict[str, Any]:
+        resolved_status = status or self._storage.read_status()
+        runtime = self._board_control_runtime(resolved_status)
+        settings = self._board_control_settings()
+        flags = get_ai_feature_flags()
+        return {
+            "enabled": bool(flags.board_control_enabled and settings["enabled"]),
+            "feature_enabled": bool(flags.board_control_enabled),
+            "settings_enabled": bool(settings["enabled"]),
+            "interval_minutes": int(settings["interval_minutes"]),
+            "cooldown_minutes": int(settings["cooldown_minutes"]),
+            "last_pass_at": str(runtime.get("last_pass_at", "") or "").strip(),
+            "last_success_at": str(runtime.get("last_success_at", "") or "").strip(),
+            "last_error": str(runtime.get("last_error", "") or "").strip(),
+            "last_baseline_at": str(runtime.get("last_baseline_at", "") or "").strip(),
+            "considered_count": int(runtime.get("considered_count", 0) or 0),
+            "triggered_count": int(runtime.get("triggered_count", 0) or 0),
+            "enqueued_count": int(runtime.get("enqueued_count", 0) or 0),
+            "written_count": int(runtime.get("written_count", 0) or 0),
+            "error_count": int(runtime.get("error_count", 0) or 0),
+            "recent_traces": list(runtime.get("recent_traces") or [])[:BOARD_CONTROL_TRACE_LIMIT],
+        }
+
+    def _board_control_settings(self) -> dict[str, Any]:
+        settings = dict(DEFAULT_BOARD_CONTROL_SETTINGS)
+        board_service = self._board_service
+        if board_service is None:
+            return settings
+        getter = getattr(board_service, "get_ai_board_control_settings", None)
+        if callable(getter):
+            payload = getter()
+            if isinstance(payload, dict):
+                settings.update(payload)
+        return {
+            "enabled": bool(settings.get("enabled")),
+            "interval_minutes": max(5, min(240, int(settings.get("interval_minutes", 20) or 20))),
+            "cooldown_minutes": max(5, min(1440, int(settings.get("cooldown_minutes", 60) or 60))),
+        }
+
+    def _board_control_runtime(self, status: dict[str, Any] | None = None) -> dict[str, Any]:
+        resolved_status = status or self._storage.read_status()
+        runtime = resolved_status.get("board_control") if isinstance(resolved_status.get("board_control"), dict) else {}
+        normalized = dict(DEFAULT_BOARD_CONTROL_STATUS)
+        normalized.update(runtime)
+        normalized["recent_traces"] = list(normalized.get("recent_traces") or [])[:BOARD_CONTROL_TRACE_LIMIT]
+        normalized["card_cache"] = dict(normalized.get("card_cache") or {})
+        return normalized
+
+    def _persist_board_control_runtime(self, runtime: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(DEFAULT_BOARD_CONTROL_STATUS)
+        normalized.update(runtime if isinstance(runtime, dict) else {})
+        normalized["recent_traces"] = list(normalized.get("recent_traces") or [])[:BOARD_CONTROL_TRACE_LIMIT]
+        normalized["card_cache"] = self._trim_board_control_cache(dict(normalized.get("card_cache") or {}))
+        self._storage.update_status(board_control=normalized)
+        return normalized
+
+    def _trim_board_control_cache(self, cache: dict[str, Any]) -> dict[str, Any]:
+        items: list[tuple[str, dict[str, Any]]] = []
+        for card_id, payload in cache.items():
+            if not str(card_id or "").strip() or not isinstance(payload, dict):
+                continue
+            items.append((str(card_id).strip(), dict(payload)))
+        items.sort(
+            key=lambda item: (
+                str(item[1].get("last_processed_at", "") or item[1].get("cooldown_until", "") or ""),
+                item[0],
+            ),
+            reverse=True,
+        )
+        return {card_id: payload for card_id, payload in items[:BOARD_CONTROL_CACHE_LIMIT]}
+
+    def _append_board_control_trace(self, runtime: dict[str, Any], trace: dict[str, Any]) -> None:
+        traces = list(runtime.get("recent_traces") or [])
+        traces.insert(0, trace)
+        runtime["recent_traces"] = traces[:BOARD_CONTROL_TRACE_LIMIT]
+
+    def _flatten_board_snapshot_cards(self, snapshot_payload: dict[str, Any]) -> list[dict[str, Any]]:
+        cards: list[dict[str, Any]] = []
+        columns = snapshot_payload.get("columns") if isinstance(snapshot_payload.get("columns"), list) else []
+        for column in columns:
+            column_id = str(column.get("id", "") or "").strip() if isinstance(column, dict) else ""
+            items = column.get("cards") if isinstance(column, dict) and isinstance(column.get("cards"), list) else []
+            for card in items:
+                if not isinstance(card, dict):
+                    continue
+                normalized = dict(card)
+                if column_id and not normalized.get("column"):
+                    normalized["column"] = column_id
+                cards.append(normalized)
+        return cards
+
+    def _board_control_card_is_delta(self, card: dict[str, Any], baseline_at: Any) -> bool:
+        if not isinstance(card, dict) or bool(card.get("archived")):
+            return False
+        if baseline_at is None:
+            return False
+        created_at = parse_datetime(str(card.get("created_at", "") or "").strip())
+        updated_at = parse_datetime(str(card.get("updated_at", "") or "").strip())
+        return bool((created_at and created_at > baseline_at) or (updated_at and updated_at > baseline_at))
+
+    def _evaluate_board_control_triggers(
+        self,
+        *,
+        card: dict[str, Any],
+        compact_context: dict[str, Any],
+        baseline_at: Any,
+        cache_entry: dict[str, Any],
+        cooldown_until: Any,
+        now: Any,
+    ) -> dict[str, Any]:
+        card_context = compact_context.get("card_context") if isinstance(compact_context.get("card_context"), dict) else {}
+        fingerprint = str(compact_context.get("fingerprint", "") or "").strip()
+        created_at = parse_datetime(str(card.get("created_at", "") or "").strip())
+        updated_at = parse_datetime(str(card.get("updated_at", "") or "").strip())
+        triggers: list[str] = []
+        if created_at and baseline_at and created_at > baseline_at:
+            triggers.append("new_card")
+        if fingerprint and fingerprint != str(cache_entry.get("last_fingerprint", "") or "").strip():
+            triggers.append("changed_card")
+        if card_context.get("vehicle_profile_incomplete") and str(((card_context.get("vehicle") or {}).get("vin", "") or "")).strip():
+            triggers.append("vin_vehicle_gap")
+        if list(card_context.get("missing_key_fields") or []) and bool(card_context.get("has_candidate_facts")):
+            triggers.append("missing_key_fields")
+        if bool(card_context.get("normalization_candidate")):
+            triggers.append("text_normalization")
+        if not str(cache_entry.get("last_processed_at", "") or "").strip():
+            triggers.append("not_recently_processed")
+        if cooldown_until and cooldown_until > now:
+            return {"eligible": False, "triggers": [], "skip_reason": "cooldown"}
+        if not triggers:
+            return {"eligible": False, "triggers": [], "skip_reason": "no_allow_trigger"}
+        if updated_at and str(cache_entry.get("last_updated_at", "") or "").strip() == str(card.get("updated_at", "") or "").strip() and "changed_card" not in triggers:
+            return {"eligible": False, "triggers": [], "skip_reason": "unchanged_after_recent_pass"}
+        return {"eligible": True, "triggers": triggers, "skip_reason": ""}
+
+    def _build_board_control_prompt(self, payload: dict[str, Any]) -> str:
+        heading = str(payload.get("card_heading", "") or payload.get("title", "") or "").strip()
+        trigger_reasons = [str(item or "").strip() for item in payload.get("trigger_reasons", []) if str(item or "").strip()]
+        lines = [
+            "Выполни тихий bounded сценарий board_control для одной карточки автосервиса.",
+            "Следуй контракту: read -> evidence -> plan -> tools -> patch -> write -> verify.",
+            "Это background mode, а не чат и не свободный агент.",
+            "Работай только с текущей карточкой.",
+            "Разрешены только безопасные card-only изменения: аккуратная нормализация описания, заполнение пустых полей vehicle/vehicle_profile, безопасное VIN enrichment, короткая AI-пометка.",
+            "Нельзя трогать заказ-наряд, нельзя переносить карточку по колонкам, нельзя удалять полезный ручной текст.",
+            "Если уверенности не хватает, не записывай изменения.",
+        ]
+        if heading:
+            lines.append(f"Карточка: {heading}.")
+        if trigger_reasons:
+            lines.append("Trigger rules: " + ", ".join(trigger_reasons) + ".")
+        return "\n".join(lines)
+
+    def _trigger_board_control(self, *, force: bool) -> dict[str, Any]:
+        if self._board_service is None:
+            return {"launched": [], "failed": []}
+        settings = self._board_control_settings()
+        flags = get_ai_feature_flags()
+        runtime = self._board_control_runtime()
+        if not flags.board_control_enabled or not settings["enabled"]:
+            runtime["running"] = False
+            self._persist_board_control_runtime(runtime)
+            return {"launched": [], "failed": []}
+        now = utc_now()
+        now_text = utc_now_iso()
+        if runtime.get("running"):
+            return {"launched": [], "failed": []}
+        last_pass_at = parse_datetime(str(runtime.get("last_pass_at", "") or "").strip())
+        interval_delta = timedelta(minutes=int(settings["interval_minutes"]))
+        if not force and last_pass_at and now - last_pass_at < interval_delta:
+            return {"launched": [], "failed": []}
+        runtime.update(
+            {
+                "running": True,
+                "last_pass_at": now_text,
+                "last_error": "",
+                "considered_count": 0,
+                "triggered_count": 0,
+                "enqueued_count": 0,
+                "written_count": 0,
+                "error_count": 0,
+            }
+        )
+        self._persist_board_control_runtime(runtime)
+        launched: list[str] = []
+        failed: list[dict[str, str]] = []
+        cache = dict(runtime.get("card_cache") or {})
+        try:
+            snapshot_payload = self._board_service.get_board_snapshot({"compact": True, "include_archive": False})
+            baseline_at = parse_datetime(str(runtime.get("last_baseline_at", "") or "").strip())
+            cards = self._flatten_board_snapshot_cards(snapshot_payload if isinstance(snapshot_payload, dict) else {})
+            if baseline_at is None:
+                runtime["last_baseline_at"] = now_text
+                runtime["last_success_at"] = now_text
+                runtime["running"] = False
+                self._persist_board_control_runtime(runtime)
+                return {"launched": [], "failed": []}
+            delta_cards = [card for card in cards if self._board_control_card_is_delta(card, baseline_at)]
+            runtime["considered_count"] = len(delta_cards)
+            for card in delta_cards:
+                card_id = str(card.get("id", "") or "").strip()
+                if not card_id:
+                    continue
+                if self._storage.has_active_task_for_card(card_id, purpose="board_control"):
+                    self._append_board_control_trace(runtime, {"card_id": card_id, "status": "skipped", "reason": "active_task", "at": now_text})
+                    continue
+                cache_entry = dict(cache.get(card_id) or {})
+                cooldown_until = parse_datetime(str(cache_entry.get("cooldown_until", "") or "").strip())
+                context_payload = self._board_service.get_card_context({"card_id": card_id, "event_limit": 20, "include_repair_order_text": True})
+                compact_context = build_ai_compact_context_packet(context_payload, scenario_id="board_control", source="backend")
+                trigger_result = self._evaluate_board_control_triggers(
+                    card=card,
+                    compact_context=compact_context,
+                    baseline_at=baseline_at,
+                    cache_entry=cache_entry,
+                    cooldown_until=cooldown_until,
+                    now=now,
+                )
+                if not trigger_result["eligible"]:
+                    self._append_board_control_trace(
+                        runtime,
+                        {"card_id": card_id, "status": "skipped", "reason": trigger_result["skip_reason"], "at": now_text},
+                    )
+                    continue
+                runtime["triggered_count"] = int(runtime.get("triggered_count", 0) or 0) + 1
+                task = self.enqueue_board_control_task(
+                    {
+                        "card_id": card_id,
+                        "card_heading": str(card.get("title", "") or "").strip(),
+                        "title": str(card.get("title", "") or "").strip(),
+                        "requested_by": "board_control",
+                        "context_packet": compact_context,
+                        "trigger_reasons": trigger_result["triggers"],
+                    },
+                    source="agent_board_control",
+                    trigger="background_interval",
+                )
+                if task is None:
+                    self._append_board_control_trace(runtime, {"card_id": card_id, "status": "skipped", "reason": "duplicate_enqueue", "at": now_text})
+                    continue
+                launched.append(str(task.get("id", "") or "").strip())
+                runtime["enqueued_count"] = int(runtime.get("enqueued_count", 0) or 0) + 1
+                cache_entry.update(
+                    {
+                        "last_fingerprint": str(compact_context.get("fingerprint", "") or "").strip(),
+                        "last_updated_at": str(card.get("updated_at", "") or "").strip(),
+                        "last_processed_at": str(task.get("created_at", "") or now_text),
+                        "cooldown_until": (now + timedelta(minutes=int(settings["cooldown_minutes"]))).isoformat(),
+                        "last_result": "enqueued",
+                        "last_triggers": list(trigger_result["triggers"]),
+                    }
+                )
+                cache[card_id] = cache_entry
+                self._append_board_control_trace(
+                    runtime,
+                    {
+                        "card_id": card_id,
+                        "status": "enqueued",
+                        "trigger_reasons": list(trigger_result["triggers"]),
+                        "task_id": str(task.get("id", "") or "").strip(),
+                        "at": now_text,
+                    },
+                )
+            runtime["card_cache"] = cache
+            runtime["last_baseline_at"] = now_text
+            runtime["last_success_at"] = now_text
+            runtime["running"] = False
+            runtime["last_error"] = ""
+            self._persist_board_control_runtime(runtime)
+            return {"launched": launched, "failed": failed}
+        except Exception as exc:
+            runtime["running"] = False
+            runtime["last_error"] = str(exc)
+            runtime["error_count"] = int(runtime.get("error_count", 0) or 0) + 1
+            self._persist_board_control_runtime(runtime)
+            failed.append({"task_id": "board_control", "error": str(exc)})
+            return {"launched": launched, "failed": failed}
 
     def _set_schedule_active(self, payload: dict[str, Any] | None, *, active: bool) -> dict[str, Any]:
         payload = payload or {}

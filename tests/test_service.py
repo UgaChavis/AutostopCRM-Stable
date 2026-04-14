@@ -41,6 +41,7 @@ class _FakeAgentControl:
     def __init__(self) -> None:
         self.created_payloads: list[dict[str, object]] = []
         self.autofill_calls: list[dict[str, object]] = []
+        self.board_control_calls: list[dict[str, object]] = []
         self.active_card_tasks: set[tuple[str, str | None]] = set()
         self.latest_task_by_card: dict[tuple[str, str | None], dict[str, object]] = {}
 
@@ -60,6 +61,20 @@ class _FakeAgentControl:
         self.autofill_calls.append({"payload": payload, "source": source, "trigger": trigger})
         return {
             "id": f"task-{len(self.autofill_calls)}",
+            "created_at": utc_now().isoformat(),
+        }
+
+    def enqueue_board_control_task(
+        self,
+        payload: dict | None = None,
+        *,
+        source: str = "agent_board_control",
+        trigger: str = "scheduled_board_control",
+    ) -> dict | None:
+        payload = dict(payload or {})
+        self.board_control_calls.append({"payload": payload, "source": source, "trigger": trigger})
+        return {
+            "id": f"board-task-{len(self.board_control_calls)}",
             "created_at": utc_now().isoformat(),
         }
 
@@ -3077,6 +3092,32 @@ class CardServiceTests(unittest.TestCase):
         self.assertTrue(updated["meta"]["changed"])
         self.assertEqual(snapshot["settings"]["board_scale"], 1.25)
         self.assertTrue(any(event.action == "board_scale_changed" for event in events))
+
+    def test_board_control_settings_are_saved_and_audited(self) -> None:
+        updated = self.service.update_board_settings(
+            {
+                "actor_name": "ОПЕРАТОР",
+                "ai_board_control": {
+                    "enabled": True,
+                    "interval_minutes": 30,
+                    "cooldown_minutes": 90,
+                },
+            }
+        )
+        snapshot = self.service.get_board_snapshot()
+        events = self.store.read_bundle()["events"]
+
+        self.assertEqual(
+            updated["settings"]["ai_board_control"],
+            {"enabled": True, "interval_minutes": 30, "cooldown_minutes": 90},
+        )
+        self.assertEqual(updated["meta"]["previous_ai_board_control"], {"enabled": False, "interval_minutes": 20, "cooldown_minutes": 60})
+        self.assertTrue(updated["meta"]["board_control_changed"])
+        self.assertEqual(
+            snapshot["settings"]["ai_board_control"],
+            {"enabled": True, "interval_minutes": 30, "cooldown_minutes": 90},
+        )
+        self.assertTrue(any(event.action == "board_ai_control_changed" for event in events))
 
     def test_rejects_invalid_board_scale(self) -> None:
         with self.assertRaises(ServiceError) as invalid_scale:

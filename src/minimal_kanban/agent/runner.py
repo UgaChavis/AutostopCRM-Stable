@@ -166,6 +166,10 @@ class AgentRunner:
                     "orchestration": orchestration,
                 }
             )
+            self._update_board_control_runtime_after_task(
+                task=task,
+                orchestration=orchestration,
+            )
             self._storage.update_status(
                 running=False,
                 current_task_id=None,
@@ -209,6 +213,7 @@ class AgentRunner:
                     "metadata": task.get("metadata", {}),
                 }
             )
+            self._update_board_control_runtime_after_failure(task=task, error=str(exc))
             self._storage.update_status(
                 running=False,
                 current_task_id=None,
@@ -338,7 +343,7 @@ class AgentRunner:
         return summary, result, display, tool_calls, trace.to_dict()
 
     def _should_preload_context(self, *, task_type: str, metadata: dict[str, Any], context_kind: str) -> bool:
-        if str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill":
+        if str(metadata.get("purpose", "") or "").strip().lower() in {"card_autofill", "board_control"}:
             return True
         if context_kind == "card":
             return True
@@ -358,7 +363,7 @@ class AgentRunner:
         context_data: dict[str, Any],
         raw_context_ref: str,
     ) -> tuple[EvidenceResult, dict[str, Any]]:
-        allowed_write_targets = self._suggest_allowed_write_targets(task_type=task_type, context_kind=context_kind)
+        allowed_write_targets = self._suggest_allowed_write_targets(task_type=task_type, context_kind=context_kind, metadata=metadata)
         if context_kind == "card" and context_data:
             facts = self._analyze_card_autofill_context(context_data, task_text=str(task.get("task_text", "") or ""))
             facts["task_type"] = task_type
@@ -565,20 +570,45 @@ class AgentRunner:
             and bool(str(metadata.get("quick_template", "") or "").strip())
             and task_type in {"card_cleanup", "vin_decode", "parts_lookup", "maintenance_estimate", "dtc_lookup"}
         )
-        if str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill":
+        purpose = str(metadata.get("purpose", "") or "").strip().lower()
+        if purpose == "card_autofill":
             notes.append("followup_owner=card_service")
+            execution_mode = "structured_card"
+        elif purpose == "board_control":
+            notes.append("background_owner=board_control")
             execution_mode = "structured_card"
         elif manual_structured_card:
             notes.append("manual_card_orchestrator=structured")
             execution_mode = "structured_card"
         else:
             execution_mode = "model_loop"
-        return self._policy.build_plan(
+        plan = self._policy.build_plan(
             scenario_chain=scenario_chain,
             execution_mode=execution_mode,
-            followup_enabled=bool(str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill"),
+            followup_enabled=bool(purpose == "card_autofill"),
             notes=notes,
         )
+        evidence_targets = [str(item or "").strip() for item in evidence.allowed_write_targets if str(item or "").strip()]
+        if evidence_targets:
+            allowed_targets = [item for item in plan.allowed_write_targets if item in evidence_targets]
+            forbidden_targets = [item for item in plan.forbidden_write_targets if item not in allowed_targets]
+            return PlanResult(
+                scenario_id=plan.scenario_id,
+                scenario_chain=list(plan.scenario_chain),
+                execution_mode=plan.execution_mode,
+                needs_external_tools=plan.needs_external_tools,
+                required_tools=list(plan.required_tools),
+                optional_tools=list(plan.optional_tools),
+                tool_order=list(plan.tool_order),
+                allowed_write_targets=allowed_targets,
+                forbidden_write_targets=forbidden_targets,
+                stop_conditions=list(plan.stop_conditions),
+                followup_policy=dict(plan.followup_policy),
+                confidence_mode=plan.confidence_mode,
+                write_mode=plan.write_mode,
+                notes=list(plan.notes),
+            )
+        return plan
 
     def _scenario_chain_for_task(
         self,
@@ -597,6 +627,13 @@ class AgentRunner:
         ]
         if purpose == "card_autofill":
             return autofill_scenarios or ["normalization"]
+        if purpose == "board_control":
+            filtered = [item for item in autofill_scenarios if item in {"vin_enrichment", "normalization"}]
+            if filtered:
+                return filtered
+            if str(facts.get("vin", "") or "").strip():
+                return ["vin_enrichment", "normalization"]
+            return ["normalization"]
         if task_type == "board_review":
             return ["board_review"]
         if task_type == "cash_review":
@@ -616,8 +653,11 @@ class AgentRunner:
                 return autofill_scenarios or ["normalization"]
         return ["freeform_manual"]
 
-    def _suggest_allowed_write_targets(self, *, task_type: str, context_kind: str) -> list[str]:
+    def _suggest_allowed_write_targets(self, *, task_type: str, context_kind: str, metadata: dict[str, Any] | None = None) -> list[str]:
+        purpose = str((metadata or {}).get("purpose", "") or "").strip().lower()
         if context_kind == "card":
+            if purpose == "board_control":
+                return ["description", "vehicle", "vehicle_profile"]
             if task_type == "repair_order_assist":
                 return ["description", "repair_order", "repair_order_works", "repair_order_materials"]
             return ["title", "description", "tags", "vehicle", "vehicle_profile"]
@@ -808,8 +848,9 @@ class AgentRunner:
         plan: PlanResult,
     ) -> tuple[str, str, dict[str, Any], int, list[ToolResult], PatchResult, VerifyResult]:
         card_id = self._cleanup_card_id(metadata) or str(metadata.get("card_id", "") or "").strip()
+        purpose = str(metadata.get("purpose", "") or "").strip().lower()
         if not card_id:
-            raise AgentModelError("card_autofill task requires metadata.context.card_id.")
+            raise AgentModelError("structured card task requires metadata.context.card_id.")
         tool_calls = 0
         applied_updates: list[str] = []
         tool_results: list[ToolResult] = []
@@ -822,7 +863,7 @@ class AgentRunner:
                 phase="analysis",
                 message="VIN found.",
             )
-        if self._should_load_card_autofill_related_cards(facts):
+        if purpose != "board_control" and self._should_load_card_autofill_related_cards(facts):
             related_args = {
                 "query": self._related_cards_query(facts),
                 "include_archived": True,
@@ -3226,7 +3267,7 @@ class AgentRunner:
         return "\n\n".join(deduped)
 
     def _classify_task(self, task: dict[str, Any], metadata: dict[str, Any]) -> str:
-        if str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill":
+        if str(metadata.get("purpose", "") or "").strip().lower() in {"card_autofill", "board_control"}:
             return "card_cleanup"
         text = self._normalized_task_text(str(task.get("task_text", "") or ""))
         if self._is_card_cleanup_task(task, metadata):
@@ -3393,6 +3434,75 @@ class AgentRunner:
             "AI-added notes or follow-up questions inside the description must be labeled with 'ИИ:' or 'AI:'.\n"
             "If nothing can be safely changed, return a final answer that explicitly says no card fields were changed and why."
         )
+
+
+    def _update_board_control_runtime_after_task(self, *, task: dict[str, Any], orchestration: dict[str, Any] | None) -> None:
+        metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+        if str(metadata.get("purpose", "") or "").strip().lower() != "board_control":
+            return
+        card_id = self._cleanup_card_id(metadata)
+        if not card_id:
+            return
+        status = self._storage.read_status()
+        runtime = status.get("board_control") if isinstance(status.get("board_control"), dict) else {}
+        runtime = dict(runtime)
+        cache = dict(runtime.get("card_cache") or {})
+        cache_entry = dict(cache.get(card_id) or {})
+        patch_payload = orchestration.get("patch") if isinstance(orchestration, dict) and isinstance(orchestration.get("patch"), dict) else {}
+        verify_payload = orchestration.get("verify") if isinstance(orchestration, dict) and isinstance(orchestration.get("verify"), dict) else {}
+        card_patch = patch_payload.get("card_patch") if isinstance(patch_payload.get("card_patch"), dict) else {}
+        wrote_anything = bool(card_patch)
+        verify_ok = bool(verify_payload.get("applied_ok"))
+        cache_entry["last_result"] = "written" if wrote_anything and verify_ok else ("completed_no_write" if not wrote_anything else "verify_failed")
+        cache_entry["last_verify_ok"] = verify_ok
+        cache_entry["last_processed_at"] = utc_now_iso()
+        cache[card_id] = cache_entry
+        runtime["card_cache"] = cache
+        if wrote_anything and verify_ok:
+            runtime["written_count"] = int(runtime.get("written_count", 0) or 0) + 1
+        traces = list(runtime.get("recent_traces") or [])
+        traces.insert(
+            0,
+            {
+                "card_id": card_id,
+                "status": cache_entry["last_result"],
+                "verify_ok": verify_ok,
+                "written": wrote_anything,
+                "at": utc_now_iso(),
+            },
+        )
+        runtime["recent_traces"] = traces[:24]
+        self._storage.update_status(board_control=runtime)
+
+    def _update_board_control_runtime_after_failure(self, *, task: dict[str, Any], error: str) -> None:
+        metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+        if str(metadata.get("purpose", "") or "").strip().lower() != "board_control":
+            return
+        card_id = self._cleanup_card_id(metadata)
+        status = self._storage.read_status()
+        runtime = status.get("board_control") if isinstance(status.get("board_control"), dict) else {}
+        runtime = dict(runtime)
+        cache = dict(runtime.get("card_cache") or {})
+        if card_id:
+            cache_entry = dict(cache.get(card_id) or {})
+            cache_entry["last_result"] = "failed"
+            cache_entry["last_verify_ok"] = False
+            cache_entry["last_processed_at"] = utc_now_iso()
+            cache[card_id] = cache_entry
+        runtime["card_cache"] = cache
+        runtime["error_count"] = int(runtime.get("error_count", 0) or 0) + 1
+        traces = list(runtime.get("recent_traces") or [])
+        traces.insert(
+            0,
+            {
+                "card_id": card_id,
+                "status": "failed",
+                "error": str(error or "").strip(),
+                "at": utc_now_iso(),
+            },
+        )
+        runtime["recent_traces"] = traces[:24]
+        self._storage.update_status(board_control=runtime)
 
 
 def build_board_api_client(*, logger: logging.Logger) -> BoardApiClient:

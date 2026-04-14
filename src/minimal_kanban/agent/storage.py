@@ -32,6 +32,20 @@ DEFAULT_STATUS = {
     "last_scheduler_run_at": "",
     "last_scheduler_success_at": "",
     "last_scheduler_error": "",
+    "board_control": {
+        "running": False,
+        "last_pass_at": "",
+        "last_success_at": "",
+        "last_error": "",
+        "last_baseline_at": "",
+        "considered_count": 0,
+        "triggered_count": 0,
+        "enqueued_count": 0,
+        "written_count": 0,
+        "error_count": 0,
+        "recent_traces": [],
+        "card_cache": {},
+    },
 }
 
 DEFAULT_MAX_FINISHED_TASKS = 300
@@ -93,15 +107,19 @@ class AgentStorage:
     def read_status(self) -> dict[str, Any]:
         with self._lock, self._process_lock.acquire():
             payload = self._read_json(self._status_file, DEFAULT_STATUS)
-            normalized = dict(DEFAULT_STATUS)
-            normalized.update(payload if isinstance(payload, dict) else {})
+            normalized = self._normalize_status_payload(payload if isinstance(payload, dict) else {})
             return normalized
 
     def update_status(self, **updates: Any) -> dict[str, Any]:
         with self._lock, self._process_lock.acquire():
             payload = self._read_json(self._status_file, DEFAULT_STATUS)
-            current = dict(DEFAULT_STATUS)
-            current.update(payload if isinstance(payload, dict) else {})
+            current = self._normalize_status_payload(payload if isinstance(payload, dict) else {})
+            board_control_updates = updates.get("board_control")
+            if isinstance(board_control_updates, dict):
+                merged_board_control = dict(current.get("board_control") if isinstance(current.get("board_control"), dict) else {})
+                merged_board_control.update(board_control_updates)
+                updates = dict(updates)
+                updates["board_control"] = merged_board_control
             current.update(updates)
             self._write_json(self._status_file, current)
             return current
@@ -482,3 +500,13 @@ class AgentStorage:
         temp_path = path.with_suffix(f"{path.suffix}.tmp")
         temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         temp_path.replace(path)
+
+    def _normalize_status_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(DEFAULT_STATUS)
+        normalized.update(payload if isinstance(payload, dict) else {})
+        board_control = payload.get("board_control") if isinstance(payload, dict) else {}
+        normalized_board_control = dict(DEFAULT_STATUS["board_control"])
+        if isinstance(board_control, dict):
+            normalized_board_control.update(board_control)
+        normalized["board_control"] = normalized_board_control
+        return normalized

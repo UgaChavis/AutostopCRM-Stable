@@ -4915,6 +4915,26 @@ BOARD_WEB_APP_HTML = "".join(
           </div>
         </div>
       </div>
+      <div class="field hidden" id="boardControlSettingsRow">
+        <div class="subpanel" style="margin:0; padding:14px;">
+          <div class="panel-title">BOARD CONTROL</div>
+          <label class="checkbox-row" for="boardControlToggle" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <span>ТИХИЙ BACKGROUND MODE</span>
+            <input id="boardControlToggle" type="checkbox">
+          </label>
+          <div class="signal-grid" style="margin-top:10px;">
+            <div class="signal-cell">
+              <span>ИНТЕРВАЛ</span>
+              <input id="boardControlIntervalInput" type="number" min="5" max="240" step="5" value="20">
+            </div>
+            <div class="signal-cell">
+              <span>COOLDOWN</span>
+              <input id="boardControlCooldownInput" type="number" min="5" max="1440" step="5" value="60">
+            </div>
+          </div>
+          <div class="compact-note">Hidden rollout seam for `board_control`. It stays quiet and disabled by default.</div>
+        </div>
+      </div>
       <div class="dialog__foot">
         <button class="btn btn--ghost" id="boardScaleReset">СБРОСИТЬ НА 100%</button>
       </div>
@@ -5675,6 +5695,10 @@ BOARD_WEB_APP_HTML = "".join(
       boardScaleInput: document.getElementById('boardScaleInput'),
       boardScaleValue: document.getElementById('boardScaleValue'),
       boardScaleReset: document.getElementById('boardScaleReset'),
+      boardControlSettingsRow: document.getElementById('boardControlSettingsRow'),
+      boardControlToggle: document.getElementById('boardControlToggle'),
+      boardControlIntervalInput: document.getElementById('boardControlIntervalInput'),
+      boardControlCooldownInput: document.getElementById('boardControlCooldownInput'),
       stickyModal: document.getElementById('stickyModal'),
       stickyModalTitle: document.getElementById('stickyModalTitle'),
       stickyText: document.getElementById('stickyText'),
@@ -9809,6 +9833,7 @@ BOARD_WEB_APP_HTML = "".join(
         renderAgentStatus(statusData);
         renderAiEntrySurface(statusData);
         renderAiChatWindow(statusData);
+        syncBoardControlSettingsForm();
         renderAgentRuns(statusData?.recent_runs || []);
         const task = selectAgentTask(state.agentLatestTasks);
         if (task) {
@@ -9830,6 +9855,7 @@ BOARD_WEB_APP_HTML = "".join(
           : ((hasRunningAutofill || activeAutofill) ? 1800 : 3500));
       } catch (error) {
         renderAgentStatus({ agent: { enabled: false }, status: { running: false, last_error: error.message }, queue: { pending_total: 0 } });
+        syncBoardControlSettingsForm();
         if (els.agentResultPanel) {
           els.agentResultPanel.dataset.state = 'error';
           els.agentResultPanel.dataset.tone = 'error';
@@ -13633,7 +13659,43 @@ function renderCompactArchiveRows(cards) {
 
     function openBoardSettings() {
       applyBoardScale(state.boardScale || 1, { syncInput: true });
+      syncBoardControlSettingsForm();
       els.boardSettingsModal.classList.add('is-open');
+    }
+
+    function currentBoardControlSettings() {
+      const snapshotSettings = state.snapshot?.settings?.ai_board_control && typeof state.snapshot.settings.ai_board_control === 'object'
+        ? state.snapshot.settings.ai_board_control
+        : {};
+      return {
+        enabled: Boolean(snapshotSettings.enabled),
+        interval_minutes: Math.max(5, Math.min(240, Number(snapshotSettings.interval_minutes || 20) || 20)),
+        cooldown_minutes: Math.max(5, Math.min(1440, Number(snapshotSettings.cooldown_minutes || 60) || 60)),
+      };
+    }
+
+    function boardControlEntryExposure() {
+      const payload = state.agentStatusPayload && typeof state.agentStatusPayload === 'object' ? state.agentStatusPayload : {};
+      const exposure = payload?.ai_remodel?.effective_mode?.entry_exposure?.future_board_control_toggle;
+      return exposure && typeof exposure === 'object' ? exposure : {};
+    }
+
+    function syncBoardControlSettingsForm() {
+      const settings = currentBoardControlSettings();
+      const exposure = boardControlEntryExposure();
+      const visible = String(exposure.exposure_state || '').trim().toLowerCase() !== 'hidden';
+      if (els.boardControlSettingsRow) els.boardControlSettingsRow.classList.toggle('hidden', !visible);
+      if (els.boardControlToggle) els.boardControlToggle.checked = Boolean(settings.enabled);
+      if (els.boardControlIntervalInput) els.boardControlIntervalInput.value = String(settings.interval_minutes);
+      if (els.boardControlCooldownInput) els.boardControlCooldownInput.value = String(settings.cooldown_minutes);
+    }
+
+    function readBoardControlSettingsForm() {
+      return {
+        enabled: Boolean(els.boardControlToggle?.checked),
+        interval_minutes: Math.max(5, Math.min(240, Number(els.boardControlIntervalInput?.value || 20) || 20)),
+        cooldown_minutes: Math.max(5, Math.min(1440, Number(els.boardControlCooldownInput?.value || 60) || 60)),
+      };
     }
 
     function handleBoardScaleInput() {
@@ -14194,6 +14256,20 @@ function renderCompactArchiveRows(cards) {
       const scale = normalizeBoardScale(Number(els.boardScaleInput.value) / 100);
       applyBoardScale(scale, { syncInput: true });
       persistStoredBoardScale(scale);
+      const aiBoardControl = readBoardControlSettingsForm();
+      const data = await api('/api/update_board_settings', {
+        method: 'POST',
+        body: {
+          board_scale: scale,
+          ai_board_control: aiBoardControl,
+          actor_name: state.actor,
+          source: 'ui',
+        },
+      });
+      if (data?.settings && typeof data.settings === 'object') {
+        state.snapshot = state.snapshot && typeof state.snapshot === 'object' ? state.snapshot : {};
+        state.snapshot.settings = data.settings;
+      }
     }
 
     async function persistBoardScaleChange() {
@@ -14713,6 +14789,9 @@ function renderCompactArchiveRows(cards) {
     els.boardScaleInput.addEventListener('input', handleBoardScaleInput);
     els.boardScaleInput.addEventListener('change', persistBoardScaleChange);
     els.boardScaleReset.addEventListener('click', resetBoardScaleToDefault);
+    els.boardControlToggle?.addEventListener('change', persistBoardScaleChange);
+    els.boardControlIntervalInput?.addEventListener('change', persistBoardScaleChange);
+    els.boardControlCooldownInput?.addEventListener('change', persistBoardScaleChange);
     els.columnButton.addEventListener('click', createColumnFromTopbar);
     els.cardButton.addEventListener('click', openDefaultNewCard);
     els.aiChatButton?.addEventListener('click', openAiChatEntry);
