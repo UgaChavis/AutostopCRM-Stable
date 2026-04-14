@@ -6977,7 +6977,10 @@ BOARD_WEB_APP_HTML = "".join(
       hydrateAiSurfaceUiRefs();
       bindAiSurfaceUiEvents();
       state.aiSurfaceContext = buildAiSurfaceContext(kind);
-      state.aiSurfaceSelectedScenario = String(kind || '').trim().toLowerCase() === 'card' ? 'full_card_enrichment' : 'ai_chat';
+      const normalizedKind = String(kind || '').trim().toLowerCase();
+      state.aiSurfaceSelectedScenario = normalizedKind === 'card'
+        ? 'full_card_enrichment'
+        : (normalizedKind === 'board' ? 'board_control' : 'ai_chat');
       if (els.aiSurfaceModal) {
         els.aiSurfaceModal.classList.add('is-open');
       }

@@ -177,6 +177,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function applyAiSurfaceEntryState(button, exposureRecord, options = {})", BOARD_WEB_APP_HTML)
         self.assertIn("function openAiChatEntry()", BOARD_WEB_APP_HTML)
         self.assertIn("function openAiSurface(kind = 'chat')", BOARD_WEB_APP_HTML)
+        self.assertIn("normalizedKind === 'board' ? 'board_control' : 'ai_chat'", BOARD_WEB_APP_HTML)
         self.assertIn("function closeAiSurface()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleAiSurfaceScenarioClick(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function handleAiSurfaceLegacyClick()", BOARD_WEB_APP_HTML)
