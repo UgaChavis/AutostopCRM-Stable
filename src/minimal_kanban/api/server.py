@@ -103,8 +103,10 @@ class ApiServer:
     @property
     def base_url(self) -> str:
         display_host = self.host
-        if display_host in {"0.0.0.0", "::"}:
+        if display_host in {"0.0.0.0", "::", "[::]"}:
             display_host = "127.0.0.1"
+        elif ":" in display_host and not display_host.startswith("["):
+            display_host = f"[{display_host}]"
         return f"http://{display_host}:{self.port}"
 
     def start(self) -> None:

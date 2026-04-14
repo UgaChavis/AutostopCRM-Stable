@@ -52,6 +52,15 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(_success_log_level("/api/health"), logging.DEBUG)
         self.assertEqual(_success_log_level("/api/create_card"), logging.INFO)
 
+    def test_api_base_url_normalizes_wildcard_and_formats_ipv6_hosts(self) -> None:
+        logger = logging.getLogger(f"test.api.base_url.{self._testMethodName}")
+        wildcard = ApiServer(Mock(), logger, host="0.0.0.0", start_port=41731, fallback_limit=1)
+        ipv6 = ApiServer(Mock(), logger, host="::1", start_port=41731, fallback_limit=1)
+        ipv6_wildcard = ApiServer(Mock(), logger, host="[::]", start_port=41731, fallback_limit=1)
+        self.assertEqual(wildcard.base_url, "http://127.0.0.1:41731")
+        self.assertEqual(ipv6.base_url, "http://[::1]:41731")
+        self.assertEqual(ipv6_wildcard.base_url, "http://127.0.0.1:41731")
+
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         state_file = Path(self.temp_dir.name) / "state.json"
