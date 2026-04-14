@@ -1338,7 +1338,12 @@ class CardService:
             actor_name, source = self._audit_identity(payload, default_source="api")
             settings = dict(bundle["settings"])
             employees = self._employees_from_settings(settings)
-            employee_id = normalize_text(payload.get("employee_id"), default="", limit=64)
+            create_mode = normalize_bool(payload.get("create_mode"), default=False)
+            if create_mode:
+                payload = dict(payload)
+                payload.pop("employee_id", None)
+                payload.pop("id", None)
+            employee_id = "" if create_mode else normalize_text(payload.get("employee_id"), default="", limit=64)
             existing = next((item for item in employees if item["id"] == employee_id), None)
             created = existing is None
             if created and len(employees) >= EMPLOYEES_MAX_COUNT:
@@ -1357,7 +1362,7 @@ class CardService:
                 actor_name=actor_name,
                 source=source,
                 action="employee_saved",
-                message=f"{actor_name} обновил сотрудника",
+                message=f"{actor_name} {'добавил' if created else 'обновил'} сотрудника",
                 card_id=None,
                 details={"employee_id": employee["id"], "name": employee["name"]},
             )

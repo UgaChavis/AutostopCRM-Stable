@@ -765,6 +765,22 @@ class CardServiceTests(unittest.TestCase):
             self.assertEqual(item["base_salary"], base_salary)
             self.assertEqual(item["work_percent"], work_percent)
 
+    def test_employee_create_mode_ignores_stale_employee_id_and_creates_new_record(self) -> None:
+        first = self.service.save_employee({"name": "Иван", "position": "Мастер"})["employee"]
+        second = self.service.save_employee(
+            {
+                "employee_id": first["id"],
+                "create_mode": True,
+                "name": "Пётр",
+                "position": "Приёмщик",
+            }
+        )["employee"]
+
+        listed = self.service.list_employees()["employees"]
+        self.assertEqual(len(listed), 2)
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertCountEqual([item["name"] for item in listed], ["Иван", "Пётр"])
+
     def test_employee_creation_rejects_more_than_fifteen_records(self) -> None:
         for index in range(15):
             self.service.save_employee({"name": f"Сотрудник {index + 1}"})

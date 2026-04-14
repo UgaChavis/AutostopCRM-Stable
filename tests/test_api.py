@@ -1031,6 +1031,28 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(overflow["error"]["code"], "validation_error")
         self.assertIn("15", overflow["error"]["message"])
 
+    def test_save_employee_create_mode_ignores_stale_employee_id(self) -> None:
+        status, first = self.request("/api/save_employee", {"name": "Иван", "position": "Мастер"})
+        self.assertEqual(status, 200)
+
+        status, second = self.request(
+            "/api/save_employee",
+            {
+                "employee_id": first["data"]["employee"]["id"],
+                "create_mode": True,
+                "name": "Пётр",
+                "position": "Приёмщик",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(second["data"]["created"])
+        self.assertNotEqual(first["data"]["employee"]["id"], second["data"]["employee"]["id"])
+
+        status, listed = self.request("/api/list_employees", method="GET")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(listed["data"]["employees"]), 2)
+        self.assertCountEqual([item["name"] for item in listed["data"]["employees"]], ["Иван", "Пётр"])
+
     def test_save_employee_requires_name(self) -> None:
         status, response = self.request(
             "/api/save_employee",

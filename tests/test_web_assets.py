@@ -285,6 +285,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("employeeCreateMode: false", BOARD_WEB_APP_HTML)
         self.assertIn("employeesReportTab: 'summary'", BOARD_WEB_APP_HTML)
         self.assertIn("state.employeeCreateMode = true;", BOARD_WEB_APP_HTML)
+        self.assertIn("create_mode: Boolean(state.employeeCreateMode)", BOARD_WEB_APP_HTML)
         self.assertIn("employee_id: state.employeeCreateMode ? '' : (state.activeEmployeeId || '')", BOARD_WEB_APP_HTML)
         self.assertIn('input[type="search"], input[type="month"]', BOARD_WEB_APP_HTML)
         self.assertIn("setStatus('УКАЖИ ИМЯ СОТРУДНИКА.', true);", BOARD_WEB_APP_HTML)

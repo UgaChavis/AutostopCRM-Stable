@@ -6154,6 +6154,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     function readEmployeeFormPayload() {
       return {
+        create_mode: Boolean(state.employeeCreateMode),
         employee_id: state.employeeCreateMode ? '' : (state.activeEmployeeId || ''),
         name: els.employeeNameInput.value,
         position: els.employeePositionInput.value,
