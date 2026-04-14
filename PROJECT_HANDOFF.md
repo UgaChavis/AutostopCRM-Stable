@@ -2,7 +2,7 @@
 
 This is the primary developer handoff document for branch `autostopCRM`.
 
-Use it as the first operational overview after reading `00_START_HERE_AUTOSTOP_CRM.md`.
+Use it as the operational overview after reading `00_START_HERE_AUTOSTOP_CRM.md` and `MASTER-PLAN.md`.
 
 It should answer four questions fast:
 

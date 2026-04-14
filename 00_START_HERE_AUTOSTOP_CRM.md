@@ -28,14 +28,15 @@ AutoStop CRM is an auto-workshop CRM built around:
 ## First Read Order
 
 1. `00_START_HERE_AUTOSTOP_CRM.md`
-2. `PROJECT_HANDOFF.md`
-3. `README.md`
-4. `AUTOSTOPCRM_FULL_INSTRUCTION.txt`
-5. `API_GUIDE.md`
-6. `MCP_GUIDE.md`
-7. `src/minimal_kanban/agent/runner.py`
-8. `src/minimal_kanban/services/card_service.py`
-9. `src/minimal_kanban/web_assets.py`
+2. `MASTER-PLAN.md`
+3. `PROJECT_HANDOFF.md`
+4. `README.md`
+5. `AUTOSTOPCRM_FULL_INSTRUCTION.txt`
+6. `API_GUIDE.md`
+7. `MCP_GUIDE.md`
+8. `src/minimal_kanban/agent/runner.py`
+9. `src/minimal_kanban/services/card_service.py`
+10. `src/minimal_kanban/web_assets.py`
 
 ## Main Runtime Layers
 
@@ -114,6 +115,7 @@ Known remaining limitation:
 Primary active docs kept in the repo root:
 
 - `00_START_HERE_AUTOSTOP_CRM.md`
+- `MASTER-PLAN.md`
 - `PROJECT_HANDOFF.md`
 - `README.md`
 - `AUTOSTOPCRM_FULL_INSTRUCTION.txt`

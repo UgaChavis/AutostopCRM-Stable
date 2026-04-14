@@ -250,6 +250,7 @@ The production compose stack currently has two services:
 С чего начать:
 
 - [00_START_HERE_AUTOSTOP_CRM.md](00_START_HERE_AUTOSTOP_CRM.md): visible root-level onboarding file for the next developer or agent
+- [MASTER-PLAN.md](MASTER-PLAN.md): central architecture plan with module tree, internal versions, and parallel development lanes
 - [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md): current developer handoff, architecture snapshot, and latest development state
 - [README.md](README.md): current project overview
 - [AUTOSTOPCRM_FULL_INSTRUCTION.txt](AUTOSTOPCRM_FULL_INSTRUCTION.txt): server and deployment operations
