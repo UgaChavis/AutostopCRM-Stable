@@ -10993,6 +10993,30 @@ function renderCompactArchiveRows(cards) {
       state.boardDragCardId = '';
     }
 
+    function updateBoardDragAutoScroll(clientX, clientY) {
+      if (!state.boardDragCardId || !els.boardScroll) return;
+      const rect = els.boardScroll.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const edgeThresholdX = Math.max(48, Math.min(96, Math.round(rect.width * 0.12)));
+      const edgeThresholdY = Math.max(48, Math.min(96, Math.round(rect.height * 0.12)));
+      const maxStepX = Math.max(18, Math.round(edgeThresholdX * 0.34));
+      const maxStepY = Math.max(18, Math.round(edgeThresholdY * 0.34));
+      let deltaX = 0;
+      let deltaY = 0;
+      if (clientX < rect.left + edgeThresholdX) {
+        deltaX = -Math.round(((rect.left + edgeThresholdX) - clientX) / edgeThresholdX * maxStepX);
+      } else if (clientX > rect.right - edgeThresholdX) {
+        deltaX = Math.round((clientX - (rect.right - edgeThresholdX)) / edgeThresholdX * maxStepX);
+      }
+      if (clientY < rect.top + edgeThresholdY) {
+        deltaY = -Math.round(((rect.top + edgeThresholdY) - clientY) / edgeThresholdY * maxStepY);
+      } else if (clientY > rect.bottom - edgeThresholdY) {
+        deltaY = Math.round((clientY - (rect.bottom - edgeThresholdY)) / edgeThresholdY * maxStepY);
+      }
+      if (!deltaX && !deltaY) return;
+      clampBoardScroll(els.boardScroll.scrollLeft + deltaX, els.boardScroll.scrollTop + deltaY);
+    }
+
     function resolveDropBeforeCardId(column, clientY, draggedCardId) {
       const cards = Array.from(column.querySelectorAll('.card')).filter((card) => card.dataset.cardId !== draggedCardId);
       for (const card of cards) {
@@ -11971,12 +11995,20 @@ function renderCompactArchiveRows(cards) {
     }
 
     function handleBoardCardDragOver(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const column = target.closest('.column');
-      if (!column) return;
-      event.preventDefault();
       const draggedCardId = state.boardDragCardId || event.dataTransfer?.getData('text/plain') || '';
+      if (!draggedCardId) return;
+      event.preventDefault();
+      updateBoardDragAutoScroll(event.clientX, event.clientY);
+      const rawTarget = event.target;
+      const target = rawTarget instanceof Element
+        ? rawTarget
+        : (rawTarget instanceof Node ? rawTarget.parentElement : null);
+      if (!(target instanceof Element)) return;
+      const column = target.closest('.column');
+      if (!column) {
+        clearCardDropState();
+        return;
+      }
       const beforeCardId = resolveDropBeforeCardId(column, event.clientY, draggedCardId);
       updateCardDropState(column, beforeCardId);
     }

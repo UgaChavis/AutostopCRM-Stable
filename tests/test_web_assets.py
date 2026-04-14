@@ -500,12 +500,17 @@ class WebAssetsTests(unittest.TestCase):
 
     def test_board_drag_drop_supports_reordering_inside_column(self) -> None:
         self.assertIn(".card.is-drop-before::before {", BOARD_WEB_APP_HTML)
+        self.assertIn("function updateBoardDragAutoScroll(clientX, clientY)", BOARD_WEB_APP_HTML)
+        self.assertIn("const edgeThresholdX = Math.max(48, Math.min(96, Math.round(rect.width * 0.12)));", BOARD_WEB_APP_HTML)
+        self.assertIn("const edgeThresholdY = Math.max(48, Math.min(96, Math.round(rect.height * 0.12)));", BOARD_WEB_APP_HTML)
+        self.assertIn("clampBoardScroll(els.boardScroll.scrollLeft + deltaX, els.boardScroll.scrollTop + deltaY);", BOARD_WEB_APP_HTML)
         self.assertIn("function resolveDropBeforeCardId(column, clientY, draggedCardId)", BOARD_WEB_APP_HTML)
         self.assertIn("function handleBoardCardDragStart(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function handleBoardCardDragOver(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function handleBoardCardDragLeave(event)", BOARD_WEB_APP_HTML)
         self.assertIn("async function handleBoardCardDrop(event)", BOARD_WEB_APP_HTML)
         self.assertIn("state.boardDropBeforeCardId = beforeCardId || '';", BOARD_WEB_APP_HTML)
+        self.assertIn("updateBoardDragAutoScroll(event.clientX, event.clientY);", BOARD_WEB_APP_HTML)
         self.assertIn("before_card_id: beforeCardId || undefined,", BOARD_WEB_APP_HTML)
         self.assertIn("await moveCard(cardId, columnId, beforeCardId);", BOARD_WEB_APP_HTML)
         self.assertIn("document.addEventListener('dragstart', handleBoardCardDragStart);", BOARD_WEB_APP_HTML)
