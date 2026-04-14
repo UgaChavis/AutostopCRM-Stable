@@ -617,7 +617,7 @@ class BoardApiClient:
                 try:
                     parsed = json.loads(response.read().decode("utf-8"))
                 except json.JSONDecodeError as json_error:
-                    raise BoardApiTransportError(f"Р›РѕРєР°Р»СЊРЅС‹Р№ API РІРµСЂРЅСѓР» РЅРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ JSON РґР»СЏ {path}.") from json_error
+                    raise BoardApiTransportError(f"Локальный API вернул некорректный JSON для {path}.") from json_error
                 self._log("board_api_request path=%s status=%s", path, response.status)
                 return parsed
         except urllib.error.HTTPError as exc:

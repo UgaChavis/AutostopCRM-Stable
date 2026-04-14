@@ -1551,8 +1551,10 @@ class McpServerRuntimeTests(unittest.TestCase):
                 return b"{not-json"
 
         with patch("urllib.request.urlopen", return_value=BrokenResponse()):
-            with self.assertRaises(BoardApiTransportError):
+            with self.assertRaises(BoardApiTransportError) as error:
                 client.health()
+        self.assertIn("Локальный API вернул некорректный JSON", str(error.exception))
+        self.assertNotIn("Р›Рѕ", str(error.exception))
 
 
 if __name__ == "__main__":
