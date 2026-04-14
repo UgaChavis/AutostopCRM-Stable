@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
@@ -60,9 +60,15 @@ async def close_lingering_memory_streams() -> int:
 @asynccontextmanager
 async def open_mcp_session(url: str, *, http_client: httpx.AsyncClient | None = None):
     async with streamable_http_client(url, http_client=http_client) as (read_stream, write_stream, _get_session_id):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            yield session
+        try:
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                yield session
+        finally:
+            with suppress(Exception):
+                await read_stream.aclose()
+            with suppress(Exception):
+                await write_stream.aclose()
 
 
 class McpServerTests(unittest.IsolatedAsyncioTestCase):
