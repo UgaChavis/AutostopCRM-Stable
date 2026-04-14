@@ -72,6 +72,21 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("window.prompt(", BOARD_WEB_APP_HTML)
         self.assertIn("await renameColumnFromButton(renameColumnButton);", BOARD_WEB_APP_HTML)
 
+    def test_columns_support_drag_and_drop_reordering(self) -> None:
+        self.assertIn('data-drag-column-handle="1"', BOARD_WEB_APP_HTML)
+        self.assertIn('draggable="true"', BOARD_WEB_APP_HTML)
+        self.assertIn("function handleBoardColumnDragStart(event)", BOARD_WEB_APP_HTML)
+        self.assertIn("function handleBoardColumnDragOver(event)", BOARD_WEB_APP_HTML)
+        self.assertIn("function handleBoardColumnDragLeave(event)", BOARD_WEB_APP_HTML)
+        self.assertIn("async function handleBoardColumnDrop(event)", BOARD_WEB_APP_HTML)
+        self.assertIn("async function moveColumn(columnId, beforeColumnId = '')", BOARD_WEB_APP_HTML)
+        self.assertIn("'/api/move_column'", BOARD_WEB_APP_HTML)
+        self.assertIn("document.addEventListener('dragstart', handleBoardColumnDragStart);", BOARD_WEB_APP_HTML)
+        self.assertIn("document.addEventListener('drop', handleBoardColumnDrop);", BOARD_WEB_APP_HTML)
+        self.assertIn("document.addEventListener('dragend', finishBoardDrag);", BOARD_WEB_APP_HTML)
+        self.assertIn(".column.is-column-drop-target {", BOARD_WEB_APP_HTML)
+        self.assertIn(".column__head[draggable=\"true\"] {", BOARD_WEB_APP_HTML)
+
     def test_board_snapshot_polling_is_throttled_and_visibility_aware(self) -> None:
         self.assertIn("refreshInFlight: null", BOARD_WEB_APP_HTML)
         self.assertIn("const SNAPSHOT_POLL_INTERVAL_MS = 8000;", BOARD_WEB_APP_HTML)
@@ -538,6 +553,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("document.addEventListener('dragover', handleBoardCardDragOver);", BOARD_WEB_APP_HTML)
         self.assertIn("document.addEventListener('dragleave', handleBoardCardDragLeave);", BOARD_WEB_APP_HTML)
         self.assertIn("document.addEventListener('drop', handleBoardCardDrop);", BOARD_WEB_APP_HTML)
+        self.assertIn("(!state.boardDragCardId && !state.boardDragColumnId)", BOARD_WEB_APP_HTML)
         self.assertIn("left.position ?? 0", BOARD_WEB_APP_HTML)
 
     def test_card_files_panel_uses_dropzone_and_clipboard_upload_flow(self) -> None:

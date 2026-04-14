@@ -2243,6 +2243,9 @@ class CardService:
     def rename_column(self, payload: dict) -> dict:
         return self._column_service.rename_column(payload)
 
+    def move_column(self, payload: dict) -> dict:
+        return self._column_service.move_column(payload)
+
     def delete_column(self, payload: dict) -> dict:
         return self._column_service.delete_column(payload)
 

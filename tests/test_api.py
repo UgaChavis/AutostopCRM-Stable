@@ -1089,6 +1089,26 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(duplicate["error"]["code"], "validation_error")
 
+    def test_move_column_route_reorders_columns(self) -> None:
+        status, first = self.request("/api/create_column", {"label": "FIRST"})
+        self.assertEqual(status, 200)
+        status, second = self.request("/api/create_column", {"label": "SECOND"})
+        self.assertEqual(status, 200)
+        status, third = self.request("/api/create_column", {"label": "THIRD"})
+        self.assertEqual(status, 200)
+
+        status, moved = self.request(
+            "/api/move_column",
+            {"column_id": third["data"]["column"]["id"], "before_column_id": first["data"]["column"]["id"]},
+        )
+        self.assertEqual(status, 200)
+        ordered_ids = [item["id"] for item in moved["data"]["columns"]]
+        self.assertEqual(
+            ordered_ids[-3:],
+            [third["data"]["column"]["id"], first["data"]["column"]["id"], second["data"]["column"]["id"]],
+        )
+        self.assertTrue(moved["data"]["meta"]["changed"])
+
     def test_bulk_move_cards_route_moves_cards_and_reports_partial_failures(self) -> None:
         status, created_column = self.request("/api/create_column", {"label": "MCP TEST COLUMN"})
         self.assertEqual(status, 200)

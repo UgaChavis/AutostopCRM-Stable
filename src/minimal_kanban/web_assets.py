@@ -396,7 +396,11 @@ BOARD_WEB_APP_HTML = "".join(
       z-index: 1;
     }
     .column.is-drop-target { outline: 1px solid var(--accent); }
+    .column.is-column-drop-target { outline: 1px dashed rgba(167, 178, 132, 0.92); outline-offset: 2px; }
+    .column.is-column-dragging { opacity: 0.72; }
     .column__head { display: flex; justify-content: space-between; align-items: center; gap: calc(10px * var(--board-scale)); }
+    .column__head[draggable="true"] { cursor: grab; }
+    .column__head[draggable="true"]:active { cursor: grabbing; }
     .column__head-actions {
       display: inline-flex;
       align-items: center;
@@ -4808,8 +4812,10 @@ BOARD_WEB_APP_HTML = "".join(
       pollHandle: null,
       refreshInFlight: null,
       boardDragCardId: '',
+      boardDragColumnId: '',
       boardDropColumnId: '',
       boardDropBeforeCardId: '',
+      boardDropBeforeColumnId: '',
       unreadHoverTimers: new Map(),
       unreadSeenInFlight: new Set(),
       repairOrdersFilter: 'open',
@@ -10760,6 +10766,14 @@ function renderCompactArchiveRows(cards) {
       );
     }
 
+    function sortBoardColumns(columns) {
+      return (Array.isArray(columns) ? columns : []).slice().sort((left, right) =>
+        ((left.position ?? 0) - (right.position ?? 0))
+        || String(left.label || '').localeCompare(String(right.label || ''), 'ru')
+        || String(left.id || '').localeCompare(String(right.id || ''))
+      );
+    }
+
     function buildBoardCardsByColumn(snapshot) {
       const grouped = new Map();
       (snapshot?.cards || []).forEach((card) => {
@@ -10789,7 +10803,7 @@ function renderCompactArchiveRows(cards) {
         : (snapshot.columns.length <= 1 ? 'Последний столбец нельзя удалить' : 'Удалить пустой столбец');
       const renameTitle = 'Переименовать столбец';
       const deleteAttrs = isDeleteBlocked ? ' disabled' : '';
-      return '<section class="column" style="' + toneStyle + '" data-column-id="' + escapeHtml(column.id) + '"><div class="column__head"><div class="column__title">' + escapeHtml(column.label) + '</div><div class="column__head-actions"><button class="btn btn--ghost column__rename" type="button" data-rename-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" title="' + escapeHtml(renameTitle) + '" aria-label="' + escapeHtml(renameTitle) + '">&#9998;</button><button class="btn btn--ghost column__delete" type="button" data-delete-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" data-card-count="' + cards.length + '" title="' + escapeHtml(deleteTitle) + '" aria-label="' + escapeHtml(deleteTitle) + '"' + deleteAttrs + '>×</button><div class="column__count">' + cards.length + '</div></div></div><div class="column__cards">' + (cards.length ? cards.map(renderBoardCardHtml).join('') : '<div class="empty">ЗДЕСЬ ПОКА ПУСТО.</div>') + '</div><button class="btn" data-create-in="' + escapeHtml(column.id) + '">+ КАРТОЧКА</button></section>';
+      return '<section class="column" style="' + toneStyle + '" data-column-id="' + escapeHtml(column.id) + '"><div class="column__head" draggable="true" data-drag-column-handle="1"><div class="column__title">' + escapeHtml(column.label) + '</div><div class="column__head-actions"><button class="btn btn--ghost column__rename" type="button" data-rename-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" title="' + escapeHtml(renameTitle) + '" aria-label="' + escapeHtml(renameTitle) + '">&#9998;</button><button class="btn btn--ghost column__delete" type="button" data-delete-column="' + escapeHtml(column.id) + '" data-column-label="' + escapeHtml(column.label) + '" data-card-count="' + cards.length + '" title="' + escapeHtml(deleteTitle) + '" aria-label="' + escapeHtml(deleteTitle) + '"' + deleteAttrs + '>×</button><div class="column__count">' + cards.length + '</div></div></div><div class="column__cards">' + (cards.length ? cards.map(renderBoardCardHtml).join('') : '<div class="empty">ЗДЕСЬ ПОКА ПУСТО.</div>') + '</div><button class="btn" data-create-in="' + escapeHtml(column.id) + '">+ КАРТОЧКА</button></section>';
     }
 
     function renderBoardColumnById(columnId, cardsByColumn = null) {
@@ -10939,6 +10953,14 @@ function renderCompactArchiveRows(cards) {
         renderedAny = renderBoardColumnById(columnId, cardsByColumn) || renderedAny;
       }
       return renderedAny;
+    }
+
+    function applyBoardColumnsPatch(nextColumns) {
+      if (!Array.isArray(state.snapshot?.columns) || !Array.isArray(nextColumns)) return false;
+      state.snapshot.columns = sortBoardColumns(nextColumns);
+      renderBoard();
+      updateSnapshotStatusLine({ showSuccess: true });
+      return true;
     }
 
     function applyArchivedCardPatch(nextCard) {
@@ -11150,8 +11172,27 @@ function renderCompactArchiveRows(cards) {
       state.boardDragCardId = '';
     }
 
+    function clearColumnDropState() {
+      state.boardDropBeforeColumnId = '';
+      document.querySelectorAll('.column.is-column-drop-target').forEach((column) => column.classList.remove('is-column-drop-target'));
+    }
+
+    function finishColumnDrag() {
+      clearColumnDropState();
+      if (state.boardDragColumnId) {
+        const dragged = document.querySelector('.column[data-column-id="' + state.boardDragColumnId + '"]');
+        if (dragged) dragged.classList.remove('is-column-dragging');
+      }
+      state.boardDragColumnId = '';
+    }
+
+    function finishBoardDrag() {
+      finishCardDrag();
+      finishColumnDrag();
+    }
+
     function updateBoardDragAutoScroll(clientX, clientY) {
-      if (!state.boardDragCardId || !els.boardScroll) return;
+      if ((!state.boardDragCardId && !state.boardDragColumnId) || !els.boardScroll) return;
       const rect = els.boardScroll.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       const edgeThresholdX = Math.max(48, Math.min(96, Math.round(rect.width * 0.12)));
@@ -11181,6 +11222,20 @@ function renderCompactArchiveRows(cards) {
         if (clientY < rect.top + (rect.height / 2)) return card.dataset.cardId || '';
       }
       return '';
+    }
+
+    function resolveDropBeforeColumnId(column, clientX, draggedColumnId) {
+      const dragged = String(draggedColumnId || '').trim();
+      const columns = Array.from(els.board?.querySelectorAll('.column[data-column-id]') || []);
+      const hoveredId = String(column?.dataset?.columnId || '').trim();
+      if (!hoveredId || hoveredId === dragged) return '';
+      const rect = column.getBoundingClientRect();
+      const insertBeforeHovered = clientX < rect.left + (rect.width / 2);
+      if (insertBeforeHovered) return hoveredId;
+      const orderedColumns = columns.filter((item) => String(item.dataset.columnId || '').trim() !== dragged);
+      const hoveredIndex = orderedColumns.findIndex((item) => String(item.dataset.columnId || '').trim() === hoveredId);
+      if (hoveredIndex < 0 || hoveredIndex === orderedColumns.length - 1) return '';
+      return String(orderedColumns[hoveredIndex + 1].dataset.columnId || '').trim();
     }
 
     function updateCardDropState(column, beforeCardId) {
@@ -11219,6 +11274,27 @@ function renderCompactArchiveRows(cards) {
         setStatus(error.message, true);
       } finally {
         finishCardDrag();
+      }
+    }
+
+    async function moveColumn(columnId, beforeColumnId = '') {
+      try {
+        const data = await api('/api/move_column', {
+          method: 'POST',
+          body: {
+            column_id: columnId,
+            before_column_id: beforeColumnId || undefined,
+            actor_name: state.actor,
+            source: 'ui',
+          },
+        });
+        if (!applyBoardColumnsPatch(data?.columns || [])) {
+          await refreshSnapshot(true);
+        }
+      } catch (error) {
+        setStatus(error.message, true);
+      } finally {
+        finishColumnDrag();
       }
     }
 
@@ -12151,6 +12227,21 @@ function renderCompactArchiveRows(cards) {
       }
     }
 
+    function handleBoardColumnDragStart(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const handle = target.closest('[data-drag-column-handle]');
+      if (!(handle instanceof HTMLElement)) return;
+      const column = handle.closest('.column');
+      if (!(column instanceof HTMLElement)) return;
+      state.boardDragColumnId = column.dataset.columnId || '';
+      column.classList.add('is-column-dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('application/x-kanban-column', state.boardDragColumnId);
+      }
+    }
+
     function handleBoardCardDragOver(event) {
       const draggedCardId = state.boardDragCardId || event.dataTransfer?.getData('text/plain') || '';
       if (!draggedCardId) return;
@@ -12170,6 +12261,30 @@ function renderCompactArchiveRows(cards) {
       updateCardDropState(column, beforeCardId);
     }
 
+    function handleBoardColumnDragOver(event) {
+      const draggedColumnId = state.boardDragColumnId || event.dataTransfer?.getData('application/x-kanban-column') || '';
+      if (!draggedColumnId) return;
+      event.preventDefault();
+      updateBoardDragAutoScroll(event.clientX, event.clientY);
+      const target = event.target instanceof Element
+        ? event.target
+        : (event.target instanceof Node ? event.target.parentElement : null);
+      if (!(target instanceof Element)) return;
+      const column = target.closest('.column');
+      if (!(column instanceof HTMLElement)) {
+        clearColumnDropState();
+        return;
+      }
+      const hoveredColumnId = String(column.dataset.columnId || '').trim();
+      if (!hoveredColumnId || hoveredColumnId === draggedColumnId) {
+        clearColumnDropState();
+        return;
+      }
+      state.boardDropBeforeColumnId = resolveDropBeforeColumnId(column, event.clientX, draggedColumnId);
+      document.querySelectorAll('.column.is-column-drop-target').forEach((item) => item.classList.remove('is-column-drop-target'));
+      column.classList.add('is-column-drop-target');
+    }
+
     function handleBoardCardDragLeave(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -12178,6 +12293,16 @@ function renderCompactArchiveRows(cards) {
       const relatedTarget = event.relatedTarget;
       if (relatedTarget instanceof HTMLElement && column.contains(relatedTarget)) return;
       clearCardDropState();
+    }
+
+    function handleBoardColumnDragLeave(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const column = target.closest('.column');
+      if (!column) return;
+      const relatedTarget = event.relatedTarget;
+      if (relatedTarget instanceof HTMLElement && column.contains(relatedTarget)) return;
+      clearColumnDropState();
     }
 
     async function handleBoardCardDrop(event) {
@@ -12193,6 +12318,29 @@ function renderCompactArchiveRows(cards) {
         await moveCard(cardId, columnId, beforeCardId);
       } else {
         finishCardDrag();
+      }
+    }
+
+    async function handleBoardColumnDrop(event) {
+      const draggedColumnId = state.boardDragColumnId || event.dataTransfer?.getData('application/x-kanban-column') || '';
+      if (!draggedColumnId) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        finishColumnDrag();
+        return;
+      }
+      const column = target.closest('.column');
+      if (!(column instanceof HTMLElement)) {
+        finishColumnDrag();
+        return;
+      }
+      event.preventDefault();
+      const hoveredColumnId = String(column.dataset.columnId || '').trim();
+      const beforeColumnId = state.boardDropBeforeColumnId || resolveDropBeforeColumnId(column, event.clientX, draggedColumnId);
+      if (hoveredColumnId && hoveredColumnId !== draggedColumnId) {
+        await moveColumn(draggedColumnId, beforeColumnId);
+      } else {
+        finishColumnDrag();
       }
     }
 
@@ -12249,11 +12397,15 @@ function renderCompactArchiveRows(cards) {
 
     document.addEventListener('pointerover', handleCardSeenPointerOver);
     document.addEventListener('pointerout', handleCardSeenPointerOut);
+    document.addEventListener('dragstart', handleBoardColumnDragStart);
     document.addEventListener('dragstart', handleBoardCardDragStart);
+    document.addEventListener('dragover', handleBoardColumnDragOver);
     document.addEventListener('dragover', handleBoardCardDragOver);
+    document.addEventListener('dragleave', handleBoardColumnDragLeave);
     document.addEventListener('dragleave', handleBoardCardDragLeave);
+    document.addEventListener('drop', handleBoardColumnDrop);
     document.addEventListener('drop', handleBoardCardDrop);
-    document.addEventListener('dragend', finishCardDrag);
+    document.addEventListener('dragend', finishBoardDrag);
     els.boardScroll.addEventListener('pointerdown', beginBoardPan);
     els.boardScroll.addEventListener('pointermove', moveBoardPan);
     els.boardScroll.addEventListener('pointerup', endBoardPan);

@@ -1235,6 +1235,19 @@ class CardServiceTests(unittest.TestCase):
         self.assertFalse(renamed["meta"]["changed"])
         self.assertEqual(renamed["column"]["label"], "UNCHANGED")
 
+    def test_move_column_reorders_positions_left_to_right(self) -> None:
+        first = self.service.create_column({"label": "FIRST"})["column"]
+        second = self.service.create_column({"label": "SECOND"})["column"]
+        third = self.service.create_column({"label": "THIRD"})["column"]
+
+        moved = self.service.move_column({"column_id": third["id"], "before_column_id": first["id"]})
+        self.assertEqual([column["id"] for column in moved["columns"]][-3:], [third["id"], first["id"], second["id"]])
+        self.assertTrue(moved["meta"]["changed"])
+
+        moved_again = self.service.move_column({"column_id": third["id"]})
+        self.assertEqual([column["id"] for column in moved_again["columns"]][-3:], [first["id"], second["id"], third["id"]])
+        self.assertEqual([column["position"] for column in moved_again["columns"]], list(range(len(moved_again["columns"]))))
+
     def test_delete_column_rejects_non_empty(self) -> None:
         created_column = self.service.create_column({"label": "BLOCKED DELETE"})
         column_id = created_column["column"]["id"]

@@ -111,6 +111,85 @@ class ColumnService:
                 },
             }
 
+    def move_column(self, payload: dict) -> dict:
+        with self._lock:
+            bundle = self._store.read_bundle()
+            columns = bundle["columns"]
+            cards = bundle["cards"]
+            events = bundle["events"]
+            actor_name, source = self._audit_identity(payload, "api")
+            column_id = self._validated_column(payload.get("column_id") or payload.get("column"), columns)
+            before_column_id = str(payload.get("before_column_id") or payload.get("before_column") or "").strip()
+            column = next((item for item in columns if item.id == column_id), None)
+            if column is None:
+                self._fail("not_found", "Указанный столбец не найден.", status_code=404, details={"column_id": column_id})
+            if before_column_id:
+                before_column = next((item for item in columns if item.id == before_column_id), None)
+                if before_column is None:
+                    self._fail(
+                        "not_found",
+                        "Указанный столбец назначения не найден.",
+                        status_code=404,
+                        details={"before_column_id": before_column_id},
+                    )
+                if before_column_id == column_id:
+                    before_column_id = ""
+            previous_position = next((index for index, item in enumerate(columns) if item.id == column_id), 0)
+            reordered_columns = [item for item in columns if item.id != column_id]
+            if before_column_id:
+                insert_at = next((index for index, item in enumerate(reordered_columns) if item.id == before_column_id), len(reordered_columns))
+                reordered_columns.insert(insert_at, column)
+            else:
+                reordered_columns.append(column)
+            changed = any(item.id != columns[index].id for index, item in enumerate(reordered_columns))
+            for position, item in enumerate(reordered_columns):
+                item.position = position
+            if not changed:
+                return {
+                    "column": column.to_dict(),
+                    "columns": [item.to_dict() for item in reordered_columns],
+                    "meta": {
+                        "changed": False,
+                        "previous_position": previous_position,
+                        "next_position": previous_position,
+                    },
+                }
+            next_position = next((index for index, item in enumerate(reordered_columns) if item.id == column_id), previous_position)
+            self._append_event(
+                events,
+                actor_name=actor_name,
+                source=source,
+                action="column_moved",
+                message=f"{actor_name} переместил столбец",
+                card_id=None,
+                details={
+                    "column_id": column.id,
+                    "label": column.label,
+                    "previous_position": previous_position,
+                    "next_position": next_position,
+                    "before_column_id": before_column_id or None,
+                },
+            )
+            self._save_bundle(bundle, columns=reordered_columns, cards=cards, events=events)
+            self._logger.info(
+                "move_column id=%s previous_position=%s next_position=%s actor=%s source=%s",
+                column.id,
+                previous_position,
+                next_position,
+                actor_name,
+                source,
+            )
+            return {
+                "column": column.to_dict(),
+                "columns": [item.to_dict() for item in reordered_columns],
+                "meta": {
+                    "changed": True,
+                    "previous_position": previous_position,
+                    "next_position": next_position,
+                    "before_column_id": before_column_id or "",
+                },
+            }
+
     def delete_column(self, payload: dict) -> dict:
         with self._lock:
             bundle = self._store.read_bundle()
