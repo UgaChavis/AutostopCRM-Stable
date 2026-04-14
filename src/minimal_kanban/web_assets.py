@@ -1949,9 +1949,9 @@ BOARD_WEB_APP_HTML = "".join(
         width: min(860px, calc(100% - 24px));
       }
       .dialog--ai-chat {
-        width: min(1320px, calc(100% - 24px));
-        height: min(92vh, 920px);
-        max-height: min(92vh, 920px);
+        width: min(1360px, calc(100% - 24px));
+        height: min(94vh, 960px);
+        max-height: min(94vh, 960px);
         padding: 0;
         gap: 0;
         overflow: hidden;
@@ -2130,6 +2130,14 @@ BOARD_WEB_APP_HTML = "".join(
         min-height: 0;
         flex: 1 1 auto;
         overflow: hidden;
+        height: 100%;
+      }
+      .ai-chat-window__layout {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        min-height: 0;
+        flex: 1 1 auto;
+        height: 100%;
       }
       .ai-chat-window__head {
         padding: 12px 14px 10px;
@@ -2170,12 +2178,19 @@ BOARD_WEB_APP_HTML = "".join(
       .ai-chat-window__body {
         min-height: 0;
         flex: 1 1 auto;
-        display: grid;
-        grid-template-rows: minmax(0, 1fr) auto;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .ai-chat-window__messages-pane {
+        min-height: 0;
+        flex: 1 1 auto;
+        display: flex;
         overflow: hidden;
       }
       .ai-chat-window__messages {
         min-height: 0;
+        flex: 1 1 auto;
         overflow-y: auto;
         padding: 14px;
         display: grid;
@@ -2184,6 +2199,8 @@ BOARD_WEB_APP_HTML = "".join(
         background:
           linear-gradient(180deg, rgba(255,255,255,0.02), transparent 20%),
           rgba(0, 0, 0, 0.04);
+        scrollbar-gutter: stable;
+        overscroll-behavior: contain;
       }
       .ai-chat-window__message {
         border: 1px solid rgba(116, 126, 106, 0.18);
@@ -2215,6 +2232,11 @@ BOARD_WEB_APP_HTML = "".join(
         color: var(--text);
         white-space: pre-wrap;
         word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .ai-chat-window__composer-pane {
+        min-height: 0;
+        flex: 0 0 auto;
       }
       .ai-chat-window__composer {
         border-top: 1px solid rgba(115, 126, 105, 0.18);
@@ -2222,6 +2244,7 @@ BOARD_WEB_APP_HTML = "".join(
         padding: 12px 14px 14px;
         display: grid;
         gap: 8px;
+        min-height: 0;
       }
       .ai-chat-window__composer-label {
         font-family: var(--mono);
@@ -4442,37 +4465,41 @@ BOARD_WEB_APP_HTML = "".join(
   <div class="modal" id="aiChatWindow">
     <div class="dialog dialog--agent dialog--ai-chat">
       <div class="ai-chat-window">
-        <div class="dialog__head ai-chat-window__head">
-          <div class="ai-chat-window__title-block">
-            <div class="dialog__title" id="aiChatWindowTitle">AI / ЧАТ</div>
-            <div class="ai-chat-window__subtitle" id="aiChatWindowSubtitle">Отдельный рабочий путь для будущего большого чата.</div>
-          </div>
-          <div class="ai-chat-window__controls">
-            <div class="agent-status" id="aiChatWindowStatusLabel" data-state="idle">HIDDEN</div>
-            <button class="btn btn--ghost" id="aiChatWindowSettingsButton" type="button" disabled title="Настройки будут подключены позже">НАСТРОЙКИ</button>
-            <button class="btn" data-close="ai-chat">ЗАКРЫТЬ</button>
-          </div>
-        </div>
-        <div class="ai-chat-window__body">
-          <div class="ai-chat-window__messages" id="aiChatWindowMessages">
-            <div class="ai-chat-window__message" data-role="assistant">
-              <div class="ai-chat-window__message-title">AI</div>
-              <div class="ai-chat-window__message-text">Чат-окно готово как отдельный surface. Здесь позже появятся история, markdown, context wiring и полноценный runtime.</div>
+        <div class="ai-chat-window__body ai-chat-window__layout">
+          <header class="dialog__head ai-chat-window__head">
+            <div class="ai-chat-window__title-block">
+              <div class="dialog__title" id="aiChatWindowTitle">AI / ЧАТ</div>
+              <div class="ai-chat-window__subtitle" id="aiChatWindowSubtitle">Отдельный рабочий путь для будущего большого чата.</div>
             </div>
-            <div class="ai-chat-window__message" data-role="system">
-              <div class="ai-chat-window__message-title">SYSTEM</div>
-              <div class="ai-chat-window__message-text">Это не старый agent modal и не popup-menu. Input area уже выделена отдельно под будущий multiline composer.</div>
+            <div class="ai-chat-window__controls">
+              <div class="agent-status" id="aiChatWindowStatusLabel" data-state="idle">HIDDEN</div>
+              <button class="btn btn--ghost" id="aiChatWindowSettingsButton" type="button" disabled title="Настройки будут подключены позже">НАСТРОЙКИ</button>
+              <button class="btn" data-close="ai-chat">ЗАКРЫТЬ</button>
             </div>
-          </div>
-          <div class="ai-chat-window__composer">
-            <div class="ai-chat-window__composer-label">СООБЩЕНИЕ</div>
-            <textarea class="input ai-chat-window__input" id="aiChatWindowInput" rows="4" placeholder="Опиши задачу для AI-чата..."></textarea>
-            <div class="ai-chat-window__composer-foot">
-              <div class="compact-note">Markdown, send flow и history будут подключены на следующих шагах.</div>
-              <button class="btn btn--accent" id="aiChatWindowSendButton" type="button" disabled>ОТПРАВИТЬ</button>
+          </header>
+          <section class="ai-chat-window__messages-pane" aria-label="История сообщений">
+            <div class="ai-chat-window__messages" id="aiChatWindowMessages" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false">
+              <div class="ai-chat-window__message" data-role="assistant">
+                <div class="ai-chat-window__message-title">AI</div>
+                <div class="ai-chat-window__message-text">Чат-окно готово как отдельный surface. Здесь позже появятся история, markdown, context wiring и полноценный runtime.</div>
+              </div>
+              <div class="ai-chat-window__message" data-role="system">
+                <div class="ai-chat-window__message-title">SYSTEM</div>
+                <div class="ai-chat-window__message-text">Это не старый agent modal и не popup-menu. Input area уже выделена отдельно под будущий multiline composer.</div>
+              </div>
             </div>
+          </section>
+          <section class="ai-chat-window__composer-pane" aria-label="Поле ввода">
+            <div class="ai-chat-window__composer">
+              <div class="ai-chat-window__composer-label">СООБЩЕНИЕ</div>
+              <textarea class="input ai-chat-window__input" id="aiChatWindowInput" rows="4" placeholder="Опиши задачу для AI-чата..."></textarea>
+              <div class="ai-chat-window__composer-foot">
+                <div class="compact-note">Markdown, send flow и history будут подключены на следующих шагах.</div>
+                <button class="btn btn--accent" id="aiChatWindowSendButton" type="button" disabled>ОТПРАВИТЬ</button>
+              </div>
+            </div>
+          </section>
           </div>
-        </div>
       </div>
     </div>
   </div>
