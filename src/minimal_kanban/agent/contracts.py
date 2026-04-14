@@ -191,6 +191,7 @@ class OrchestrationTrace:
     context_snapshot_id: str
     evidence: EvidenceResult
     plan: PlanResult
+    scenario_feedback: list[dict[str, Any]] = field(default_factory=list)
     tool_results: list[ToolResult] = field(default_factory=list)
     patch: PatchResult = field(default_factory=PatchResult)
     verify: VerifyResult = field(default_factory=lambda: VerifyResult(applied_ok=False))
@@ -202,6 +203,7 @@ class OrchestrationTrace:
             "context_snapshot_id": self.context_snapshot_id,
             "evidence": self.evidence.to_dict(),
             "plan": self.plan.to_dict(),
+            "scenario_feedback": [dict(item) for item in self.scenario_feedback if isinstance(item, dict)],
             "tool_results": [item.to_dict() for item in self.tool_results],
             "patch": self.patch.to_dict(),
             "verify": self.verify.to_dict(),

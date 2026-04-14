@@ -293,6 +293,7 @@ class AgentRunner:
             evidence=evidence_result,
             facts=facts,
         )
+        scenario_feedback: list[dict[str, Any]] = []
         if plan.execution_mode == "structured_card":
             summary, result, display, delta, tool_results, patch_result, verify_result = self._execute_card_autofill_task(
                 task,
@@ -301,6 +302,7 @@ class AgentRunner:
                 facts=facts,
                 plan=plan,
             )
+            scenario_feedback = list(facts.get("_scenario_feedback") or [])
         else:
             summary, result, display, delta, tool_results, patch_result, verify_result = self._execute_decision_loop_task(
                 task,
@@ -327,6 +329,7 @@ class AgentRunner:
             context_snapshot_id=context_snapshot_id,
             evidence=evidence_result,
             plan=plan,
+            scenario_feedback=scenario_feedback,
             tool_results=tool_results,
             patch=patch_result,
             verify=verify_result,
@@ -864,6 +867,7 @@ class AgentRunner:
         scenario_warnings: list[str] = []
         scenario_followup_requested = False
         scenario_followup_reason = ""
+        scenario_feedback: list[dict[str, Any]] = []
         for scenario in scenarios:
             scenario_name = str(scenario.get("name", "") or "").strip().lower()
             executor = self._scenario_registry.get(scenario_name)
@@ -887,6 +891,17 @@ class AgentRunner:
                 facts.update(scenario_result.facts_updates)
             if scenario_result.tool_results:
                 tool_results.extend(scenario_result.tool_results)
+            scenario_feedback.append(
+                {
+                    "scenario_id": scenario_name,
+                    "status": str(scenario_result.status or "").strip(),
+                    "tool_calls_used": int(scenario_result.tool_calls_used or 0),
+                    "needs_followup": bool(scenario_result.needs_followup),
+                    "followup_reason": str(getattr(scenario_result, "followup_reason", "") or "").strip(),
+                    "notes": [str(item or "").strip() for item in scenario_result.notes if str(item or "").strip()][:5],
+                    "warnings": [str(item or "").strip() for item in scenario_result.warnings if str(item or "").strip()][:5],
+                }
+            )
             if scenario_result.notes:
                 for note in scenario_result.notes[:3]:
                     note_text = str(note or "").strip()
@@ -901,15 +916,26 @@ class AgentRunner:
                         message=note_text,
                     )
             if scenario_result.warnings:
-                scenario_warnings.extend(
+                normalized_warnings = [
                     str(item or "").strip()
                     for item in scenario_result.warnings
                     if str(item or "").strip()
-                )
+                ]
+                scenario_warnings.extend(normalized_warnings)
+                for warning_text in normalized_warnings[:3]:
+                    self._record_log_action(
+                        task_id=task["id"],
+                        run_id=run_id,
+                        step=max(tool_calls, 1),
+                        level="WARN",
+                        phase="analysis",
+                        message=warning_text,
+                    )
             if scenario_result.needs_followup:
                 scenario_followup_requested = True
                 if not scenario_followup_reason:
                     scenario_followup_reason = str(getattr(scenario_result, "followup_reason", "") or "").strip()
+        facts["_scenario_feedback"] = scenario_feedback
         update_args, display_sections = self._compose_card_autofill_update(
             card_id=card_id,
             facts=facts,

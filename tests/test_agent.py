@@ -1363,6 +1363,11 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertEqual(verify["outcome_state"], "completed_partial")
             self.assertEqual(verify["followup_reason"], "parts_lookup_failed")
             self.assertIn("parts lookup request failed", verify["warnings"])
+            log_messages = [item.get("message", "") for item in storage.list_actions(limit=50) if item.get("kind") == "log"]
+            self.assertIn("parts lookup request failed", log_messages)
+            feedback = run["orchestration"]["scenario_feedback"]
+            self.assertTrue(any(item.get("scenario_id") == "vin_enrichment" and item.get("status") == "success" for item in feedback))
+            self.assertTrue(any(item.get("scenario_id") == "parts_lookup" and item.get("followup_reason") == "parts_lookup_failed" for item in feedback))
 
     def test_runner_unwraps_wrapped_card_context_for_deterministic_autofill(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
