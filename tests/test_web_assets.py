@@ -154,9 +154,11 @@ class WebAssetsTests(unittest.TestCase):
 
     def test_ai_ui_exposes_new_entry_surface_and_legacy_fallback(self) -> None:
         self.assertIn('class="agent-dock__button" id="agentDockButton" type="button" aria-label="AI вход" title="AI вход"', BOARD_WEB_APP_HTML)
+        self.assertIn('data-entry-surface="board_control"', BOARD_WEB_APP_HTML)
         self.assertIn('id="aiChatButton"', BOARD_WEB_APP_HTML)
         self.assertIn('data-entry-surface="ai_chat"', BOARD_WEB_APP_HTML)
         self.assertIn('id="cardAgentButton"', BOARD_WEB_APP_HTML)
+        self.assertIn('data-entry-surface="full_card_enrichment"', BOARD_WEB_APP_HTML)
         self.assertIn('title="AI карточки"', BOARD_WEB_APP_HTML)
         self.assertIn('id="aiSurfaceModal"', BOARD_WEB_APP_HTML)
         self.assertIn('id="aiSurfaceContextLabel">AI · ЧАТ</div>', BOARD_WEB_APP_HTML)
@@ -172,6 +174,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function renderAiEntrySurface(statusPayload)", BOARD_WEB_APP_HTML)
         self.assertIn("function bindAiSurfaceUiEvents()", BOARD_WEB_APP_HTML)
         self.assertIn("function aiSurfaceLegacyFallbackVisible(statusPayload, selectedExposureState)", BOARD_WEB_APP_HTML)
+        self.assertIn("function applyAiSurfaceEntryState(button, exposureRecord, options = {})", BOARD_WEB_APP_HTML)
         self.assertIn("function openAiChatEntry()", BOARD_WEB_APP_HTML)
         self.assertIn("function openAiSurface(kind = 'chat')", BOARD_WEB_APP_HTML)
         self.assertIn("function closeAiSurface()", BOARD_WEB_APP_HTML)

@@ -4284,7 +4284,7 @@ BOARD_WEB_APP_HTML = "".join(
     </button>
   </div>
   <div class="agent-dock" id="agentDock">
-    <button class="agent-dock__button" id="agentDockButton" type="button" aria-label="AI вход" title="AI вход">AI</button>
+    <button class="agent-dock__button" id="agentDockButton" type="button" aria-label="AI вход" title="AI вход" data-entry-surface="board_control">AI</button>
   </div>
 
   <div class="modal" id="aiSurfaceModal">
@@ -4679,7 +4679,7 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
         <div class="dialog__foot-group dialog__foot-group--main">
           <button class="btn" id="cardModalCloseButtonBottom" data-close="card" onclick="window.__closeCardModal && window.__closeCardModal(); return false;">ОТМЕНА</button>
-          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="AI карточки" aria-label="AI карточки"></button>
+          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="AI карточки" aria-label="AI карточки" data-entry-surface="full_card_enrichment"></button>
           <button class="btn btn--accent" id="saveCardButton">СОХРАНИТЬ</button>
         </div>
       </div>
@@ -6771,6 +6771,26 @@ BOARD_WEB_APP_HTML = "".join(
       return legacyEnabled && legacyPromptState === 'legacy_only' && selectedState === 'legacy_only';
     }
 
+    function applyAiSurfaceEntryState(button, exposureRecord, options = {}) {
+      if (!(button instanceof HTMLElement)) return;
+      const keepVisibleWhenHidden = Boolean(options.keepVisibleWhenHidden);
+      const label = String(options.label || 'AI').trim() || 'AI';
+      const exposureState = String(exposureRecord?.exposure_state || 'hidden').trim().toLowerCase();
+      const tone = aiSurfaceExposureTone(exposureState);
+      const exposureLabel = aiSurfaceExposureLabel(exposureState);
+      const hidden = exposureState === 'hidden' || exposureState === 'replaced';
+      button.dataset.state = tone;
+      button.dataset.exposure = exposureState;
+      button.title = label + ' · ' + exposureLabel;
+      button.setAttribute('aria-label', button.title);
+      button.hidden = hidden && !keepVisibleWhenHidden;
+      if (button.hidden) {
+        button.dataset.visible = 'false';
+      } else {
+        button.dataset.visible = 'true';
+      }
+    }
+
     function formatAgentContextLabel(context) {
       const normalized = context && typeof context === 'object' ? context : { kind: 'board' };
       if (String(normalized.kind || '').trim().toLowerCase() === 'card') {
@@ -6883,23 +6903,9 @@ BOARD_WEB_APP_HTML = "".join(
         const legacyFallbackVisible = aiSurfaceLegacyFallbackVisible(payload, selectedExposureState);
         els.aiSurfaceSummary.textContent = 'Текущий путь: ' + primaryPath + '. Legacy UX ' + (legacyFallbackVisible ? 'доступен только как gated fallback' : 'скрыт по умолчанию') + '. Доступные сценарии: ' + (available || 'нет');
       }
-      const buttonStateMap = {
-        aiChatButton: entryExposureMap.future_ai_chat_window,
-        agentDockButton: entryExposureMap.future_ai_chat_window,
-        cardAgentButton: entryExposureMap.future_card_enrichment_trigger,
-      };
-      Object.entries(buttonStateMap).forEach(([key, record]) => {
-        const button = els[key];
-        if (!(button instanceof HTMLElement)) return;
-        const exposureState = String(record?.exposure_state || 'hidden').trim().toLowerCase();
-        const label = aiSurfaceExposureLabel(exposureState);
-        const tone = aiSurfaceExposureTone(exposureState);
-        button.dataset.state = tone;
-        button.dataset.exposure = exposureState;
-        if (key === 'aiChatButton') button.dataset.entrySurface = 'ai_chat';
-        button.title = (key === 'cardAgentButton' ? 'AI карточки' : key === 'aiChatButton' ? 'AI чат' : 'AI вход') + ' · ' + label;
-        button.setAttribute('aria-label', button.title);
-      });
+      applyAiSurfaceEntryState(els.aiChatButton, entryExposureMap.future_ai_chat_window, { label: 'AI чат', keepVisibleWhenHidden: true });
+      applyAiSurfaceEntryState(els.cardAgentButton, entryExposureMap.future_card_enrichment_trigger, { label: 'AI карточки', keepVisibleWhenHidden: true });
+      applyAiSurfaceEntryState(els.agentDockButton, entryExposureMap.future_board_control_toggle, { label: 'AI вход', keepVisibleWhenHidden: false });
       if (els.aiSurfaceLegacyButton) {
         els.aiSurfaceLegacyButton.hidden = !aiSurfaceLegacyFallbackVisible(payload, selectedExposureState);
         els.aiSurfaceLegacyButton.dataset.state = els.aiSurfaceLegacyButton.hidden ? 'hidden' : 'legacy';
