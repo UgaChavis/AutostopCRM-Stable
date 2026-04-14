@@ -870,6 +870,63 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertFalse(final.manual_fields_preserved)
         self.assertFalse(final.needs_followup)
 
+    def test_merge_verify_feedback_preserves_executor_followup_hints(self) -> None:
+        runner = AgentRunner(
+            storage=AgentStorage(base_dir=Path(tempfile.mkdtemp())),
+            board_api=_FakeBoardApi(),
+            model_client=_FakeModelClient([]),
+            logger=logging.getLogger("test.agent.runner.verify.feedback"),
+        )
+        verify = VerifyResult(
+            applied_ok=True,
+            fields_changed=["description"],
+            manual_fields_preserved=True,
+            scenario_completed=True,
+            needs_followup=False,
+            outcome_state="write_applied",
+            warnings=[],
+            context_ref="verify:card-1",
+        )
+        merged = runner._merge_verify_feedback(
+            verify,
+            warnings=["scenario warning"],
+            needs_followup=True,
+            followup_reason="scenario_requested_followup",
+        )
+        self.assertTrue(merged.applied_ok)
+        self.assertTrue(merged.needs_followup)
+        self.assertEqual(merged.followup_reason, "scenario_requested_followup")
+        self.assertIn("scenario warning", merged.warnings)
+
+    def test_finalize_verify_result_preserves_requested_followup_for_completed_run(self) -> None:
+        runner = AgentRunner(
+            storage=AgentStorage(base_dir=Path(tempfile.mkdtemp())),
+            board_api=_FakeBoardApi(),
+            model_client=_FakeModelClient([]),
+            logger=logging.getLogger("test.agent.runner.verify.requested_followup"),
+        )
+        plan = runner._policy.build_plan(
+            scenario_chain=["normalization"],
+            execution_mode="structured_card",
+            followup_enabled=True,
+        )
+        verify = VerifyResult(
+            applied_ok=True,
+            fields_changed=["description"],
+            manual_fields_preserved=True,
+            scenario_completed=True,
+            needs_followup=True,
+            outcome_state="write_applied",
+            warnings=["scenario warning"],
+            context_ref="verify:card-1",
+            followup_reason="scenario_requested_followup",
+        )
+        final = runner._finalize_verify_result(plan=plan, verify=verify, tool_results=[])
+        self.assertTrue(final.applied_ok)
+        self.assertTrue(final.scenario_completed)
+        self.assertTrue(final.needs_followup)
+        self.assertEqual(final.followup_reason, "scenario_requested_followup")
+
     def test_verify_contract_write_requires_full_patch_match_for_confirmed_success(self) -> None:
         runner = AgentRunner(
             storage=AgentStorage(base_dir=Path(tempfile.mkdtemp())),

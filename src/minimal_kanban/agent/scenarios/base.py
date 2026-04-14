@@ -27,6 +27,7 @@ class ScenarioExecutionResult:
     notes: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     needs_followup: bool = False
+    followup_reason: str = ""
 
 
 class ScenarioExecutor(Protocol):

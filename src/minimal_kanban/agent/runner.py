@@ -861,6 +861,9 @@ class AgentRunner:
             facts=facts,
         )
         orchestration_results: dict[str, Any] = {}
+        scenario_warnings: list[str] = []
+        scenario_followup_requested = False
+        scenario_followup_reason = ""
         for scenario in scenarios:
             scenario_name = str(scenario.get("name", "") or "").strip().lower()
             executor = self._scenario_registry.get(scenario_name)
@@ -884,6 +887,29 @@ class AgentRunner:
                 facts.update(scenario_result.facts_updates)
             if scenario_result.tool_results:
                 tool_results.extend(scenario_result.tool_results)
+            if scenario_result.notes:
+                for note in scenario_result.notes[:3]:
+                    note_text = str(note or "").strip()
+                    if not note_text:
+                        continue
+                    self._record_log_action(
+                        task_id=task["id"],
+                        run_id=run_id,
+                        step=max(tool_calls, 1),
+                        level="INFO",
+                        phase="analysis",
+                        message=note_text,
+                    )
+            if scenario_result.warnings:
+                scenario_warnings.extend(
+                    str(item or "").strip()
+                    for item in scenario_result.warnings
+                    if str(item or "").strip()
+                )
+            if scenario_result.needs_followup:
+                scenario_followup_requested = True
+                if not scenario_followup_reason:
+                    scenario_followup_reason = str(getattr(scenario_result, "followup_reason", "") or "").strip()
         update_args, display_sections = self._compose_card_autofill_update(
             card_id=card_id,
             facts=facts,
@@ -931,6 +957,12 @@ class AgentRunner:
                 )
         else:
             verify_result = self._finalize_verify_result(plan=plan, verify=verify_result, tool_results=tool_results)
+        verify_result = self._merge_verify_feedback(
+            verify_result,
+            warnings=scenario_warnings,
+            needs_followup=scenario_followup_requested,
+            followup_reason=scenario_followup_reason,
+        )
         summary = self._autofill_result_summary(applied_updates, orchestration_results, facts=facts)
         display = {
             "emoji": "",
@@ -1187,6 +1219,7 @@ class AgentRunner:
         missing_required = self._policy.missing_required_tools(plan, tool_results)
         warnings = list(verify.warnings)
         followup_reason = str(verify.followup_reason or "").strip()
+        requested_followup = bool(verify.needs_followup)
         if missing_required:
             warnings.append("missing required tools: " + ", ".join(missing_required))
             if not followup_reason:
@@ -1194,7 +1227,7 @@ class AgentRunner:
         scenario_completed = bool(verify.scenario_completed and not missing_required) or (not plan.required_tools and verify.applied_ok)
         if not scenario_completed and not plan.allowed_write_targets and not missing_required:
             scenario_completed = True
-        needs_followup = bool(plan.followup_policy.get("enabled")) and (bool(missing_required) or not scenario_completed)
+        needs_followup = bool(plan.followup_policy.get("enabled")) and (requested_followup or bool(missing_required) or not scenario_completed)
         if missing_required:
             outcome_state = "blocked_missing_required_tools"
         elif not verify.manual_fields_preserved:
@@ -1217,6 +1250,32 @@ class AgentRunner:
             warnings=warnings,
             context_ref=verify.context_ref,
             followup_reason=followup_reason,
+        )
+
+    def _merge_verify_feedback(
+        self,
+        verify: VerifyResult,
+        *,
+        warnings: list[str] | None = None,
+        needs_followup: bool = False,
+        followup_reason: str = "",
+    ) -> VerifyResult:
+        merged_warnings = list(verify.warnings)
+        for item in warnings or []:
+            warning = str(item or "").strip()
+            if warning:
+                merged_warnings.append(warning)
+        merged_reason = str(verify.followup_reason or "").strip() or str(followup_reason or "").strip()
+        return VerifyResult(
+            applied_ok=bool(verify.applied_ok),
+            fields_changed=list(verify.fields_changed),
+            manual_fields_preserved=bool(verify.manual_fields_preserved),
+            scenario_completed=bool(verify.scenario_completed),
+            needs_followup=bool(verify.needs_followup) or bool(needs_followup),
+            outcome_state=str(verify.outcome_state or "").strip() or "unknown",
+            warnings=merged_warnings,
+            context_ref=verify.context_ref,
+            followup_reason=merged_reason,
         )
 
     def _verify_card_autofill_goal(
