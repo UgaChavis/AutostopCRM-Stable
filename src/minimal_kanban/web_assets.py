@@ -5317,6 +5317,7 @@ BOARD_WEB_APP_HTML = "".join(
       agentContext: { kind: 'board' },
       aiSurfaceContext: { kind: 'chat' },
       aiSurfaceSelectedScenario: 'ai_chat',
+      aiCompactContext: { kind: 'compact_context' },
       aiChatWindowContext: { kind: 'chat' },
       aiChatWindowHistory: [],
       aiChatWindowHistoryContext: null,
@@ -6008,9 +6009,11 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function aiChatHistoryContextSnapshot() {
-      const source = state.aiChatWindowContext && typeof state.aiChatWindowContext === 'object'
-        ? state.aiChatWindowContext
-        : { kind: 'chat' };
+      const source = state.aiCompactContext && typeof state.aiCompactContext === 'object'
+        ? state.aiCompactContext
+        : (state.aiChatWindowContext && typeof state.aiChatWindowContext === 'object'
+          ? state.aiChatWindowContext
+          : buildAiCompactContextPacket());
       const profile = ensureAiChatWindowPromptProfile();
       return {
         kind: String(source.kind || 'chat').trim().toLowerCase() || 'chat',
@@ -6020,6 +6023,12 @@ BOARD_WEB_APP_HTML = "".join(
         card_label: String(source.card_label || '').trim(),
         repair_order_label: String(source.repair_order_label || '').trim(),
         context_label: String(source.context_label || '').trim(),
+        wall_view: String(source.wall_context?.view || '').trim(),
+        wall_available: Boolean(source.wall_context?.has_wall),
+        attachments_ready: Boolean(source.attachments_intake?.ready),
+        attachments_card_count: String(source.attachments_intake?.card_attachment_count ?? '').trim(),
+        attachments_repair_order_count: String(source.attachments_intake?.repair_order_attachment_count ?? '').trim(),
+        compact_context_kind: String(source.kind || 'chat').trim().toLowerCase() || 'chat',
         prompt_profile_kind: 'ai_chat',
         prompt_profile_user_tune: String(profile.user_tune || '').trim(),
       };
@@ -6107,7 +6116,7 @@ BOARD_WEB_APP_HTML = "".join(
       return cardDraft;
     }
 
-    function buildAiChatWindowContext() {
+    function buildAiCompactContextPacket() {
       const card = state.activeCard && typeof state.activeCard === 'object' ? state.activeCard : null;
       const currentCard = card ? {
         id: String(card.id || '').trim(),
@@ -6120,8 +6129,19 @@ BOARD_WEB_APP_HTML = "".join(
       const repairOrderId = String(repairOrder?.id || repairOrder?.number || '').trim();
       const cardLabel = aiChatContextCardLabel(card);
       const repairOrderLabel = aiChatContextRepairOrderLabel(repairOrder);
+      const wall = state.gptWall && typeof state.gptWall === 'object' ? state.gptWall : null;
+      const wallView = normalizeGptWallView(state.gptWallView);
+      const wallMeta = wall?.meta && typeof wall.meta === 'object' ? wall.meta : {};
+      const cardAttachmentCount = Number(card?.attachment_count ?? currentCard?.attachment_count ?? 0) || 0;
+      const repairOrderAttachmentCount = Number(
+        repairOrder?.attachment_count ?? (Array.isArray(repairOrder?.attachments) ? repairOrder.attachments.length : 0)
+      ) || 0;
+      const attachmentReady = Boolean(currentCard?.id || repairOrderId);
+      const wallLabel = wall
+        ? 'СТЕНА · ' + (wallView === 'event_log' ? 'ЖУРНАЛ СОБЫТИЙ' : 'СОДЕРЖАНИЕ ДОСКИ')
+        : 'СТЕНА · НЕ ЗАГРУЖЕНА';
       return {
-        kind: 'chat',
+        kind: 'compact_context',
         surface: 'ai_chat',
         source_kind: currentCard ? 'card' : 'workspace',
         card_id: String(currentCard?.id || '').trim(),
@@ -6130,10 +6150,55 @@ BOARD_WEB_APP_HTML = "".join(
         repair_order_id: repairOrderId,
         repair_order_label: repairOrderLabel,
         repair_order_scope: repairOrder && typeof repairOrder === 'object' ? repairOrder : null,
+        wall_context: {
+          kind: 'wall',
+          source_kind: wall ? 'gpt_wall' : 'none',
+          has_wall: Boolean(wall),
+          view: wallView,
+          status: String(wallMeta.status || '').trim(),
+          revision: String(wallMeta.revision || '').trim(),
+          label: wallLabel,
+        },
+        attachments_intake: {
+          kind: 'attachments_intake',
+          source_kind: attachmentReady ? (currentCard?.id ? 'card' : 'repair_order') : 'workspace',
+          ready: attachmentReady,
+          card_attachment_count: cardAttachmentCount,
+          repair_order_attachment_count: repairOrderAttachmentCount,
+          label: attachmentReady
+            ? 'ВЛОЖЕНИЯ · ' + cardAttachmentCount + ' / ' + repairOrderAttachmentCount
+            : 'ВЛОЖЕНИЯ · НЕ ДОСТУПНЫ',
+        },
         context_label: repairOrderLabel ? cardLabel + ' · ' + repairOrderLabel : cardLabel,
         has_card_scope: Boolean(currentCard?.id),
         has_repair_order_scope: Boolean(repairOrderId),
       };
+    }
+
+    function buildAiChatWindowContext() {
+      const packet = buildAiCompactContextPacket();
+      return {
+        ...packet,
+        kind: 'chat',
+      };
+    }
+
+    function aiChatCompactContextSummary(context = state.aiCompactContext) {
+      const packet = context && typeof context === 'object' ? context : buildAiCompactContextPacket();
+      const lines = [
+        packet.card_label || 'AI-ЧАТ · СВОБОДНАЯ СЕССИЯ',
+        packet.repair_order_label ? 'Заказ-наряд: ' + packet.repair_order_label : 'Заказ-наряд: не привязан.',
+        packet.wall_context?.label || 'СТЕНА · НЕ ЗАГРУЖЕНА',
+        packet.attachments_intake?.label || 'ВЛОЖЕНИЯ · НЕ ДОСТУПНЫ',
+      ];
+      return lines.join('\n');
+    }
+
+    function refreshAiCompactContextPacket() {
+      state.aiCompactContext = buildAiCompactContextPacket();
+      state.aiChatWindowContext = state.aiCompactContext;
+      state.aiSurfaceContext = state.aiCompactContext;
+      return state.aiCompactContext;
     }
 
     function aiChatMessageTone(role, message) {
@@ -6262,9 +6327,9 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function aiChatBuildAssistantResponse(input) {
-      const context = state.aiChatWindowContext && typeof state.aiChatWindowContext === 'object'
-        ? state.aiChatWindowContext
-        : buildAiChatWindowContext();
+      const context = state.aiCompactContext && typeof state.aiCompactContext === 'object'
+        ? state.aiCompactContext
+        : buildAiCompactContextPacket();
       const profile = ensureAiChatWindowPromptProfile();
       const prompt = String(input || '').trim();
       const responseParts = [
@@ -6272,12 +6337,17 @@ BOARD_WEB_APP_HTML = "".join(
         prompt ? 'Запрос: ' + prompt : 'Запрос пустой.',
         context.card_label ? 'Карточка: ' + context.card_label : 'Карточка: нет активного scope.',
         context.repair_order_label ? 'Заказ-наряд: ' + context.repair_order_label : 'Заказ-наряд: не привязан.',
+        context.wall_context?.label ? 'Контекст стены: ' + context.wall_context.label : '',
+        context.attachments_intake?.label ? 'Вложенная зона: ' + context.attachments_intake.label : '',
+        'Compact context: ' + aiChatCompactContextSummary(context).replace(/\n/g, ' · '),
         profile.user_tune ? 'Пользовательская настройка: ' + profile.user_tune : '',
         'Сейчас доступен только scoped runtime без документов, интернета и полного knowledge layer.',
       ].filter(Boolean);
       const bulletLine = [
         context.has_card_scope ? '- card scope available' : '- card scope unavailable',
         context.has_repair_order_scope ? '- repair order scope available' : '- repair order scope unavailable',
+        context.wall_context?.has_wall ? '- wall context available' : '- wall context unavailable',
+        context.attachments_intake?.ready ? '- attachments intake ready' : '- attachments intake unavailable',
       ];
       return responseParts.join('\n') + '\n\n' + bulletLine.join('\n');
     }
@@ -6400,7 +6470,11 @@ BOARD_WEB_APP_HTML = "".join(
         els.aiChatWindowContextLabel.dataset.kind = sourceKind;
       }
       if (els.aiChatWindowSubtitle) {
-        els.aiChatWindowSubtitle.textContent = subtitleParts.join(' · ');
+        const compactTail = [
+          context.wall_context?.label || '',
+          context.attachments_intake?.label || '',
+        ].filter(Boolean).join(' · ');
+        els.aiChatWindowSubtitle.textContent = [subtitleParts.join(' · '), compactTail].filter(Boolean).join(' · ');
       }
     }
 
@@ -7620,6 +7694,7 @@ BOARD_WEB_APP_HTML = "".join(
       const tone = aiSurfaceExposureTone(exposureState);
       const label = aiSurfaceExposureLabel(exposureState);
       state.aiChatWindowStatusPayload = payload;
+      refreshAiCompactContextPacket();
       if (els.aiChatWindowTitle) {
         els.aiChatWindowTitle.textContent = 'AI / ЧАТ';
       }
@@ -7653,8 +7728,9 @@ BOARD_WEB_APP_HTML = "".join(
       bindAiChatWindowUiEvents();
       closeAiSurface();
       closeAgentModal();
+      refreshAiCompactContextPacket();
       state.aiChatWindowContext = buildAiChatWindowContext();
-      state.aiSurfaceContext = state.aiChatWindowContext;
+      state.aiSurfaceContext = state.aiCompactContext;
       state.aiSurfaceSelectedScenario = 'ai_chat';
       state.aiChatWindowSettingsOpen = false;
       state.aiChatWindowHistoryContext = aiChatHistoryContextSnapshot();
