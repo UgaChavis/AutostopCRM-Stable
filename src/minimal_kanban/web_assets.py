@@ -6347,11 +6347,11 @@ BOARD_WEB_APP_HTML = "".join(
     function quickAgentPrompts(context) {
       if (String(context?.kind || '').trim().toLowerCase() === 'card') {
         return [
-          { label: 'VIN', prompt: 'Расшифруй VIN этой карточки и предложи заполнение паспорта автомобиля.' },
-          { label: 'ЗАПЧАСТИ', prompt: 'Процени запчасти на этот автомобиль и подбери каталожные номера.' },
-          { label: 'ТО', prompt: 'Процени ТО на этот автомобиль.' },
-          { label: 'ПОРЯДОК', prompt: 'Наведи порядок в этой карточке: структурируй описание без потери информации, автоматически заполни недостающие поля по возможности и сразу примени уверенные изменения в карточку для краткой сути, тегов и паспорта автомобиля. Ничего не выдумывай, а в ответе кратко перечисли, что изменено.' },
-          { label: 'КАРТОЧКА', prompt: 'Заполни карточку по описанию и предложи структуру данных.' },
+          { label: 'VIN', template: 'vin', prompt: 'Расшифруй VIN этой карточки, используй внешний VIN-декодер и сразу примени в карточку только подтверждённое заполнение паспорта автомобиля.' },
+          { label: 'ЗАПЧАСТИ', template: 'parts', prompt: 'Процени запчасти на этот автомобиль и подбери каталожные номера.' },
+          { label: 'ТО', template: 'maintenance', prompt: 'Процени ТО на этот автомобиль.' },
+          { label: 'ПОРЯДОК', template: 'cleanup', prompt: 'Наведи порядок в этой карточке: структурируй описание без потери информации, автоматически заполни недостающие поля по возможности и сразу примени уверенные изменения в карточку для краткой сути, тегов и паспорта автомобиля. Ничего не выдумывай, а в ответе кратко перечисли, что изменено.' },
+          { label: 'КАРТОЧКА', template: 'card_fill', prompt: 'Заполни карточку по описанию и предложи структуру данных.' },
         ];
       }
       return [
@@ -6713,6 +6713,7 @@ BOARD_WEB_APP_HTML = "".join(
       els.agentQuickActions.innerHTML = actions.map((item) =>
         '<button class="agent-shortcut" type="button"'
           + (item.action ? ' data-agent-open="' + escapeHtml(item.action) + '"' : '')
+          + (item.template ? ' data-agent-template="' + escapeHtml(item.template) + '"' : '')
           + (item.prompt ? ' data-agent-prompt="' + escapeHtml(item.prompt) + '"' : '')
           + '>' + escapeHtml(item.label) + '</button>'
       ).join('');
@@ -7423,6 +7424,7 @@ BOARD_WEB_APP_HTML = "".join(
       renderAgentQuickActions(state.agentContext);
       if (els.agentTaskInput) {
         els.agentTaskInput.placeholder = agentPlaceholder(state.agentContext);
+        delete els.agentTaskInput.dataset.agentPromptTemplate;
         if (!String(els.agentTaskInput.value || '').trim()) els.agentTaskInput.value = '';
       }
       if (els.agentResultPanel) {
@@ -7475,13 +7477,17 @@ BOARD_WEB_APP_HTML = "".join(
       state.agentContext = context;
       if (els.agentContextLabel) els.agentContextLabel.textContent = formatAgentContextLabel(context);
       try {
+        const quickTemplate = String(els.agentTaskInput?.dataset.agentPromptTemplate || '').trim();
         const data = await api('/api/agent_enqueue_task', {
           method: 'POST',
           body: {
             source: 'ui_agent',
             mode: 'manual',
             task_text: taskText,
-            metadata: { context },
+            metadata: {
+              context,
+              quick_template: quickTemplate,
+            },
           },
         });
         state.agentTaskId = String(data?.task?.id || '');
@@ -11575,8 +11581,14 @@ function renderCompactArchiveRows(cards) {
       const button = target.closest('[data-agent-prompt]');
       if (!(button instanceof HTMLElement)) return;
       const prompt = String(button.dataset.agentPrompt || '').trim();
+      const template = String(button.dataset.agentTemplate || '').trim();
       if (!prompt || !els.agentTaskInput) return;
       els.agentTaskInput.value = prompt;
+      if (template) {
+        els.agentTaskInput.dataset.agentPromptTemplate = template;
+      } else {
+        delete els.agentTaskInput.dataset.agentPromptTemplate;
+      }
       syncAgentTaskInputHeight();
       els.agentTaskInput.focus();
     }

@@ -1429,6 +1429,41 @@ class AgentRunnerTests(unittest.TestCase):
             self.assertIn("ТО", update_call[1]["description"])
             self.assertIn("Расходники", update_call[1]["description"])
 
+    def test_runner_manual_vin_quick_task_uses_structured_card_pipeline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            storage.enqueue_task(
+                task_text="Расшифруй VIN этой карточки и предложи заполнение паспорта автомобиля.",
+                metadata={
+                    "quick_template": "vin",
+                    "context": {"kind": "card", "card_id": "card-1", "title": "Черновик"},
+                },
+            )
+            logger = logging.getLogger("test.agent.runner.manual.vin.quick")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            board_api = _FakeWrappedBoardApi()
+            board_api.cards["card-1"]["description"] = "VIN: WBAPF71060A798127\nНужно расшифровать VIN и заполнить карточку."
+            model_client = _FakeModelClient([{"type": "final", "summary": "unused", "result": "unused"}])
+            runner = AgentRunner(
+                storage=storage,
+                board_api=board_api,
+                model_client=model_client,
+                logger=logger,
+            )
+            runner._tools._automotive = _FakeAutomotiveService()
+            self.assertTrue(runner.run_once())
+            self.assertEqual(model_client.calls, [])
+            update_call = next(call for call in board_api.calls if call[0] == "update_card")
+            self.assertEqual(update_call[1]["vehicle"], "BMW 320i 2016")
+            self.assertEqual(update_call[1]["vehicle_profile"]["make_display"], "BMW")
+            self.assertEqual(update_call[1]["vehicle_profile"]["production_year"], 2016)
+            run = storage.list_runs(limit=1)[0]
+            self.assertEqual(run["orchestration"]["plan"]["execution_mode"], "structured_card")
+            self.assertEqual(run["orchestration"]["plan"]["scenario_id"], "vin_enrichment")
+            self.assertTrue(any(item.get("tool_name") == "decode_vin" for item in run["orchestration"]["tool_results"]))
+
     def test_runner_verify_accepts_additive_description_merge(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = AgentStorage(base_dir=Path(temp_dir))

@@ -559,8 +559,16 @@ class AgentRunner:
         notes: list[str] = []
         if evidence.missing_data:
             notes.append("missing_data:" + ", ".join(evidence.missing_data[:4]))
+        manual_structured_card = (
+            context_kind == "card"
+            and bool(str(metadata.get("quick_template", "") or "").strip())
+            and task_type in {"card_cleanup", "vin_decode", "parts_lookup", "maintenance_estimate", "dtc_lookup"}
+        )
         if str(metadata.get("purpose", "") or "").strip().lower() == "card_autofill":
             notes.append("followup_owner=card_service")
+            execution_mode = "structured_card"
+        elif manual_structured_card:
+            notes.append("manual_card_orchestrator=structured")
             execution_mode = "structured_card"
         else:
             execution_mode = "model_loop"
