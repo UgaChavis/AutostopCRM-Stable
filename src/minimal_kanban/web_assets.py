@@ -6022,6 +6022,7 @@ BOARD_WEB_APP_HTML = "".join(
         source_kind: String(source.kind || 'chat').trim().toLowerCase() || 'chat',
         card_label: String(source.card_label || '').trim(),
         repair_order_label: String(source.repair_order_label || '').trim(),
+        repair_order_context_label: String(source.repair_order_context_label || '').trim(),
         context_label: String(source.context_label || '').trim(),
         wall_digest_label: String(source.wall_digest?.summary_label || '').trim(),
         wall_view: String(source.wall_context?.view || '').trim(),
@@ -6305,6 +6306,124 @@ BOARD_WEB_APP_HTML = "".join(
       };
     }
 
+    function buildAiRepairOrderContextPacket(repairOrder = null, card = state.activeCard, wallDigest = null) {
+      const sourceCard = card && typeof card === 'object' ? card : null;
+      const activeRepairOrder = repairOrder && typeof repairOrder === 'object'
+        ? repairOrder
+        : (sourceCard?.repair_order && typeof sourceCard.repair_order === 'object'
+          ? sourceCard.repair_order
+          : aiChatActiveRepairOrderScope());
+      const digest = wallDigest && typeof wallDigest === 'object' ? wallDigest : (state.aiCompactContext?.wall_digest && typeof state.aiCompactContext.wall_digest === 'object' ? state.aiCompactContext.wall_digest : buildAiWallDigestPacket());
+      const repairOrderId = String(activeRepairOrder?.id || activeRepairOrder?.number || '').trim();
+      const number = String(activeRepairOrder?.number || '').trim();
+      const status = String(activeRepairOrder?.status || '').trim();
+      const statusLabel = String(activeRepairOrder?.status_label || '').trim();
+      const vehicleId = String(activeRepairOrder?.vehicle_id || sourceCard?.vehicle_id || '').trim();
+      const client = String(activeRepairOrder?.client || '').trim();
+      const phone = String(activeRepairOrder?.phone || '').trim();
+      const vehicle = String(activeRepairOrder?.vehicle || sourceCard?.vehicle || '').trim();
+      const licensePlate = String(activeRepairOrder?.license_plate || '').trim();
+      const vin = String(activeRepairOrder?.vin || '').trim();
+      const mileage = String(activeRepairOrder?.mileage || '').trim();
+      const paymentMethod = String(activeRepairOrder?.payment_method || '').trim();
+      const paymentMethodLabel = String(activeRepairOrder?.payment_method_label || '').trim();
+      const paymentStatus = String(activeRepairOrder?.payment_status || '').trim();
+      const paymentStatusLabel = String(activeRepairOrder?.payment_status_label || '').trim();
+      const grandTotal = String(activeRepairOrder?.grand_total || '').trim();
+      const dueTotal = String(activeRepairOrder?.due_total || '').trim();
+      const subtotalTotal = String(activeRepairOrder?.subtotal_total || '').trim();
+      const taxesTotal = String(activeRepairOrder?.taxes_total || '').trim();
+      const paidTotal = String(activeRepairOrder?.paid_total_display || activeRepairOrder?.paid_total || activeRepairOrder?.prepayment_display || activeRepairOrder?.prepayment || '').trim();
+      const reason = aiWallDigestShortText(activeRepairOrder?.reason || sourceCard?.description || '', activeRepairOrder?.reason || sourceCard?.description || '');
+      const comment = aiWallDigestShortText(activeRepairOrder?.comment || '', activeRepairOrder?.comment || '');
+      const note = aiWallDigestShortText(activeRepairOrder?.note || '', activeRepairOrder?.note || '');
+      const works = Array.isArray(activeRepairOrder?.works) ? activeRepairOrder.works : [];
+      const materials = Array.isArray(activeRepairOrder?.materials) ? activeRepairOrder.materials : [];
+      const payments = Array.isArray(activeRepairOrder?.payments) ? activeRepairOrder.payments : [];
+      const workSummary = works.slice(0, 5).map((row) => {
+        const label = aiWallDigestShortText(row?.name || row?.title || row?.work_name || '', row?.name || row?.title || row?.work_name || '');
+        const quantity = String(row?.quantity || '').trim();
+        const total = String(row?.total || '').trim();
+        return [label, quantity ? 'x' + quantity : '', total ? 'итого ' + total : ''].filter(Boolean).join(' · ');
+      }).filter(Boolean);
+      const materialSummary = materials.slice(0, 5).map((row) => {
+        const label = aiWallDigestShortText(row?.name || row?.title || row?.work_name || '', row?.name || row?.title || row?.work_name || '');
+        const quantity = String(row?.quantity || '').trim();
+        const total = String(row?.total || '').trim();
+        return [label, quantity ? 'x' + quantity : '', total ? 'итого ' + total : ''].filter(Boolean).join(' · ');
+      }).filter(Boolean);
+      const aiRelevantFacts = {
+        client,
+        phone,
+        vehicle,
+        vin,
+        mileage,
+        reason,
+        comment,
+        note,
+        works: workSummary,
+        materials: materialSummary,
+        payments_count: payments.length,
+        payment_method: paymentMethod,
+        payment_method_label: paymentMethodLabel,
+        payment_status: paymentStatus,
+        payment_status_label: paymentStatusLabel,
+        grand_total: grandTotal,
+        due_total: dueTotal,
+        subtotal_total: subtotalTotal,
+        taxes_total: taxesTotal,
+        paid_total: paidTotal,
+      };
+      const keyFields = [
+        number ? { key: 'number', label: 'Номер', value: number } : null,
+        status ? { key: 'status', label: 'Статус', value: statusLabel ? status + ' · ' + statusLabel : status } : null,
+        client ? { key: 'client', label: 'Клиент', value: client } : null,
+        vehicle ? { key: 'vehicle', label: 'Машина', value: vehicle } : null,
+        vehicleId ? { key: 'vehicle_id', label: 'ID машины', value: vehicleId } : null,
+        licensePlate ? { key: 'license_plate', label: 'Номерной знак', value: licensePlate } : null,
+        vin ? { key: 'vin', label: 'VIN', value: vin } : null,
+        mileage ? { key: 'mileage', label: 'Пробег', value: mileage } : null,
+        paymentStatusLabel || paymentStatus ? { key: 'payment_status', label: 'Платежный статус', value: paymentStatusLabel || paymentStatus } : null,
+        grandTotal ? { key: 'grand_total', label: 'Итог', value: grandTotal } : null,
+        dueTotal ? { key: 'due_total', label: 'Остаток', value: dueTotal } : null,
+      ].filter(Boolean);
+      const summaryLabel = [number || repairOrderId || 'RO', vehicle, client || statusLabel || status].filter(Boolean).join(' · ');
+      return {
+        kind: 'repair_order_context',
+        source_kind: activeRepairOrder ? 'repair_order' : 'workspace',
+        repair_order_id: repairOrderId,
+        repair_order_number: number,
+        repair_order_status: status,
+        repair_order_status_label: statusLabel,
+        summary_label: summaryLabel,
+        key_fields: keyFields,
+        ai_relevant_facts: aiRelevantFacts,
+        work_summary: workSummary,
+        material_summary: materialSummary,
+        notes_summary: [reason, comment, note].filter(Boolean),
+        payment_summary: {
+          payment_method: paymentMethod,
+          payment_method_label: paymentMethodLabel,
+          payment_status: paymentStatus,
+          payment_status_label: paymentStatusLabel,
+          paid_total: paidTotal,
+          subtotal_total: subtotalTotal,
+          taxes_total: taxesTotal,
+          grand_total: grandTotal,
+          due_total: dueTotal,
+        },
+        client_label: client,
+        vehicle_label: vehicle,
+        vehicle_id: vehicleId,
+        license_plate: licensePlate,
+        attached_card_id: String(sourceCard?.id || '').trim(),
+        wall_digest_label: String(digest?.summary_label || digest?.label || '').trim(),
+        wall_digest_summary: String(digest?.summary_text || '').trim(),
+        wall_digest_key_facts: Array.isArray(digest?.key_facts) ? digest.key_facts.slice(0, 5) : [],
+        wall_digest_notable_changes: Array.isArray(digest?.notable_changes) ? digest.notable_changes.slice(0, 5) : [],
+      };
+    }
+
     function buildAiCompactContextPacket() {
       const card = state.activeCard && typeof state.activeCard === 'object' ? state.activeCard : null;
       const currentCard = card ? {
@@ -6321,6 +6440,7 @@ BOARD_WEB_APP_HTML = "".join(
       const wall = state.gptWall && typeof state.gptWall === 'object' ? state.gptWall : null;
       const wallDigest = buildAiWallDigestPacket(wall);
       const cardContext = buildAiCardContextPacket(card, repairOrder, wallDigest);
+      const repairOrderContext = buildAiRepairOrderContextPacket(repairOrder, card, wallDigest);
       const wallView = normalizeGptWallView(state.gptWallView);
       const wallMeta = wall?.meta && typeof wall.meta === 'object' ? wall.meta : {};
       const cardAttachmentCount = Number(card?.attachment_count ?? currentCard?.attachment_count ?? 0) || 0;
@@ -6341,7 +6461,9 @@ BOARD_WEB_APP_HTML = "".join(
         repair_order_id: repairOrderId,
         repair_order_label: repairOrderLabel,
         repair_order_scope: repairOrder && typeof repairOrder === 'object' ? repairOrder : null,
+        repair_order_context_label: String(repairOrderContext?.summary_label || repairOrderLabel || '').trim(),
         card_context: cardContext,
+        repair_order_context: repairOrderContext,
         wall_context: {
           kind: 'wall',
           source_kind: wall ? 'gpt_wall' : 'none',
@@ -6384,7 +6506,7 @@ BOARD_WEB_APP_HTML = "".join(
         packet.card_context?.ai_relevant_facts?.client ? 'Клиент: ' + packet.card_context.ai_relevant_facts.client : '',
         packet.card_context?.ai_relevant_facts?.machine ? 'Машина: ' + packet.card_context.ai_relevant_facts.machine : '',
         packet.card_context?.ai_relevant_facts?.symptoms ? 'Симптомы: ' + packet.card_context.ai_relevant_facts.symptoms : '',
-        packet.repair_order_label ? 'Заказ-наряд: ' + packet.repair_order_label : 'Заказ-наряд: не привязан.',
+        packet.repair_order_context?.summary_label || packet.repair_order_label ? 'Заказ-наряд: ' + (packet.repair_order_context?.summary_label || packet.repair_order_label) : 'Заказ-наряд: не привязан.',
         packet.wall_digest?.label || packet.wall_context?.label || 'СТЕНА · НЕ ЗАГРУЖЕНА',
         packet.wall_digest?.key_facts?.length ? packet.wall_digest.key_facts.slice(0, 3).join(' · ') : '',
         packet.wall_digest?.notable_changes?.length ? packet.wall_digest.notable_changes.slice(0, 2).join(' · ') : '',
@@ -6540,7 +6662,12 @@ BOARD_WEB_APP_HTML = "".join(
         context.card_context?.ai_relevant_facts?.symptoms ? 'Симптомы: ' + context.card_context.ai_relevant_facts.symptoms : '',
         context.card_context?.ai_relevant_facts?.works?.length ? 'Работы: ' + context.card_context.ai_relevant_facts.works.slice(0, 3).join(' · ') : '',
         context.card_context?.ai_relevant_facts?.notes?.length ? 'Заметки: ' + context.card_context.ai_relevant_facts.notes.slice(0, 2).join(' · ') : '',
-        context.repair_order_label ? 'Заказ-наряд: ' + context.repair_order_label : 'Заказ-наряд: не привязан.',
+        context.repair_order_context?.summary_label ? 'Заказ-наряд: ' + context.repair_order_context.summary_label : (context.repair_order_label ? 'Заказ-наряд: ' + context.repair_order_label : 'Заказ-наряд: не привязан.'),
+        context.repair_order_context?.ai_relevant_facts?.payment_status_label ? 'Платежный статус: ' + context.repair_order_context.ai_relevant_facts.payment_status_label : '',
+        context.repair_order_context?.ai_relevant_facts?.grand_total ? 'Итог: ' + context.repair_order_context.ai_relevant_facts.grand_total : '',
+        context.repair_order_context?.ai_relevant_facts?.due_total ? 'Остаток: ' + context.repair_order_context.ai_relevant_facts.due_total : '',
+        context.repair_order_context?.work_summary?.length ? 'Работы ЗН: ' + context.repair_order_context.work_summary.slice(0, 3).join(' · ') : '',
+        context.repair_order_context?.material_summary?.length ? 'Материалы ЗН: ' + context.repair_order_context.material_summary.slice(0, 3).join(' · ') : '',
         context.wall_digest?.label ? 'Контекст стены: ' + context.wall_digest.label : (context.wall_context?.label ? 'Контекст стены: ' + context.wall_context.label : ''),
         context.wall_digest?.key_facts?.length ? 'Ключевые факты стены: ' + context.wall_digest.key_facts.slice(0, 3).join(' · ') : '',
         context.wall_digest?.notable_changes?.length ? 'Последние изменения: ' + context.wall_digest.notable_changes.slice(0, 2).join(' · ') : '',
@@ -6551,7 +6678,7 @@ BOARD_WEB_APP_HTML = "".join(
       ].filter(Boolean);
       const bulletLine = [
         context.card_context?.card_id ? '- card context available' : '- card context unavailable',
-        context.has_repair_order_scope ? '- repair order scope available' : '- repair order scope unavailable',
+        context.repair_order_context?.repair_order_id ? '- repair order context available' : '- repair order context unavailable',
         context.wall_digest?.has_wall ? '- wall digest available' : '- wall digest unavailable',
         context.attachments_intake?.ready ? '- attachments intake ready' : '- attachments intake unavailable',
       ];
@@ -6572,6 +6699,7 @@ BOARD_WEB_APP_HTML = "".join(
         if (message?.context?.kind) metaLine.push(escapeHtml(String(message.context.kind)));
         if (message?.context?.card_label) metaLine.push(escapeHtml(String(message.context.card_label)));
         if (message?.context?.repair_order_label) metaLine.push(escapeHtml(String(message.context.repair_order_label)));
+        if (message?.context?.repair_order_context_label) metaLine.push(escapeHtml(String(message.context.repair_order_context_label)));
         if (message?.source) metaLine.push(escapeHtml(String(message.source)));
         return '<article class="ai-chat-window__message" data-role="' + escapeHtml(normalizedRole) + '" data-tone="' + escapeHtml(tone) + '" data-message-id="' + escapeHtml(message?.id || '') + '">' +
           '<div class="ai-chat-window__message-title">' + title + '</div>' +
@@ -6679,6 +6807,8 @@ BOARD_WEB_APP_HTML = "".join(
         const compactTail = [
           context.card_context?.summary_label || context.card_label || '',
           context.card_context?.ai_relevant_facts?.client || '',
+          context.repair_order_context?.summary_label || context.repair_order_label || '',
+          context.repair_order_context?.ai_relevant_facts?.payment_status_label || '',
           context.wall_digest?.label || context.wall_context?.label || '',
           context.wall_digest?.key_facts?.slice(0, 2).join(' · ') || '',
           context.attachments_intake?.label || '',
