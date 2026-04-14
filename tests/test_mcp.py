@@ -12,14 +12,13 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from contextlib import asynccontextmanager
-from contextlib import suppress
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import httpx
-import anyio
 from mcp import ClientSession
-from mcp.client.streamable_http import StreamableHTTPTransport
+from mcp.client.streamable_http import streamable_http_client
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,55 +42,27 @@ def reserve_port() -> int:
         return sock.getsockname()[1]
 
 
+async def close_lingering_memory_streams() -> int:
+    closed = 0
+    for obj in list(gc.get_objects()):
+        if not isinstance(obj, (MemoryObjectReceiveStream, MemoryObjectSendStream)):
+            continue
+        if getattr(obj, "_closed", True):
+            continue
+        try:
+            await obj.aclose()
+            closed += 1
+        except Exception:
+            continue
+    return closed
+
+
 @asynccontextmanager
 async def open_mcp_session(url: str, *, http_client: httpx.AsyncClient | None = None):
-    client = http_client or httpx.AsyncClient()
-    client_provided = http_client is not None
-    transport = StreamableHTTPTransport(url)
-    read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
-    write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
-    try:
-        async with anyio.create_task_group() as tg:
-            if not client_provided:
-                client_cm = client
-            else:
-                client_cm = _yield_client(client)
-            async with client_cm:
-                def start_get_stream() -> None:
-                    tg.start_soon(transport.handle_get_stream, client, read_stream_writer)
-
-                tg.start_soon(
-                    transport.post_writer,
-                    client,
-                    write_stream_reader,
-                    read_stream_writer,
-                    write_stream,
-                    start_get_stream,
-                    tg,
-                )
-                try:
-                    async with ClientSession(read_stream, write_stream) as session:
-                        await session.initialize()
-                        yield session
-                finally:
-                    with suppress(Exception):
-                        await write_stream.aclose()
-                    if transport.session_id:
-                        with suppress(Exception):
-                            await transport.terminate_session(client)
-                    tg.cancel_scope.cancel()
-    finally:
-        for stream in (write_stream_reader, write_stream, read_stream, read_stream_writer):
-            with suppress(Exception):
-                await stream.aclose()
-        if not client_provided:
-            with suppress(Exception):
-                await client.aclose()
-
-
-@asynccontextmanager
-async def _yield_client(client: httpx.AsyncClient):
-    yield client
+    async with streamable_http_client(url, http_client=http_client) as (read_stream, write_stream, _get_session_id):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            yield session
 
 
 class McpServerTests(unittest.IsolatedAsyncioTestCase):
@@ -148,6 +119,7 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.stop()
         self.api_server.stop()
         await asyncio.sleep(0.1)
+        await close_lingering_memory_streams()
         gc.collect()
 
     def tearDown(self) -> None:
