@@ -45,7 +45,7 @@ Not the active line for current production work:
 Environment rule:
 
 - local repo, GitHub `autostopCRM`, and working production should stay aligned on the same branch head
-- current synced HEAD at last verification: `1796ec9` `Fix board column drag capture area`
+- current synced HEAD changes frequently; verify it with `git rev-parse --short HEAD` before acting on this file
 - after any meaningful change, verify all three explicitly instead of relying on stale notes in this file
 
 Working production DNS:

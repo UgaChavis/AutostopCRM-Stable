@@ -247,7 +247,7 @@ The production compose stack currently has two services:
 
 ## Documentation Map
 
-С чего начать:
+Read first:
 
 - [00_START_HERE_AUTOSTOP_CRM.md](00_START_HERE_AUTOSTOP_CRM.md): visible root-level onboarding file for the next developer or agent
 - [MASTER-PLAN.md](MASTER-PLAN.md): central architecture plan with module tree, internal versions, and parallel development lanes
@@ -273,9 +273,12 @@ Active agent and operations docs kept in the root:
 - `GPT_AGENT_11_AGENT_AUTOFILL_ORCHESTRATION.md`
 - `CHATGPT_CONNECTOR_SETUP.md` remains in the root because the runtime and tests reference that exact path
 
-Устаревшие заметки по коннектору и операторским сценариям перенесены в:
+Removed from the root during the April 2026 cleanup:
 
-- `docs/archive/legacy_root_docs`
+- obsolete portable-install docs
+- frozen historical test reports
+- superseded MCP / GPT setup notes
+- duplicated documentation bundles that only mirrored the root files
 
 ## Current Branch Policy
 

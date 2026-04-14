@@ -14,10 +14,9 @@ TARGETS = [
     ROOT / "src" / "minimal_kanban" / "ui" / "widgets.py",
     ROOT / "installer" / "minimal-kanban.iss",
     ROOT / "README.md",
-    ROOT / "USER_GUIDE.md",
     ROOT / "API_GUIDE.md",
-    ROOT / "INSTALL_GUIDE.md",
-    ROOT / "TEST_REPORT.md",
+    ROOT / "MCP_GUIDE.md",
+    ROOT / "00_START_HERE_AUTOSTOP_CRM.md",
 ]
 
 FORBIDDEN_PHRASES = [

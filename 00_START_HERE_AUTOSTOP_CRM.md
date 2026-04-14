@@ -1,11 +1,11 @@
-# AutoStop CRM: Start Here
+# AutoStop CRM: First Read
 
 This is the first file a new developer or agent should read in branch `autostopCRM`.
 
 ## Current Truth
 
 - branch: `autostopCRM`
-- current synced HEAD at last verification: `1796ec9` `Fix board column drag capture area`
+- current synced HEAD must be verified before work with `git rev-parse --short HEAD`
 - local, GitHub, and production should be kept aligned on the same `autostopCRM` HEAD
 - production CRM: `https://crm.autostopcrm.ru`
 - production MCP: `https://crm.autostopcrm.ru/mcp`
@@ -125,9 +125,7 @@ Primary active docs kept in the repo root:
 - `AI_AGENT_AUDIT_2026-04-14.md`
 - `AI_AGENT_MODERNIZATION_PLAN.md`
 
-Archived legacy docs are kept under:
-
-- `docs/archive/legacy_root_docs`
+Obsolete root-level release docs and duplicated doc bundles were removed during the April 2026 cleanup pass.
 
 ## Current Risks
 

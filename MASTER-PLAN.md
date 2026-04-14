@@ -20,13 +20,13 @@
 
 ## 2. Текущее состояние на момент обновления
 
-- Локальная и GitHub-ветка сейчас находятся на `6eec3a0` `Silence asyncio debug noise in MCP tests`
+- Локальный HEAD и GitHub HEAD нужно перепроверять перед работой через `git rev-parse --short HEAD`
 - Production URL:
   - CRM: `https://crm.autostopcrm.ru`
   - MCP: `https://crm.autostopcrm.ru/mcp`
 - Production host: `46.8.254.243`
 - Production repo path: `/opt/autostopcrm`
-- Последняя явно задокументированная production-верификация в handoff-доках была на волне `1796ec9`
+- Последнюю production-верификацию нужно оценивать отдельно перед каждым серьёзным pass
 - Следствие: GitHub и локальная ветка актуальны, а production-паритет всегда надо перепроверять отдельно перед работой с боем
 
 ## 3. Что такое AutoStop CRM сейчас

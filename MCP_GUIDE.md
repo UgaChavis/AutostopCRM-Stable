@@ -197,7 +197,7 @@ python -m unittest discover -s .\tests -v
 - `list_overdue_cards`
 - структурированные ошибки для невалидных случаев
 
-Подробности в [TEST_REPORT.md](TEST_REPORT.md).
+Regression coverage now lives in the current test suite, primarily `tests/test_mcp.py` and `tests/test_mcp_main.py`, instead of a frozen standalone test-report file.
 
 ## Ограничения текущей реализации
 
