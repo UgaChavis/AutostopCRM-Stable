@@ -1948,6 +1948,16 @@ BOARD_WEB_APP_HTML = "".join(
       .dialog--ai-entry {
         width: min(860px, calc(100% - 24px));
       }
+      .dialog--ai-chat {
+        width: min(1320px, calc(100% - 24px));
+        height: min(92vh, 920px);
+        max-height: min(92vh, 920px);
+        padding: 0;
+        gap: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
       .dialog--agent .dialog__head {
         padding: 11px 12px 9px;
         margin: 0;
@@ -2113,6 +2123,124 @@ BOARD_WEB_APP_HTML = "".join(
       }
       .ai-entry-legacy {
         margin-left: auto;
+      }
+      .ai-chat-window {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+      }
+      .ai-chat-window__head {
+        padding: 12px 14px 10px;
+        margin: 0;
+        border-bottom: 1px solid rgba(115, 126, 105, 0.18);
+        background: rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .ai-chat-window__title-block {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+        flex: 1 1 260px;
+      }
+      .ai-chat-window__title {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text);
+      }
+      .ai-chat-window__subtitle {
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--text-soft);
+      }
+      .ai-chat-window__controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .ai-chat-window__body {
+        min-height: 0;
+        flex: 1 1 auto;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        overflow: hidden;
+      }
+      .ai-chat-window__messages {
+        min-height: 0;
+        overflow-y: auto;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+        align-content: start;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.02), transparent 20%),
+          rgba(0, 0, 0, 0.04);
+      }
+      .ai-chat-window__message {
+        border: 1px solid rgba(116, 126, 106, 0.18);
+        background: rgba(0, 0, 0, 0.08);
+        padding: 10px 12px;
+        border-radius: 10px;
+        display: grid;
+        gap: 6px;
+        max-width: min(100%, 900px);
+      }
+      .ai-chat-window__message[data-role="assistant"] {
+        margin-right: auto;
+        border-color: rgba(167, 178, 132, 0.26);
+      }
+      .ai-chat-window__message[data-role="user"] {
+        margin-left: auto;
+        border-color: rgba(108, 128, 196, 0.3);
+      }
+      .ai-chat-window__message-title {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+      .ai-chat-window__message-text {
+        font-size: 12px;
+        line-height: 1.55;
+        color: var(--text);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .ai-chat-window__composer {
+        border-top: 1px solid rgba(115, 126, 105, 0.18);
+        background: rgba(0, 0, 0, 0.08);
+        padding: 12px 14px 14px;
+        display: grid;
+        gap: 8px;
+      }
+      .ai-chat-window__composer-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+      .ai-chat-window__input {
+        min-height: 96px;
+        resize: vertical;
+        width: 100%;
+      }
+      .ai-chat-window__composer-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
       }
       .agent-field textarea {
         min-height: 80px;
@@ -4311,6 +4439,44 @@ BOARD_WEB_APP_HTML = "".join(
     </div>
   </div>
 
+  <div class="modal" id="aiChatWindow">
+    <div class="dialog dialog--agent dialog--ai-chat">
+      <div class="ai-chat-window">
+        <div class="dialog__head ai-chat-window__head">
+          <div class="ai-chat-window__title-block">
+            <div class="dialog__title" id="aiChatWindowTitle">AI / ЧАТ</div>
+            <div class="ai-chat-window__subtitle" id="aiChatWindowSubtitle">Отдельный рабочий путь для будущего большого чата.</div>
+          </div>
+          <div class="ai-chat-window__controls">
+            <div class="agent-status" id="aiChatWindowStatusLabel" data-state="idle">HIDDEN</div>
+            <button class="btn btn--ghost" id="aiChatWindowSettingsButton" type="button" disabled title="Настройки будут подключены позже">НАСТРОЙКИ</button>
+            <button class="btn" data-close="ai-chat">ЗАКРЫТЬ</button>
+          </div>
+        </div>
+        <div class="ai-chat-window__body">
+          <div class="ai-chat-window__messages" id="aiChatWindowMessages">
+            <div class="ai-chat-window__message" data-role="assistant">
+              <div class="ai-chat-window__message-title">AI</div>
+              <div class="ai-chat-window__message-text">Чат-окно готово как отдельный surface. Здесь позже появятся история, markdown, context wiring и полноценный runtime.</div>
+            </div>
+            <div class="ai-chat-window__message" data-role="system">
+              <div class="ai-chat-window__message-title">SYSTEM</div>
+              <div class="ai-chat-window__message-text">Это не старый agent modal и не popup-menu. Input area уже выделена отдельно под будущий multiline composer.</div>
+            </div>
+          </div>
+          <div class="ai-chat-window__composer">
+            <div class="ai-chat-window__composer-label">СООБЩЕНИЕ</div>
+            <textarea class="input ai-chat-window__input" id="aiChatWindowInput" rows="4" placeholder="Опиши задачу для AI-чата..."></textarea>
+            <div class="ai-chat-window__composer-foot">
+              <div class="compact-note">Markdown, send flow и history будут подключены на следующих шагах.</div>
+              <button class="btn btn--accent" id="aiChatWindowSendButton" type="button" disabled>ОТПРАВИТЬ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="identityModal">
     <div class="dialog" style="width:min(480px,100%)">
       <div class="dialog__title">КТО РАБОТАЕТ С ДОСКОЙ</div>
@@ -4967,9 +5133,11 @@ BOARD_WEB_APP_HTML = "".join(
       repairOrderTagColor: 'green',
       agentUiBound: false,
       aiSurfaceUiBound: false,
+      aiChatWindowUiBound: false,
       agentContext: { kind: 'board' },
       aiSurfaceContext: { kind: 'chat' },
       aiSurfaceSelectedScenario: 'ai_chat',
+      aiChatWindowContext: { kind: 'chat' },
       agentRefreshTimer: null,
       agentAutofillCountdownTimer: null,
       agentAutofillPromptOpen: false,
@@ -4985,6 +5153,7 @@ BOARD_WEB_APP_HTML = "".join(
       agentSyncedTaskId: '',
       agentStatusPayload: null,
       aiSurfaceStatusPayload: null,
+      aiChatWindowStatusPayload: null,
       agentLatestTasks: [],
       agentLatestActions: [],
     };
@@ -5401,6 +5570,14 @@ BOARD_WEB_APP_HTML = "".join(
       aiSurfaceScenarioGrid: document.getElementById('aiSurfaceScenarioGrid'),
       aiSurfaceResult: document.getElementById('aiSurfaceResult'),
       aiSurfaceLegacyButton: document.getElementById('aiSurfaceLegacyButton'),
+      aiChatWindow: document.getElementById('aiChatWindow'),
+      aiChatWindowTitle: document.getElementById('aiChatWindowTitle'),
+      aiChatWindowSubtitle: document.getElementById('aiChatWindowSubtitle'),
+      aiChatWindowStatusLabel: document.getElementById('aiChatWindowStatusLabel'),
+      aiChatWindowMessages: document.getElementById('aiChatWindowMessages'),
+      aiChatWindowInput: document.getElementById('aiChatWindowInput'),
+      aiChatWindowSettingsButton: document.getElementById('aiChatWindowSettingsButton'),
+      aiChatWindowSendButton: document.getElementById('aiChatWindowSendButton'),
       agentModal: document.getElementById('agentModal'),
       agentContextLabel: document.getElementById('agentContextLabel'),
       agentStatusLabel: document.getElementById('agentStatusLabel'),
@@ -5602,7 +5779,26 @@ BOARD_WEB_APP_HTML = "".join(
       els.aiSurfaceScenarioGrid = document.getElementById('aiSurfaceScenarioGrid');
       els.aiSurfaceResult = document.getElementById('aiSurfaceResult');
       els.aiSurfaceLegacyButton = document.getElementById('aiSurfaceLegacyButton');
+      els.aiChatWindow = document.getElementById('aiChatWindow');
+      els.aiChatWindowTitle = document.getElementById('aiChatWindowTitle');
+      els.aiChatWindowSubtitle = document.getElementById('aiChatWindowSubtitle');
+      els.aiChatWindowStatusLabel = document.getElementById('aiChatWindowStatusLabel');
+      els.aiChatWindowMessages = document.getElementById('aiChatWindowMessages');
+      els.aiChatWindowInput = document.getElementById('aiChatWindowInput');
+      els.aiChatWindowSettingsButton = document.getElementById('aiChatWindowSettingsButton');
+      els.aiChatWindowSendButton = document.getElementById('aiChatWindowSendButton');
       els.aiChatButton = document.getElementById('aiChatButton');
+    }
+
+    function hydrateAiChatWindowUiRefs() {
+      els.aiChatWindow = document.getElementById('aiChatWindow');
+      els.aiChatWindowTitle = document.getElementById('aiChatWindowTitle');
+      els.aiChatWindowSubtitle = document.getElementById('aiChatWindowSubtitle');
+      els.aiChatWindowStatusLabel = document.getElementById('aiChatWindowStatusLabel');
+      els.aiChatWindowMessages = document.getElementById('aiChatWindowMessages');
+      els.aiChatWindowInput = document.getElementById('aiChatWindowInput');
+      els.aiChatWindowSettingsButton = document.getElementById('aiChatWindowSettingsButton');
+      els.aiChatWindowSendButton = document.getElementById('aiChatWindowSendButton');
     }
 
     function hydrateAgentTasksUiRefs() {
@@ -6057,6 +6253,7 @@ BOARD_WEB_APP_HTML = "".join(
         },
         agent: () => closeAgentModal(),
         'ai-surface': () => closeAiSurface(),
+        'ai-chat': () => closeAiChatWindow(),
         'agent-tasks': () => closeAgentTasksModal(),
         wall: () => els.gptWallModal.classList.remove('is-open'),
         settings: () => els.boardSettingsModal.classList.remove('is-open'),
@@ -6791,6 +6988,71 @@ BOARD_WEB_APP_HTML = "".join(
       }
     }
 
+    function renderAiChatWindow(statusPayload) {
+      const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
+      const aiRemodel = payload.ai_remodel && typeof payload.ai_remodel === 'object' ? payload.ai_remodel : {};
+      const effectiveMode = aiRemodel.effective_mode && typeof aiRemodel.effective_mode === 'object' ? aiRemodel.effective_mode : {};
+      const modeConfig = effectiveMode.mode_config && typeof effectiveMode.mode_config === 'object' ? effectiveMode.mode_config : {};
+      const scenarioStateMap = modeConfig.scenario_state && typeof modeConfig.scenario_state === 'object' ? modeConfig.scenario_state : {};
+      const entryExposureMap = effectiveMode.entry_exposure && typeof effectiveMode.entry_exposure === 'object' ? effectiveMode.entry_exposure : {};
+      const scenarioState = scenarioStateMap.ai_chat && typeof scenarioStateMap.ai_chat === 'object' ? scenarioStateMap.ai_chat : {};
+      const entryExposure = entryExposureMap.future_ai_chat_window && typeof entryExposureMap.future_ai_chat_window === 'object'
+        ? entryExposureMap.future_ai_chat_window
+        : null;
+      const exposureState = String(
+        entryExposure?.exposure_state
+        || scenarioState.rollout_state
+        || 'hidden'
+      ).trim().toLowerCase();
+      const tone = aiSurfaceExposureTone(exposureState);
+      const label = aiSurfaceExposureLabel(exposureState);
+      state.aiChatWindowStatusPayload = payload;
+      if (els.aiChatWindowTitle) {
+        els.aiChatWindowTitle.textContent = 'AI / ЧАТ';
+      }
+      if (els.aiChatWindowSubtitle) {
+        els.aiChatWindowSubtitle.textContent = 'Отдельный рабочий AI surface для будущего чата. Layout уже готов для длинных ответов, истории и настроек.';
+      }
+      if (els.aiChatWindowStatusLabel) {
+        els.aiChatWindowStatusLabel.textContent = label;
+        els.aiChatWindowStatusLabel.dataset.state = tone;
+      }
+      if (els.aiChatWindowMessages) {
+        els.aiChatWindowMessages.dataset.state = exposureState;
+      }
+      if (els.aiChatWindowInput) {
+        els.aiChatWindowInput.placeholder = exposureState === 'hidden'
+          ? 'AI-чат пока скрыт в текущем rollout'
+          : 'Напиши сообщение для AI-чата...';
+      }
+      if (els.aiChatWindowSendButton) {
+        els.aiChatWindowSendButton.disabled = true;
+      }
+    }
+
+    function openAiChatWindow() {
+      if (!requireOperatorSession()) return;
+      hydrateAiChatWindowUiRefs();
+      closeAiSurface();
+      closeAgentModal();
+      state.aiChatWindowContext = buildAiSurfaceContext('chat');
+      state.aiSurfaceContext = state.aiChatWindowContext;
+      state.aiSurfaceSelectedScenario = 'ai_chat';
+      renderAiChatWindow(state.aiSurfaceStatusPayload || state.agentStatusPayload || {});
+      els.aiChatWindow?.classList.add('is-open');
+      refreshAgentModalState();
+    }
+
+    function closeAiChatWindow() {
+      els.aiChatWindow?.classList.remove('is-open');
+      if (!els.agentModal?.classList.contains('is-open') && !els.aiSurfaceModal?.classList.contains('is-open')) {
+        if (state.agentRefreshTimer) {
+          window.clearTimeout(state.agentRefreshTimer);
+          state.agentRefreshTimer = null;
+        }
+      }
+    }
+
     function formatAgentContextLabel(context) {
       const normalized = context && typeof context === 'object' ? context : { kind: 'board' };
       if (String(normalized.kind || '').trim().toLowerCase() === 'card') {
@@ -6843,7 +7105,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function openAiChatEntry() {
-      openAiSurface('chat');
+      openAiChatWindow();
     }
 
     function handleAiSurfaceModalOverlayClick(event) {
@@ -6976,6 +7238,8 @@ BOARD_WEB_APP_HTML = "".join(
       if (!requireOperatorSession()) return;
       hydrateAiSurfaceUiRefs();
       bindAiSurfaceUiEvents();
+      closeAiChatWindow();
+      closeAgentModal();
       state.aiSurfaceContext = buildAiSurfaceContext(kind);
       const normalizedKind = String(kind || '').trim().toLowerCase();
       state.aiSurfaceSelectedScenario = normalizedKind === 'card'
@@ -8005,7 +8269,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function isAnyAgentSurfaceOpen() {
-      return Boolean(els.agentModal?.classList.contains('is-open') || els.aiSurfaceModal?.classList.contains('is-open'));
+      return Boolean(els.agentModal?.classList.contains('is-open') || els.aiSurfaceModal?.classList.contains('is-open') || els.aiChatWindow?.classList.contains('is-open'));
     }
 
     function scheduleAgentRefresh(delay = 3000) {
@@ -8035,6 +8299,7 @@ BOARD_WEB_APP_HTML = "".join(
         }
         renderAgentStatus(statusData);
         renderAiEntrySurface(statusData);
+        renderAiChatWindow(statusData);
         renderAgentRuns(statusData?.recent_runs || []);
         const task = selectAgentTask(state.agentLatestTasks);
         if (task) {
