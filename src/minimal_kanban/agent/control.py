@@ -147,7 +147,7 @@ class AgentControlService:
                 "active_total": active_total,
                 "paused_total": max(0, len(schedules) - active_total),
             },
-            "recent_runs": self._storage.list_runs(limit=min(max(int(payload.get("run_limit", 10) or 10), 1), 50)),
+            "recent_runs": self._storage.list_runs(limit=self._normalize_limit(payload.get("run_limit"), default=10, minimum=1, maximum=50)),
         }
 
     def agent_enqueue_task(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -170,12 +170,12 @@ class AgentControlService:
 
     def agent_runs(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
-        limit = min(max(int(payload.get("limit", 50) or 50), 1), 200)
+        limit = self._normalize_limit(payload.get("limit"), default=50, minimum=1, maximum=200)
         return {"runs": self._storage.list_runs(limit=limit), "meta": {"limit": limit}}
 
     def agent_actions(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
-        limit = min(max(int(payload.get("limit", 100) or 100), 1), 500)
+        limit = self._normalize_limit(payload.get("limit"), default=100, minimum=1, maximum=500)
         run_id = str(payload.get("run_id", "") or "").strip() or None
         task_id = str(payload.get("task_id", "") or "").strip() or None
         return {
@@ -185,7 +185,7 @@ class AgentControlService:
 
     def agent_tasks(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
-        limit = min(max(int(payload.get("limit", 50) or 50), 1), 200)
+        limit = self._normalize_limit(payload.get("limit"), default=50, minimum=1, maximum=200)
         statuses_raw = str(payload.get("status", "") or "").strip()
         statuses = {item.strip() for item in statuses_raw.split(",") if item.strip()} if statuses_raw else None
         return {
@@ -359,7 +359,18 @@ class AgentControlService:
         except Exception as exc:
             self._storage.update_status(last_scheduler_error=str(exc))
             raise
-        self._storage.update_status(last_scheduler_success_at=utc_now_iso(), last_scheduler_error="")
+        last_scheduler_error = ""
+        if failed:
+            preview = "; ".join(
+                f"{item.get('task_id', '')}: {item.get('error', '')}".strip(": ").strip()
+                for item in failed[:3]
+                if isinstance(item, dict)
+            )
+            last_scheduler_error = preview[:500]
+        self._storage.update_status(
+            last_scheduler_success_at=utc_now_iso(),
+            last_scheduler_error=last_scheduler_error,
+        )
         return {"launched": launched, "failed": failed, "throttled": False}
 
     def _scheduler_loop(self) -> None:
@@ -548,6 +559,13 @@ class AgentControlService:
             "last_task_id": str(existing.get("last_task_id", "") if existing else ""),
             "last_error": str(existing.get("last_error", "") if existing else ""),
         }
+
+    def _normalize_limit(self, value: Any, *, default: int, minimum: int, maximum: int) -> int:
+        try:
+            normalized = int(value if value not in {None, ""} else default)
+        except (TypeError, ValueError):
+            normalized = default
+        return min(max(normalized, minimum), maximum)
 
     def _normalize_interval_value(self, value: Any) -> int:
         try:

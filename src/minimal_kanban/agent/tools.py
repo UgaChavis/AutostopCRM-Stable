@@ -266,7 +266,7 @@ class AgentToolExecutor:
         return "\n".join(lines)
 
     def execute(self, tool_name: str, args: dict[str, Any] | None) -> dict[str, Any]:
-        handler = self._tools.get(str(tool_name or "").strip())
+        handler = self._tools.get(str(tool_name or "").strip().lower())
         if handler is None:
             raise KeyError(f"Unknown agent tool: {tool_name}")
         return handler(args or {})

@@ -441,6 +441,64 @@ class AgentControlStatusTests(unittest.TestCase):
             self.assertTrue(payload["scheduler"]["last_success_at"])
             self.assertEqual(payload["scheduler"]["last_error"], "")
 
+    def test_agent_status_accepts_invalid_run_limit_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "os.environ",
+            {
+                "MINIMAL_KANBAN_AGENT_ENABLED": "1",
+                "OPENAI_API_KEY": "",
+            },
+            clear=False,
+        ):
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage)
+            payload = service.agent_status({"run_limit": "not-a-number"})
+            self.assertIn("recent_runs", payload)
+            self.assertLessEqual(len(payload["recent_runs"]), 50)
+
+    def test_agent_runs_accepts_invalid_limit_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage)
+            payload = service.agent_runs({"limit": "bad-value"})
+            self.assertEqual(payload["meta"]["limit"], 50)
+
+    def test_agent_actions_accepts_invalid_limit_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage)
+            payload = service.agent_actions({"limit": "bad-value"})
+            self.assertEqual(payload["meta"]["limit"], 100)
+
+    def test_agent_tasks_accepts_invalid_limit_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage)
+            payload = service.agent_tasks({"limit": "bad-value"})
+            self.assertEqual(payload["meta"]["limit"], 50)
+
+    def test_trigger_scheduled_tasks_persists_partial_followup_failures(self) -> None:
+        class _BoardService:
+            def trigger_due_ai_followups(self) -> dict:
+                return {"launched": ["card-1"], "failed": [{"card_id": "card-2", "error": "boom"}]}
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "os.environ",
+            {
+                "MINIMAL_KANBAN_AGENT_ENABLED": "1",
+                "OPENAI_API_KEY": "",
+            },
+            clear=False,
+        ):
+            storage = AgentStorage(base_dir=Path(temp_dir))
+            service = AgentControlService(storage)
+            service.bind_board_service(_BoardService())
+            result = service.trigger_scheduled_tasks(force=True)
+            status = storage.read_status()
+            self.assertEqual(result["failed"][0]["task_id"], "card-2")
+            self.assertIn("card-2", status["last_scheduler_error"])
+            self.assertIn("boom", status["last_scheduler_error"])
+
 
 class AgentRunnerTests(unittest.TestCase):
     def test_default_prompt_includes_card_cleanup_rules(self) -> None:

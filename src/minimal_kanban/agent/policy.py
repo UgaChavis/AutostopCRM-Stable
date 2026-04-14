@@ -93,8 +93,14 @@ class ToolPolicyEngine:
         followup_enabled: bool,
         notes: list[str] | None = None,
     ) -> PlanResult:
-        normalized_chain = [str(item or "").strip().lower() for item in scenario_chain if str(item or "").strip()]
+        normalized_execution_mode = str(execution_mode or "model_loop").strip().lower() or "model_loop"
+        normalized_chain = self._normalize_chain(scenario_chain)
         if not normalized_chain:
+            normalized_chain = ["freeform_manual"]
+        recognized_chain = [item for item in normalized_chain if item in _SCENARIO_POLICIES]
+        if recognized_chain:
+            normalized_chain = recognized_chain
+        else:
             normalized_chain = ["freeform_manual"]
         primary = next(
             (item for item in normalized_chain if item not in {"normalization", "freeform_manual"}),
@@ -112,10 +118,11 @@ class ToolPolicyEngine:
             forbidden_write_targets.extend(policy.forbidden_write_targets)
         required_unique = self._unique(required_tools)
         optional_unique = [item for item in self._unique(optional_tools) if item not in required_unique]
-        allowed_unique = self._unique(allowed_write_targets)
-        forbidden_unique = [item for item in self._unique(forbidden_write_targets) if item not in allowed_unique]
+        forbidden_unique = self._unique(forbidden_write_targets)
+        forbidden_set = set(forbidden_unique)
+        allowed_unique = [item for item in self._unique(allowed_write_targets) if item not in forbidden_set]
         stop_conditions = [f"missing_required_tool:{tool_name}" for tool_name in required_unique]
-        if execution_mode == "model_loop" and allowed_unique:
+        if normalized_execution_mode == "model_loop" and allowed_unique:
             stop_conditions.append("forbid_unplanned_writes")
         followup_policy = {
             "enabled": bool(followup_enabled),
@@ -124,7 +131,7 @@ class ToolPolicyEngine:
         }
         confidence_mode = "standard"
         write_mode = "patch_only"
-        if execution_mode == "structured_card":
+        if normalized_execution_mode == "structured_card":
             write_mode = "patch_only_additive"
         if any(item in {"vin_enrichment", "dtc_lookup"} for item in normalized_chain):
             confidence_mode = "confirmed_only"
@@ -133,7 +140,7 @@ class ToolPolicyEngine:
         return PlanResult(
             scenario_id=primary,
             scenario_chain=normalized_chain,
-            execution_mode=str(execution_mode or "model_loop").strip().lower() or "model_loop",
+            execution_mode=normalized_execution_mode,
             needs_external_tools=bool(required_unique or optional_unique),
             required_tools=required_unique,
             optional_tools=optional_unique,
@@ -156,19 +163,17 @@ class ToolPolicyEngine:
         return [tool_name for tool_name in plan.required_tools if tool_name not in executed]
 
     def filter_patch(self, plan: PlanResult, patch: PatchResult) -> PatchResult:
-        allowed = set(plan.allowed_write_targets)
-        card_patch = dict(patch.card_patch) if "description" in allowed or "title" in allowed or "tags" in allowed or "vehicle" in allowed or "vehicle_profile" in allowed else {}
-        if card_patch:
-            filtered_card_patch = {
-                key: value
-                for key, value in card_patch.items()
-                if key in allowed
-            }
-        else:
-            filtered_card_patch = {}
-        repair_order_patch = dict(patch.repair_order_patch) if "repair_order" in allowed else {}
-        repair_order_works = [dict(item) for item in patch.repair_order_works if isinstance(item, dict)] if "repair_order_works" in allowed else []
-        repair_order_materials = [dict(item) for item in patch.repair_order_materials if isinstance(item, dict)] if "repair_order_materials" in allowed else []
+        allowed = set(self._unique(plan.allowed_write_targets))
+        forbidden = set(self._unique(plan.forbidden_write_targets))
+        allowed.difference_update(forbidden)
+        filtered_card_patch = {
+            key: value
+            for key, value in dict(patch.card_patch).items()
+            if key in allowed and key not in forbidden
+        }
+        repair_order_patch = dict(patch.repair_order_patch) if "repair_order" in allowed and "repair_order" not in forbidden else {}
+        repair_order_works = [dict(item) for item in patch.repair_order_works if isinstance(item, dict)] if "repair_order_works" in allowed and "repair_order_works" not in forbidden else []
+        repair_order_materials = [dict(item) for item in patch.repair_order_materials if isinstance(item, dict)] if "repair_order_materials" in allowed and "repair_order_materials" not in forbidden else []
         return PatchResult(
             card_patch=filtered_card_patch,
             repair_order_patch=repair_order_patch,
@@ -180,7 +185,7 @@ class ToolPolicyEngine:
         )
 
     def tool_source_type(self, tool_name: str, *, scenario_id: str | None = None) -> str:
-        normalized_tool = str(tool_name or "").strip()
+        normalized_tool = str(tool_name or "").strip().lower()
         if normalized_tool in _TOOL_SOURCE_TYPES:
             return _TOOL_SOURCE_TYPES[normalized_tool]
         if scenario_id:
@@ -200,6 +205,17 @@ class ToolPolicyEngine:
     def _policy_for(self, scenario_name: str) -> ScenarioPolicy:
         normalized_name = str(scenario_name or "").strip().lower()
         return _SCENARIO_POLICIES.get(normalized_name, _SCENARIO_POLICIES["freeform_manual"])
+
+    def _normalize_chain(self, scenario_chain: list[str]) -> list[str]:
+        result: list[str] = []
+        seen: set[str] = set()
+        for item in scenario_chain:
+            value = str(item or "").strip().lower()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            result.append(value)
+        return result
 
     def _unique(self, items: list[str]) -> list[str]:
         result: list[str] = []
