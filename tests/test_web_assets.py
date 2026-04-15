@@ -899,6 +899,8 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn('КУДА ПЕРЕВЕСТИ', BOARD_WEB_APP_HTML)
         self.assertNotIn('Баланс:', BOARD_WEB_APP_HTML)
         self.assertNotIn('1000 или 1000,50', BOARD_WEB_APP_HTML)
+        self.assertIn("const yy = String(date.getFullYear() % 100).padStart(2, '0');", BOARD_WEB_APP_HTML)
+        self.assertIn("return dd + '.' + mm + '.' + yy + ', ' + hh + ':' + min;", BOARD_WEB_APP_HTML)
         self.assertNotIn("window.prompt('Куда перевести деньги?", BOARD_WEB_APP_HTML)
 
     def test_modal_data_loader_helpers_drive_active_archive_and_gpt_paths(self) -> None:

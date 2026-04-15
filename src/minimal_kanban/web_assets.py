@@ -10187,7 +10187,16 @@ BOARD_WEB_APP_HTML = "".join(
 
     function formatDate(value) {
       if (!value) return 'нет даты';
-      try { return new Date(value).toLocaleString('ru-RU'); } catch { return value; }
+      try {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yy = String(date.getFullYear() % 100).padStart(2, '0');
+        const hh = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        return dd + '.' + mm + '.' + yy + ', ' + hh + ':' + min;
+      } catch { return value; }
     }
 
     function formatAgentClock(value, { withSeconds = false } = {}) {
