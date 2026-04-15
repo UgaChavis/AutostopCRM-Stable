@@ -352,11 +352,13 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("els.vehiclePanelSummary.style.display = summaryLines.length ? '' : 'none';", BOARD_WEB_APP_HTML)
 
     def test_vehicle_panel_places_mileage_before_customer_contact_fields(self) -> None:
+        identity_grid_index = BOARD_WEB_APP_HTML.index("vehicle-group--identity")
         display_index = BOARD_WEB_APP_HTML.index("{ name: 'display_name'")
         plate_index = BOARD_WEB_APP_HTML.index("{ name: 'license_plate'")
         year_index = BOARD_WEB_APP_HTML.index("{ name: 'production_year'")
         mileage_index = BOARD_WEB_APP_HTML.index("{ name: 'mileage'")
         customer_phone_index = BOARD_WEB_APP_HTML.index("{ name: 'customer_phone'")
+        self.assertLess(identity_grid_index, display_index)
         self.assertLess(display_index, plate_index)
         self.assertLess(plate_index, year_index)
         self.assertLess(year_index, mileage_index)
@@ -373,6 +375,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn(".vehicle-panel__summary {", BOARD_WEB_APP_HTML)
         self.assertIn("font-size: 11px;", BOARD_WEB_APP_HTML)
         self.assertIn(".vehicle-group__title {", BOARD_WEB_APP_HTML)
+        self.assertIn(".vehicle-group--identity .vehicle-group__grid {", BOARD_WEB_APP_HTML)
         self.assertIn(".vehicle-field__label label,", BOARD_WEB_APP_HTML)
         self.assertIn(".vehicle-copy {", BOARD_WEB_APP_HTML)
 

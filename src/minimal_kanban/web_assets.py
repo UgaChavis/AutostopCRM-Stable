@@ -3246,6 +3246,9 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 5px;
       align-items: start;
     }
+    .vehicle-group--identity .vehicle-group__grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
     .vehicle-field {
       gap: 4px;
     }
@@ -11007,7 +11010,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function renderVehicleProfileFields() {
-      els.vehicleProfileFields.innerHTML = VEHICLE_FIELD_GROUPS.map((group) => {
+      els.vehicleProfileFields.innerHTML = VEHICLE_FIELD_GROUPS.map((group, index) => {
         const fields = group.fields.map((field) => {
           const copyButton = field.copy
             ? '<button class="vehicle-copy" type="button" data-copy-vehicle-field="' + escapeHtml(field.name) + '">копия</button>'
@@ -11017,7 +11020,7 @@ BOARD_WEB_APP_HTML = "".join(
             vehicleFieldControlHtml(field) +
             '</div>';
         }).join('');
-        return '<section class="vehicle-group">' +
+        return '<section class="vehicle-group' + (index === 0 ? ' vehicle-group--identity' : '') + '">' +
           (group.title ? '<div class="vehicle-group__title">' + escapeHtml(group.title) + '</div>' : '') +
           '<div class="vehicle-group__grid">' + fields + '</div>' +
           '</section>';
