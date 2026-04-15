@@ -723,16 +723,16 @@ BOARD_WEB_APP_HTML = "".join(
     .card__signal {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: calc(10px * var(--board-scale));
+      justify-content: flex-start;
+      gap: calc(8px * var(--board-scale));
       font-family: var(--mono);
       font-size: calc(11px * var(--board-scale));
       text-transform: uppercase;
       border-top: 1px solid rgba(78, 73, 61, 0.26);
       padding-top: calc(8px * var(--board-scale));
     }
-    .card__signal-label { display: inline-flex; align-items: center; gap: calc(7px * var(--board-scale)); color: #544f42; }
-    .card__signal-value { font-weight: 700; letter-spacing: 0.04em; }
+    .card__signal-label { display: inline-flex; align-items: center; gap: calc(7px * var(--board-scale)); color: #544f42; flex: 0 0 auto; }
+    .card__signal-value { font-weight: 700; letter-spacing: 0.04em; margin-left: 0; flex: 0 0 auto; }
     .time-readout {
       display: inline-flex;
       align-items: baseline;
@@ -821,6 +821,25 @@ BOARD_WEB_APP_HTML = "".join(
       border-color: rgba(152, 86, 78, 0.82);
       background: rgba(193, 118, 110, 0.42);
       color: #1d1a14;
+      box-shadow: 0 0 0 1px rgba(193, 118, 110, 0.18);
+      animation: tag-red-pulse 1.8s ease-in-out infinite;
+      transform-origin: center;
+      will-change: transform, box-shadow;
+    }
+    @keyframes tag-red-pulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 1px rgba(193, 118, 110, 0.18), 0 0 0 rgba(193, 118, 110, 0);
+      }
+      50% {
+        transform: scale(1.06);
+        box-shadow: 0 0 0 1px rgba(193, 118, 110, 0.3), 0 0 10px rgba(193, 118, 110, 0.28);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tag[data-tag-color="red"] {
+        animation: none;
+      }
     }
     .tag__dot {
       width: calc(8px * var(--board-scale));
@@ -907,6 +926,64 @@ BOARD_WEB_APP_HTML = "".join(
       z-index: 2;
       pointer-events: auto;
     }
+    .dialog__head--repair-order {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+    .dialog__head--repair-order .dialog__title-wrap {
+      flex: 1 1 auto;
+    }
+    .dialog__head--repair-orders {
+      display: block;
+    }
+    .dialog__head-row--repair-orders {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: nowrap;
+    }
+    .dialog__head-left--repair-orders {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1 1 auto;
+      flex-wrap: nowrap;
+    }
+    .dialog__tabs--repair-orders {
+      margin: 0;
+      padding: 0;
+      justify-content: flex-start;
+      flex: 0 0 auto;
+    }
+    .dialog__tabs--repair-orders > div {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    #repairOrdersOpenTab {
+      border-color: rgba(101, 148, 99, 0.72);
+      color: #dff1d8;
+      background: rgba(78, 120, 75, 0.14);
+    }
+    #repairOrdersOpenTab.is-active {
+      border-color: rgba(121, 171, 115, 0.88);
+      background: rgba(96, 145, 92, 0.24);
+      color: #eff9ea;
+    }
+    #repairOrdersClosedTab {
+      border-color: rgba(150, 94, 86, 0.7);
+      color: #f1dbd8;
+      background: rgba(110, 67, 61, 0.14);
+    }
+    #repairOrdersClosedTab.is-active {
+      border-color: rgba(176, 107, 98, 0.9);
+      background: rgba(135, 78, 71, 0.24);
+      color: #fff1ef;
+    }
     .dialog__title-wrap {
       min-width: 0;
       display: grid;
@@ -938,6 +1015,25 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 9px;
       min-width: 0;
       flex-wrap: wrap;
+    }
+    .repair-order-headline-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 0;
+      flex: 0 0 auto;
+    }
+    .repair-order-number-badge {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      font-size: 1.1em;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: inherit;
     }
     .tab-btn {
       border: 1px solid var(--line-soft);
@@ -1068,19 +1164,23 @@ BOARD_WEB_APP_HTML = "".join(
       background:
         linear-gradient(180deg, rgba(255,255,255,0.03), transparent 38%),
         rgba(0,0,0,0.18);
-      min-height: 28px;
-      padding: 3px 7px;
+      min-height: 34px;
+      padding: 4px 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.15;
       letter-spacing: 0.06em;
       color: var(--text);
     }
-    .signal-preview .time-readout { gap: 6px; }
-    .signal-preview .time-readout__unit { font-size: 0.58em; }
+    .signal-preview .time-readout { gap: 7px; }
+    .signal-preview .time-readout__num {
+      font-size: 1.25em;
+      font-weight: 800;
+    }
+    .signal-preview .time-readout__unit { font-size: 0.62em; }
     .signal-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1120,7 +1220,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .signal-stepper {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: center;
       min-height: 38px;
       border: 1px solid var(--line-soft);
@@ -1129,16 +1229,21 @@ BOARD_WEB_APP_HTML = "".join(
         rgba(0,0,0,0.16);
     }
     .signal-stepper__button {
-      min-width: 32px;
+      width: 100%;
+      min-width: 0;
       min-height: 32px;
+      padding: 0 4px;
       border: 0;
       background: rgba(255,255,255,0.02);
       color: var(--text);
       font-family: var(--mono);
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 800;
       line-height: 1;
       cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
     }
     .signal-stepper__button:disabled {
       opacity: 0.28;
@@ -1146,29 +1251,6 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .signal-stepper__button:hover:not(:disabled) {
       background: rgba(255,255,255,0.05);
-    }
-    .signal-stepper__value {
-      min-width: 0;
-      min-height: 32px;
-      display: grid;
-      place-items: center;
-      padding: 0 10px;
-      font-family: var(--mono);
-      font-size: 21px;
-      font-weight: 700;
-      color: var(--text);
-      letter-spacing: 0.02em;
-    }
-    .signal-stepper__unit {
-      min-width: 22px;
-      padding: 0 8px 0 0;
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-soft);
-      text-align: center;
-      pointer-events: none;
     }
     .signal-input--hidden {
       position: absolute;
@@ -1316,8 +1398,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .tag-entry {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 28px;
-      gap: 3px;
+      grid-template-columns: minmax(0, 1fr) 24px;
+      gap: 4px;
       align-items: center;
     }
     .tag-list {
@@ -1329,10 +1411,10 @@ BOARD_WEB_APP_HTML = "".join(
       padding: 0;
     }
     .tag-entry input[type="text"] {
-      min-height: 28px;
-      padding: 4px 8px;
+      min-height: 24px;
+      padding: 2px 7px;
       font-family: var(--mono);
-      font-size: 10.5px;
+      font-size: 9.5px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
@@ -1341,12 +1423,12 @@ BOARD_WEB_APP_HTML = "".join(
       cursor: not-allowed;
     }
     .tag-entry .btn {
-      min-width: 28px;
-      min-height: 28px;
+      min-width: 24px;
+      min-height: 24px;
       padding: 0;
       display: grid;
       place-items: center;
-      font-size: 11px;
+      font-size: 10px;
     }
     .tag-entry .btn[disabled] {
       opacity: 0.44;
@@ -1362,13 +1444,13 @@ BOARD_WEB_APP_HTML = "".join(
     .tag-color-picker {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
-      min-height: 28px;
-      padding: 0 1px 0 0;
+      gap: 4px;
+      min-height: 24px;
+      padding: 0;
     }
     .tag-color-option {
-      width: 14px;
-      height: 14px;
+      width: 18px;
+      height: 18px;
       border: 1px solid rgba(255,255,255,0.14);
       background: rgba(0, 0, 0, 0.16);
       padding: 0;
@@ -1378,7 +1460,7 @@ BOARD_WEB_APP_HTML = "".join(
     .tag-color-option::after {
       content: "";
       position: absolute;
-      inset: 2.5px;
+      inset: 3px;
       border-radius: 50%;
       background: currentColor;
     }
@@ -1870,7 +1952,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-footer__totals {
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(96px, max-content);
+      grid-auto-columns: minmax(104px, max-content);
       align-items: end;
       gap: 8px;
       flex: 1 1 auto;
@@ -1897,38 +1979,44 @@ BOARD_WEB_APP_HTML = "".join(
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
     }
-    .repair-order-total--cashless {
+    .repair-order-total--subtotal {
+      min-width: 112px;
       padding: 5px 8px;
       border: 1px solid rgba(116, 126, 106, 0.16);
       background: rgba(255, 255, 255, 0.02);
     }
-    .repair-order-total--cashless strong {
+    .repair-order-total--subtotal strong {
       font-size: 14px;
     }
-    .repair-order-total--cash {
-      padding: 6px 9px;
-      border: 1px solid rgba(116, 126, 106, 0.2);
-      background: rgba(255, 255, 255, 0.03);
+    .repair-order-total--cashless-due {
+      min-width: 144px;
+      padding: 7px 10px;
+      border: 1px solid rgba(108, 148, 107, 0.28);
+      background: rgba(86, 122, 84, 0.14);
     }
-    .repair-order-total--cash strong {
-      font-size: 18px;
+    .repair-order-total--cashless-due strong {
+      font-size: 19px;
+      color: #eef5ea;
     }
-    .repair-order-total--summary {
-      padding: 6px 9px;
-      border: 1px solid rgba(116, 126, 106, 0.2);
-      background: rgba(255, 255, 255, 0.03);
+    .repair-order-total--cash-due {
+      min-width: 144px;
+      padding: 7px 10px;
+      border: 1px solid rgba(142, 123, 90, 0.28);
+      background: rgba(99, 74, 40, 0.16);
     }
-    .repair-order-total--summary strong {
-      font-size: 17px;
+    .repair-order-total--cash-due strong {
+      font-size: 19px;
+      color: #f4ecd9;
     }
-    .repair-order-total--grand {
-      padding: 8px 11px;
-      border: 1px solid rgba(140, 151, 109, 0.34);
-      background: rgba(140, 151, 109, 0.12);
+    .repair-order-total--taxes {
+      min-width: 90px;
+      padding: 4px 7px;
+      border: 1px solid rgba(140, 151, 109, 0.24);
+      background: rgba(140, 151, 109, 0.1);
     }
-    .repair-order-total--grand strong {
-      font-size: 24px;
-      color: #f7f4e6;
+    .repair-order-total--taxes strong {
+      font-size: 13px;
+      color: #f0e2c4;
     }
     .repair-order-footer__actions {
       display: flex;
@@ -3448,16 +3536,29 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .dialog--repair-orders {
       --repair-orders-columns:
-        minmax(56px, 72px)
-        minmax(132px, 160px)
-        minmax(92px, 108px)
-        minmax(108px, 124px)
-        minmax(140px, 176px)
-        minmax(124px, 146px)
-        minmax(150px, 188px)
-        minmax(320px, 2.8fr)
-        minmax(88px, 104px)
-        minmax(88px, 104px);
+        minmax(35px, 46px)
+        minmax(67px, 79px)
+        minmax(100px, 116px)
+        minmax(136px, 168px)
+        minmax(147px, 179px)
+        minmax(138px, 168px)
+        minmax(501px, 4.666fr)
+        minmax(82px, 96px)
+        minmax(82px, 96px);
+    }
+    .dialog--repair-orders .dialog__title {
+      font-size: 16px;
+    }
+    .dialog--repair-orders .tab-btn {
+      font-size: 14px;
+      padding: 9px 12px;
+    }
+    .repair-orders-controls .field label {
+      font-size: 13px;
+    }
+    .repair-orders-controls input,
+    .repair-orders-controls select {
+      font-size: 14px;
     }
     .repair-orders-table-head,
     .repair-orders-row {
@@ -3476,7 +3577,7 @@ BOARD_WEB_APP_HTML = "".join(
       background: rgba(19, 24, 20, 0.98);
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 12px;
       line-height: 1.2;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -3486,8 +3587,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-orders-row {
       align-items: stretch;
-      gap: 8px 10px;
-      padding: 6px 10px;
+      gap: 9px 10px;
+      padding: 8px 10px;
       transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
     }
     .repair-orders-row:hover {
@@ -3498,13 +3599,13 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__cell {
       min-width: 0;
       display: grid;
-      gap: 3px;
+      gap: 4px;
       align-content: center;
     }
     .repair-orders-row__label {
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 12px;
       line-height: 1.2;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -3520,13 +3621,17 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__total {
       min-width: 0;
       font-family: var(--mono);
-      font-size: 12px;
-      line-height: 1.28;
+      font-size: 14px;
+      line-height: 1.3;
     }
     .repair-orders-row__number {
       color: var(--text);
-      font-weight: 700;
+      font-size: 15px;
+      font-weight: 800;
       white-space: nowrap;
+    }
+    .repair-orders-row__number .repair-order-number-badge {
+      font-size: 1.18em;
     }
     .repair-orders-row__status {
       color: #f0ecdc;
@@ -3548,7 +3653,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__date-meta {
       color: var(--text-soft);
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       line-height: 1.2;
       letter-spacing: 0.04em;
       white-space: nowrap;
@@ -3566,12 +3671,16 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__phone,
     .repair-orders-row__vehicle {
       color: var(--text-soft);
+      font-size: 16.9px;
+      line-height: 1.34;
       white-space: nowrap;
     }
     .repair-orders-row__title {
       color: var(--text);
       display: -webkit-box;
-      -webkit-line-clamp: 2;
+      font-size: 14px;
+      line-height: 1.34;
+      -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       white-space: normal;
       word-break: break-word;
@@ -3596,7 +3705,7 @@ BOARD_WEB_APP_HTML = "".join(
       padding: 0 8px;
       border: 1px solid rgba(167, 178, 132, 0.38);
       background: rgba(0, 0, 0, 0.16);
-      font-size: 11px;
+      font-size: 12px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
@@ -3617,16 +3726,19 @@ BOARD_WEB_APP_HTML = "".join(
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 24px;
-      padding: 3px 8px;
+      min-width: 104px;
+      min-height: 26px;
+      padding: 4px 10px;
       border: 1px solid rgba(167, 178, 132, 0.32);
       background: rgba(0, 0, 0, 0.12);
       color: var(--text-soft);
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       white-space: nowrap;
+      box-sizing: border-box;
+      text-align: center;
     }
     .repair-orders-row__payment-status[data-payment-status="paid"] {
       border-color: rgba(144, 198, 126, 0.4);
@@ -3641,7 +3753,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-orders-row__paid,
     .repair-orders-row__total {
       color: #f0ecdc;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -3692,7 +3804,7 @@ BOARD_WEB_APP_HTML = "".join(
       }
     }
     .dialog--repair-orders {
-      width: min(1580px, calc(100% - 18px));
+      width: min(1760px, calc(100vw - 24px));
       max-height: min(94vh, 980px);
     }
     .repair-orders-controls {
@@ -4753,19 +4865,23 @@ BOARD_WEB_APP_HTML = "".join(
     </div>
   </div>
 
-  <div class="modal" id="repairOrdersModal">
-    <div class="dialog dialog--repair-orders">
-      <div class="dialog__head">
-        <div class="dialog__title">ЗАКАЗ-НАРЯДЫ</div>
-        <button class="btn" data-close="repair-orders">ЗАКРЫТЬ</button>
-      </div>
-      <div class="dialog__tabs dialog__tabs--repair-orders">
-        <div>
-          <button class="tab-btn is-active" id="repairOrdersOpenTab" data-repair-orders-status="open">ОТКРЫТЫЕ</button>
-          <button class="tab-btn" id="repairOrdersClosedTab" data-repair-orders-status="closed">АРХИВ</button>
+    <div class="modal" id="repairOrdersModal">
+      <div class="dialog dialog--repair-orders">
+        <div class="dialog__head dialog__head--repair-orders">
+          <div class="dialog__head-row dialog__head-row--repair-orders">
+            <div class="dialog__head-left dialog__head-left--repair-orders">
+              <div class="dialog__title">ЗАКАЗ-НАРЯДЫ</div>
+              <div class="dialog__tabs dialog__tabs--repair-orders">
+                <div>
+                  <button class="tab-btn is-active" id="repairOrdersOpenTab" data-repair-orders-status="open">ОТКРЫТЫЕ</button>
+                  <button class="tab-btn" id="repairOrdersClosedTab" data-repair-orders-status="closed">ЗАКРЫТЫЕ</button>
+                </div>
+              </div>
+            </div>
+            <button class="btn" data-close="repair-orders">ЗАКРЫТЬ</button>
+          </div>
         </div>
-      </div>
-      <div class="repair-orders-controls">
+        <div class="repair-orders-controls">
         <div class="field field--compact">
           <label for="repairOrdersSearchInput">ПОИСК</label>
           <input id="repairOrdersSearchInput" type="text" maxlength="120" placeholder="номер, владелец, телефон, авто, смысл">
@@ -4790,7 +4906,6 @@ BOARD_WEB_APP_HTML = "".join(
       <div class="repair-orders-table-head" id="repairOrdersTableHead">
         <div>Номер</div>
         <div>Даты</div>
-        <div>Статус</div>
         <div>Оплата</div>
         <div>Клиент</div>
         <div>Телефон</div>
@@ -4972,19 +5087,15 @@ BOARD_WEB_APP_HTML = "".join(
                   <label class="signal-cell signal-cell--timer">
                     <span class="signal-cell__label">&#1044;&#1085;&#1077;&#1081;</span>
                     <div class="signal-stepper">
-                       <button class="signal-stepper__button" id="signalDaysDecrementButton" type="button" aria-label="Уменьшить дни">&minus;</button>
-                      <span class="signal-stepper__value" id="signalDaysDisplay">00</span>
-                      <button class="signal-stepper__button" id="signalDaysIncrementButton" type="button" aria-label="Увеличить дни">+</button>
-                      <span class="signal-stepper__unit">&#1076;</span>
+                      <button class="signal-stepper__button" id="signalDaysDecrementButton" type="button" aria-label="Уменьшить дни">&minus;</button>
+                      <button class="signal-stepper__button" id="signalDaysIncrementButton" type="button" aria-label="Добавить дни">+</button>
                     </div>
                   </label>
                   <label class="signal-cell signal-cell--timer">
                     <span class="signal-cell__label">&#1063;&#1072;&#1089;&#1086;&#1074;</span>
                     <div class="signal-stepper">
-                       <button class="signal-stepper__button" id="signalHoursDecrementButton" type="button" aria-label="Уменьшить часы">&minus;</button>
-                      <span class="signal-stepper__value" id="signalHoursDisplay">00</span>
-                      <button class="signal-stepper__button" id="signalHoursIncrementButton" type="button" aria-label="Увеличить часы">+</button>
-                      <span class="signal-stepper__unit">&#1095;</span>
+                      <button class="signal-stepper__button" id="signalHoursDecrementButton" type="button" aria-label="Уменьшить часы">&minus;</button>
+                      <button class="signal-stepper__button" id="signalHoursIncrementButton" type="button" aria-label="Добавить часы">+</button>
                     </div>
                   </label>
                   <input class="signal-input--hidden" id="signalDays" type="number" min="0" max="365">
@@ -5053,24 +5164,24 @@ BOARD_WEB_APP_HTML = "".join(
     </div>
   </div>
 
-  <div class="modal" id="repairOrderModal">
-    <div class="dialog dialog--repair-order">
-      <div class="dialog__head dialog__head--card dialog__head--repair-order">
-        <div class="dialog__title-wrap">
-          <div class="repair-order-headline">
-            <div class="dialog__title dialog__title--card" id="repairOrderModalTitle">ЗАКАЗ-НАРЯД</div>
-            <div class="repair-order-status" id="repairOrderStatus">Открыт</div>
+    <div class="modal" id="repairOrderModal">
+      <div class="dialog dialog--repair-order">
+        <div class="dialog__head dialog__head--card dialog__head--repair-order">
+          <div class="dialog__title-wrap">
+            <div class="repair-order-headline">
+              <div class="dialog__title dialog__title--card" id="repairOrderModalTitle">ЗАКАЗ-НАРЯД</div>
+              <div class="repair-order-status" id="repairOrderStatus">Открыт</div>
+            </div>
           </div>
+          <div class="repair-order-headline-actions">
+            <button class="btn btn--ghost" id="repairOrderAutofillButton" type="button">АВТОЗАПОЛНЕНИЕ</button>
+          </div>
+          <button class="btn" data-close="repair-order">ЗАКРЫТЬ</button>
         </div>
-        <button class="btn" data-close="repair-order">ЗАКРЫТЬ</button>
-      </div>
-      <div class="repair-order-shell">
-        <div class="repair-order-toolbar">
-          <button class="btn btn--ghost" id="repairOrderAutofillButton" type="button">АВТОЗАПОЛНЕНИЕ</button>
-        </div>
-        <div class="repair-order-groups">
-          <section class="repair-order-card" data-repair-order-section="document">
-            <div class="panel-title">ДОКУМЕНТ</div>
+        <div class="repair-order-shell">
+          <div class="repair-order-groups">
+            <section class="repair-order-card" data-repair-order-section="document">
+              <div class="panel-title">ДОКУМЕНТ</div>
             <div class="repair-order-card__grid repair-order-card__grid--document">
               <div class="field field--compact repair-order-field repair-order-field--number">
                 <label for="repairOrderNumber">НОМЕР</label>
@@ -5215,25 +5326,21 @@ BOARD_WEB_APP_HTML = "".join(
       </div>
         <div class="dialog__foot repair-order-footer">
           <div class="repair-order-footer__totals">
-            <div class="repair-order-total repair-order-total--cashless">
-              <span>БЕЗНАЛ 15%</span>
-              <strong data-repair-order-total="cashless">0,00</strong>
-            </div>
-            <div class="repair-order-total repair-order-total--cash">
-              <span>НАЛИЧНЫЕ</span>
+            <div class="repair-order-total repair-order-total--subtotal">
+              <span>ИТОГО ПО ЗАКАЗ-НАРЯДУ</span>
               <strong data-repair-order-total="subtotal">0,00</strong>
             </div>
-            <div class="repair-order-total is-hidden" data-repair-order-total-block="taxes">
+            <div class="repair-order-total repair-order-total--cashless-due">
+              <span>К ДОПЛАТЕ БЕЗНАЛ</span>
+              <strong data-repair-order-total="cashless_due">0,00</strong>
+            </div>
+            <div class="repair-order-total repair-order-total--cash-due">
+              <span>К ДОПЛАТЕ НАЛ</span>
+              <strong data-repair-order-total="cash_due">0,00</strong>
+            </div>
+            <div class="repair-order-total repair-order-total--taxes is-hidden" data-repair-order-total-block="taxes">
               <span>НАЛОГИ И СБОРЫ</span>
               <strong data-repair-order-total="taxes">0,00</strong>
-            </div>
-            <div class="repair-order-total repair-order-total--summary">
-              <span>ИТОГО ПО ЗАКАЗ-НАРЯДУ</span>
-              <strong data-repair-order-total="grand">0,00</strong>
-            </div>
-            <div class="repair-order-total repair-order-total--grand">
-              <span>К ДОПЛАТЕ</span>
-              <strong data-repair-order-total="due">0,00</strong>
             </div>
           </div>
         <div class="repair-order-footer__actions">
@@ -5465,7 +5572,9 @@ BOARD_WEB_APP_HTML = "".join(
         button.className = 'btn btn--ghost repair-order-money-button';
         button.id = 'repairOrderPaymentsButton';
         button.type = 'button';
-        button.textContent = '?';
+        button.textContent = '\u20BD';
+        button.title = 'ОПЛАТЫ';
+        button.setAttribute('aria-label', 'ОПЛАТЫ');
         footerActions.insertBefore(button, document.getElementById('repairOrderPrintButton'));
       }
     }
@@ -5855,8 +5964,6 @@ BOARD_WEB_APP_HTML = "".join(
       signalPreview: document.getElementById('signalPreview'),
       signalDays: document.getElementById('signalDays'),
       signalHours: document.getElementById('signalHours'),
-      signalDaysDisplay: document.getElementById('signalDaysDisplay'),
-      signalHoursDisplay: document.getElementById('signalHoursDisplay'),
       signalDaysIncrementButton: document.getElementById('signalDaysIncrementButton'),
       signalDaysDecrementButton: document.getElementById('signalDaysDecrementButton'),
       signalHoursIncrementButton: document.getElementById('signalHoursIncrementButton'),
@@ -7279,7 +7386,7 @@ BOARD_WEB_APP_HTML = "".join(
         if (response.status === 401) {
           clearOperatorSession({ openLogin: true, preserveStatus: true });
         }
-        throw new Error(payload?.error?.message || 'Нужен вход оператора.');
+        throw new Error(payload?.error?.message || 'Need operator login.');
       }
       if (response.status === 401 || payload?.error?.code === 'unauthorized') {
         throw new Error(accessDeniedMessage());
@@ -10695,8 +10802,6 @@ BOARD_WEB_APP_HTML = "".join(
     function renderSignalPreview() {
       const draft = deadlineInput();
       const total = (draft.days * 86400) + (draft.hours * 3600) + (draft.minutes * 60) + draft.seconds;
-      if (els.signalDaysDisplay) els.signalDaysDisplay.textContent = String(signalPartValue('days')).padStart(2, '0');
-      if (els.signalHoursDisplay) els.signalHoursDisplay.textContent = String(signalPartValue('hours')).padStart(2, '0');
       if (els.signalDaysDecrementButton) els.signalDaysDecrementButton.disabled = signalPartValue('days') <= 0;
       if (els.signalDaysIncrementButton) els.signalDaysIncrementButton.disabled = signalPartValue('days') >= 365;
       if (els.signalHoursDecrementButton) els.signalHoursDecrementButton.disabled = signalPartValue('hours') <= 0;
@@ -10808,7 +10913,7 @@ BOARD_WEB_APP_HTML = "".join(
         ? state.repairOrderTags.map((tag) => (
             '<span class="repair-order-tag-item">'
             + '<button class="tag repair-order-tag-edit" type="button" data-tag-color="' + escapeHtml(tag.color) + '" data-edit-repair-order-tag="' + escapeHtml(tag.label) + '" title="Редактировать метку"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</button>'
-            + '<button class="btn btn--ghost repair-order-tag-remove" type="button" data-remove-repair-order-tag="' + escapeHtml(tag.label) + '" aria-label="Удалить метку">?</button>'
+            + '<button class="btn btn--ghost repair-order-tag-remove" type="button" data-remove-repair-order-tag="' + escapeHtml(tag.label) + '" aria-label="Удалить метку">&times;</button>'
             + '</span>'
           )).join('')
         : '<div class="tag tag--muted">МЕТОК НЕТ</div>';
@@ -11209,7 +11314,6 @@ BOARD_WEB_APP_HTML = "".join(
     function legacyRefreshVehiclePanelShadow() {
       const profile = cloneVehicleProfile(state.vehicleProfileDraft || emptyVehicleProfile());
       const summaryLines = [];
-      if (profile.vin) summaryLines.push('VIN: ' + profile.vin);
       if (profile.mileage) summaryLines.push('Пробег: ' + profile.mileage);
       els.vehiclePanelSummary.textContent = summaryLines.join('\\n');
       els.vehiclePanelSummary.style.display = summaryLines.length ? '' : 'none';
@@ -11429,6 +11533,43 @@ BOARD_WEB_APP_HTML = "".join(
       return 'cash';
     }
 
+    function repairOrderPaymentCashboxBucket(name) {
+      const normalized = String(name ?? '').trim().toLowerCase();
+      if (normalized.includes('безнал') || normalized.includes('cashless') || normalized.includes('wire') || normalized.includes('bank')) return 'cashless';
+      if (normalized.includes('карта') || normalized.includes('мария')) return 'card';
+      return 'cash';
+    }
+
+    function repairOrderPaymentCashboxLabel(bucket) {
+      if (bucket === 'cashless') return 'Безналичные';
+      if (bucket === 'card') return 'На карту';
+      return 'Наличные';
+    }
+
+    function repairOrderPaymentCashboxItems() {
+      const items = (Array.isArray(state.cashboxes) ? state.cashboxes : [])
+        .slice()
+        .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ru'));
+      const buckets = ['cash', 'cashless', 'card'];
+      const preferredItems = [];
+      const usedIds = new Set();
+      for (const bucket of buckets) {
+        const match = items.find((item) => {
+          const itemId = String(item?.id || '').trim();
+          if (!itemId || usedIds.has(itemId)) return false;
+          return repairOrderPaymentCashboxBucket(item?.name || '') === bucket;
+        });
+        if (match) {
+          const matchId = String(match?.id || '').trim();
+          if (matchId && !usedIds.has(matchId)) {
+            preferredItems.push(match);
+            usedIds.add(matchId);
+          }
+        }
+      }
+      return preferredItems;
+    }
+
     function selectedRepairOrderPaymentCashbox() {
       const cashboxId = String(els.repairOrderPaymentCashbox?.value || '').trim();
       if (!cashboxId) return null;
@@ -11506,15 +11647,23 @@ BOARD_WEB_APP_HTML = "".join(
       }, 0));
     }
 
-    function repairOrderCashlessPaymentsValue(payments) {
+    function repairOrderPaymentsValueByMethod(payments, method) {
       return repairOrderRoundMoney((Array.isArray(payments) ? payments : []).reduce((total, item) => {
         const paymentMethod = repairOrderPaymentMethodFromCashboxName(
           item?.cashbox_name ?? item?.cashboxName ?? '',
           item?.payment_method ?? item?.paymentMethod ?? 'cash'
         );
-        if (paymentMethod !== 'cashless') return total;
+        if (paymentMethod !== method) return total;
         return total + (repairOrderParseNumber(item?.amount) ?? 0);
       }, 0));
+    }
+
+    function repairOrderCashPaymentsValue(payments) {
+      return repairOrderPaymentsValueByMethod(payments, 'cash');
+    }
+
+    function repairOrderCashlessPaymentsValue(payments) {
+      return repairOrderPaymentsValueByMethod(payments, 'cashless');
     }
 
     function repairOrderPaymentMethodLabel(value) {
@@ -11538,15 +11687,15 @@ BOARD_WEB_APP_HTML = "".join(
     function renderRepairOrderPaymentCashboxOptions(selectedId = '') {
       if (!els.repairOrderPaymentCashbox) return;
       const selected = String(selectedId || '').trim();
-      const items = Array.isArray(state.cashboxes) ? state.cashboxes : [];
-      const options = ['<option value="">ВЫБЕРИ КАССУ</option>'].concat(items.map((item) => {
+      const preferredItems = repairOrderPaymentCashboxItems();
+      const options = ['<option value="">ВЫБЕРИ КАССУ</option>'].concat(preferredItems.map((item) => {
         const itemId = String(item?.id || '').trim();
         const isSelected = itemId && itemId === selected ? ' selected' : '';
-        return '<option value="' + escapeHtml(itemId) + '"' + isSelected + '>' + escapeHtml(item?.name || itemId || 'Касса') + '</option>';
+        return '<option value="' + escapeHtml(itemId) + '"' + isSelected + '>' + escapeHtml(repairOrderPaymentCashboxLabel(repairOrderPaymentCashboxBucket(item?.name || ''))) + '</option>';
       }));
       els.repairOrderPaymentCashbox.innerHTML = options.join('');
-      if (!selected && items.length && !els.repairOrderPaymentCashbox.value) {
-        els.repairOrderPaymentCashbox.value = String(items[0]?.id || '').trim();
+      if (!selected && preferredItems.length && !els.repairOrderPaymentCashbox.value) {
+        els.repairOrderPaymentCashbox.value = String(preferredItems[0]?.id || '').trim();
       }
     }
 
@@ -11726,7 +11875,12 @@ BOARD_WEB_APP_HTML = "".join(
     function repairOrderListDateDisplayValue(value) {
       const canonical = repairOrderCanonicalDateValue(value);
       if (!canonical) return '';
-      return canonical.split(' ')[0] || canonical;
+      const datePart = canonical.split(' ')[0] || canonical;
+      const parts = datePart.split('.');
+      if (parts.length === 3 && parts[2].length === 4) {
+        return parts[0] + '.' + parts[1] + '.' + parts[2].slice(-2);
+      }
+      return datePart;
     }
 
     function repairOrderStatusLabel(status) {
@@ -11822,6 +11976,18 @@ BOARD_WEB_APP_HTML = "".join(
     function repairOrderHeading(number) {
       const normalizedNumber = String(number ?? '').trim();
       return normalizedNumber ? ('ЗАКАЗ-НАРЯД №' + normalizedNumber) : 'ЗАКАЗ-НАРЯД';
+    }
+
+    function repairOrderHeadingHtml(number) {
+      const normalizedNumber = String(number ?? '').trim();
+      return normalizedNumber
+        ? ('ЗАКАЗ-НАРЯД <span class="repair-order-number-badge">№' + escapeHtml(normalizedNumber) + '</span>')
+        : 'ЗАКАЗ-НАРЯД';
+    }
+
+    function repairOrderNumberHtml(number) {
+      const normalizedNumber = String(number ?? '').trim();
+      return '<span class="repair-order-number-badge">№' + escapeHtml(normalizedNumber || '-') + '</span>';
     }
 
     function repairOrderCardRequiredMessage() {
@@ -11975,31 +12141,30 @@ BOARD_WEB_APP_HTML = "".join(
       const worksTotal = syncRepairOrderSectionTotals('works');
       const materialsTotal = syncRepairOrderSectionTotals('materials');
       const subtotal = repairOrderRoundMoney(worksTotal + materialsTotal);
-      const cashlessInfo = repairOrderRoundMoney(subtotal * 1.15);
-      const taxes = repairOrderRoundMoney(repairOrderCashlessPaymentsValue(state.repairOrderPayments) * repairOrderTaxRate('cashless'));
+      const cashPayments = repairOrderCashPaymentsValue(state.repairOrderPayments);
+      const cashlessPayments = repairOrderCashlessPaymentsValue(state.repairOrderPayments);
+      const taxes = repairOrderRoundMoney(cashlessPayments * repairOrderTaxRate('cashless'));
       const grandTotal = repairOrderRoundMoney(subtotal + taxes);
       const prepayment = repairOrderPaymentsTotalValue(state.repairOrderPayments);
+      const cashlessDue = repairOrderRoundMoney(grandTotal - cashlessPayments);
+      const cashDue = repairOrderRoundMoney(subtotal - cashPayments);
       if (els.repairOrderPrepayment) {
         els.repairOrderPrepayment.value = repairOrderNumberToRaw(prepayment);
       }
-      const dueTotal = repairOrderRoundMoney(grandTotal - prepayment);
       document.querySelectorAll('[data-repair-order-total="subtotal"]').forEach((node) => {
         node.textContent = repairOrderFormatMoney(subtotal);
       });
-      document.querySelectorAll('[data-repair-order-total="cashless"]').forEach((node) => {
-        node.textContent = repairOrderFormatMoney(cashlessInfo);
+      document.querySelectorAll('[data-repair-order-total="cashless_due"]').forEach((node) => {
+        node.textContent = repairOrderFormatMoney(cashlessDue);
+      });
+      document.querySelectorAll('[data-repair-order-total="cash_due"]').forEach((node) => {
+        node.textContent = repairOrderFormatMoney(cashDue);
       });
       document.querySelectorAll('[data-repair-order-total="taxes"]').forEach((node) => {
         node.textContent = repairOrderFormatMoney(taxes);
       });
       document.querySelectorAll('[data-repair-order-total="prepayment"]').forEach((node) => {
         node.textContent = repairOrderFormatMoney(prepayment);
-      });
-      document.querySelectorAll('[data-repair-order-total="grand"]').forEach((node) => {
-        node.textContent = repairOrderFormatMoney(grandTotal);
-      });
-      document.querySelectorAll('[data-repair-order-total="due"]').forEach((node) => {
-        node.textContent = repairOrderFormatMoney(dueTotal);
       });
       document.querySelectorAll('[data-repair-order-total-block="taxes"]').forEach((node) => {
         node.classList.toggle('is-hidden', taxes === 0);
@@ -12041,7 +12206,7 @@ BOARD_WEB_APP_HTML = "".join(
               + '<div class="repair-order-payment-row__subline">' + escapeHtml('Когда: ' + paidAt + ' | Кем: ' + actorName + ' | Касса: ' + cashboxName) + '</div>'
             + '</div>'
             + '<div class="repair-order-payment-row__amount">' + escapeHtml(repairOrderFormatMoney(item?.amount || 0)) + '</div>'
-            + '<button class="btn btn--ghost repair-order-payment-row__remove" type="button" data-remove-repair-order-payment="' + escapeHtml(item.id) + '">?</button>'
+            + '<button class="btn btn--ghost repair-order-payment-row__remove" type="button" data-remove-repair-order-payment="' + escapeHtml(item.id) + '" aria-label="Удалить оплату">&times;</button>'
             + '</div>';
         }).join('') : '<div class="cashboxes-empty">Оплат пока нет.</div>';
       }
@@ -12164,7 +12329,7 @@ BOARD_WEB_APP_HTML = "".join(
       renderRepairOrderRows('works', normalized.works);
       renderRepairOrderRows('materials', normalized.materials);
       const heading = repairOrderHeading(normalized.number);
-      els.repairOrderModalTitle.textContent = heading;
+      els.repairOrderModalTitle.innerHTML = repairOrderHeadingHtml(normalized.number);
       els.repairOrderModalTitle.title = heading;
       syncRepairOrderStatusUi(normalized.status);
       syncRepairOrderTotals();
@@ -12204,7 +12369,7 @@ BOARD_WEB_APP_HTML = "".join(
       const currentCard = card || null;
       const order = repairOrderCardDraft(currentCard, currentCard?.repair_order || {});
       els.repairOrderButton.disabled = false;
-      els.repairOrderButton.textContent = repairOrderHeading(order.number);
+      els.repairOrderButton.innerHTML = repairOrderHeadingHtml(order.number);
     }
 
     async function openRepairOrderModal() {
@@ -12654,14 +12819,14 @@ BOARD_WEB_APP_HTML = "".join(
 
     function renderRepairOrders(data) {
       const items = data?.repair_orders || [];
-      const meta = data?.meta || {};
-      els.repairOrdersMeta.textContent =
-        'ПОКАЗАНО: ' + items.length +
-        ' | ВСЕГО: ' + (meta.total ?? items.length) +
-        ' | СПИСОК: НОМЕР / МАРКА / ЗАГОЛОВОК';
-      els.repairOrdersList.innerHTML = items.length
-        ? items.map((item) => '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Открыть заказ-наряд"><div class="repair-orders-row__number">№ ' + escapeHtml(item.number || '-') + '</div><div class="repair-orders-row__vehicle" title="' + escapeHtml(item.vehicle || '-') + '">' + escapeHtml(item.vehicle || 'Авто не указано') + '</div><div class="repair-orders-row__title" title="' + escapeHtml(item.heading || 'Заказ-наряд') + '">' + escapeHtml(item.heading || 'Заказ-наряд') + '</div></div>').join('')
-        : '<div class="log-row__meta">ЗАКАЗ-НАРЯДОВ ПОКА НЕТ.</div>';
+        const meta = data?.meta || {};
+        els.repairOrdersMeta.textContent =
+          'ПОКАЗАНО: ' + items.length +
+          ' | ВСЕГО: ' + (meta.total ?? items.length) +
+          ' | СПИСОК: НОМЕР / МАРКА / ЗАГОЛОВОК';
+        els.repairOrdersList.innerHTML = items.length
+        ? items.map((item) => '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Открыть заказ-наряд"><div class="repair-orders-row__number">' + repairOrderNumberHtml(item.number || '-') + '</div><div class="repair-orders-row__vehicle" title="' + escapeHtml(item.vehicle || '-') + '">' + escapeHtml(item.vehicle || 'Авто не указано') + '</div><div class="repair-orders-row__title" title="' + escapeHtml(item.heading || 'Заказ-наряд') + '">' + escapeHtml(item.heading || 'Заказ-наряд') + '</div></div>').join('')
+          : '<div class="log-row__meta">ЗАКАЗ-НАРЯДОВ ПОКА НЕТ.</div>';
     }
 
     renderArchive = function() {
@@ -12874,13 +13039,12 @@ function renderCompactArchiveRows(cards) {
 
     function repairOrdersColumnsValue(status = state.repairOrdersFilter) {
       repairOrdersIsClosedView(status);
-      return 'minmax(56px, 72px) minmax(132px, 160px) minmax(92px, 108px) minmax(108px, 124px) minmax(140px, 176px) minmax(124px, 146px) minmax(150px, 188px) minmax(320px, 2.8fr) minmax(88px, 104px) minmax(88px, 104px)';
+      return 'minmax(35px, 46px) minmax(67px, 79px) minmax(100px, 116px) minmax(136px, 168px) minmax(147px, 179px) minmax(138px, 168px) minmax(501px, 4.666fr) minmax(82px, 96px) minmax(82px, 96px)';
     }
 
     function repairOrdersTableHeadHtml(status = state.repairOrdersFilter) {
-      return '<div>Номер</div>'
+      return '<div>№</div>'
         + '<div>Даты</div>'
-        + '<div>Статус</div>'
         + '<div>Оплата</div>'
         + '<div>Клиент</div>'
         + '<div>Телефон</div>'
@@ -12949,7 +13113,7 @@ function renderCompactArchiveRows(cards) {
         const status = item.status_label || repairOrderStatusLabel(item.status);
         const rawStatus = String(item.status || 'open').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
         return '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Открыть заказ-наряд">'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Номер / открыта</div><div class="repair-orders-row__number">№ ' + escapeHtml(number) + ' | ' + escapeHtml(openedAt) + '</div></div>'
+          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Номер / открыта</div><div class="repair-orders-row__number">' + repairOrderNumberHtml(number) + ' | ' + escapeHtml(openedAt) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Статус</div><div class="repair-orders-row__status" data-status="' + escapeHtml(rawStatus) + '">' + escapeHtml(status) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Владелец</div><div class="repair-orders-row__client" title="' + escapeHtml(client) + '">' + escapeHtml(client) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Телефон</div><div class="repair-orders-row__phone" title="' + escapeHtml(phone) + '">' + escapeHtml(phone) + '</div></div>'
@@ -13076,8 +13240,6 @@ function renderCompactArchiveRows(cards) {
         const phone = item.phone || 'Телефон не указан';
         const heading = item.summary || item.reason || item.heading || 'Заказ-наряд';
         const total = repairOrderListTotalText(item.grand_total, item.works_total);
-        const status = item.status_label || repairOrderStatusLabel(item.status);
-        const rawStatus = String(item.status || 'open').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
         const allTags = normalizeRepairOrderTags(item.tags || []);
         const previewTags = allTags.slice(0, 3);
         const extraTags = allTags.length - previewTags.length;
@@ -13085,7 +13247,7 @@ function renderCompactArchiveRows(cards) {
           ? '<div class="repair-orders-row__tags">' + previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '') + '</div>'
           : '';
         return '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Открыть заказ-наряд">'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Номер</div><div class="repair-orders-row__number">№ ' + escapeHtml(number) + '</div></div>'
+          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Номер</div><div class="repair-orders-row__number">' + repairOrderNumberHtml(number) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Открыта</div><div class="repair-orders-row__opened">' + escapeHtml(openedAt || '—') + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Закрыта</div><div class="repair-orders-row__closed">' + escapeHtml(closedAt || '—') + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__label">Статус</div><div class="repair-orders-row__status" data-status="' + escapeHtml(rawStatus) + '">' + escapeHtml(status) + '</div></div>'
@@ -13118,7 +13280,7 @@ function renderCompactArchiveRows(cards) {
           ? '<div class="repair-orders-row__tags">' + previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '') + '</div>'
           : '';
         return '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Открыть заказ-наряд">'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__number">№ ' + escapeHtml(number) + '</div></div>'
+          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__number">' + repairOrderNumberHtml(number) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__opened">' + escapeHtml(openedAt || '—') + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__closed">' + escapeHtml(closedAt || '—') + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__status" data-status="' + escapeHtml(rawStatus) + '">' + escapeHtml(status) + '</div></div>'
@@ -13131,10 +13293,13 @@ function renderCompactArchiveRows(cards) {
     };
 
     renderRepairOrderListRows = function(items) {
+      const isClosedView = repairOrdersIsClosedView();
       return items.map((item) => {
         const number = item.number || '-';
+        const numberDigits = String(number).replace(/\\D+/g, '') || '-';
         const openedAt = repairOrderListDateDisplayValue(item.opened_at || item.created_at || item.date || item.updated_at);
         const closedAt = repairOrderListDateDisplayValue(item.closed_at);
+        const displayedDate = isClosedView ? (closedAt || openedAt || '-') : (openedAt || closedAt || '-');
         const vehicle = String(item.vehicle || '').trim() || '-';
         const client = String(item.client || '').trim();
         const phone = String(item.phone || '').trim();
@@ -13145,24 +13310,20 @@ function renderCompactArchiveRows(cards) {
         const paidTotal = repairOrderListTotalText(item.paid_total_display, item.paid_total);
         const paymentStatus = String(item.payment_status || '').trim().toLowerCase() === 'paid' ? 'paid' : 'unpaid';
         const paymentStatusLabel = String(item.payment_status_label || '').trim() || (paymentStatus === 'paid' ? 'Оплачен' : 'Не оплачен');
-        const status = item.status_label || repairOrderStatusLabel(item.status);
-        const rawStatus = String(item.status || 'open').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
-        const closedMeta = rawStatus === 'closed'
-          ? ('Закрыта: ' + (closedAt || '-'))
-          : 'Закрыта: -';
-        const allTags = normalizeRepairOrderTags(item.tags || []);
-        const previewTags = allTags.slice(0, 3);
-        const extraTags = allTags.length - previewTags.length;
+      const status = item.status_label || repairOrderStatusLabel(item.status);
+      const rawStatus = String(item.status || 'open').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
+      const allTags = normalizeRepairOrderTags(item.tags || []);
+      const previewTags = allTags.slice(0, 3);
+      const extraTags = allTags.length - previewTags.length;
         const tagsHtml = previewTags.length
           ? '<div class="repair-orders-row__tags">' + previewTags.map((tag) => '<span class="tag" data-tag-color="' + escapeHtml(tag.color) + '"><span class="tag__dot"></span>' + escapeHtml(tag.label) + '</span>').join('') + (extraTags > 0 ? '<span class="tag">+' + extraTags + '</span>' : '') + '</div>'
           : '';
-        return '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Open repair order">'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__number">№ ' + escapeHtml(number) + '</div></div>'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__dates"><div class="repair-orders-row__opened">' + escapeHtml(openedAt || '-') + '</div><div class="repair-orders-row__date-meta">' + escapeHtml(closedMeta) + '</div></div></div>'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__status" data-status="' + escapeHtml(rawStatus) + '">' + escapeHtml(status) + '</div></div>'
-          + '<div class="repair-orders-row__cell repair-orders-row__payment-cell"><div class="repair-orders-row__payment-status" data-payment-status="' + escapeHtml(paymentStatus) + '">' + escapeHtml(paymentStatusLabel) + '</div></div>'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__client" title="' + escapeHtml(clientText) + '">' + escapeHtml(clientText) + '</div></div>'
-          + '<div class="repair-orders-row__cell"><div class="repair-orders-row__phone" title="' + escapeHtml(phoneText) + '">' + escapeHtml(phoneText) + '</div></div>'
+          return '<div class="archive-row repair-orders-row" role="button" tabindex="0" data-open-repair-order-card="' + escapeHtml(item.card_id) + '" title="Open repair order">'
+            + '<div class="repair-orders-row__cell"><div class="repair-orders-row__number">' + escapeHtml(numberDigits) + '</div></div>'
+            + '<div class="repair-orders-row__cell"><div class="repair-orders-row__dates"><div class="repair-orders-row__opened">' + escapeHtml(displayedDate) + '</div></div></div>'
+            + '<div class="repair-orders-row__cell repair-orders-row__payment-cell"><div class="repair-orders-row__payment-status" data-payment-status="' + escapeHtml(paymentStatus) + '">' + escapeHtml(paymentStatusLabel) + '</div></div>'
+            + '<div class="repair-orders-row__cell"><div class="repair-orders-row__client" title="' + escapeHtml(clientText) + '">' + escapeHtml(clientText) + '</div></div>'
+            + '<div class="repair-orders-row__cell"><div class="repair-orders-row__phone" title="' + escapeHtml(phoneText) + '">' + escapeHtml(phoneText) + '</div></div>'
           + '<div class="repair-orders-row__cell"><div class="repair-orders-row__vehicle" title="' + escapeHtml(vehicle) + '">' + escapeHtml(vehicle) + '</div></div>'
           + '<div class="repair-orders-row__cell repair-orders-row__title-cell"><div class="repair-orders-row__title" title="' + escapeHtml(heading) + '">' + escapeHtml(heading) + '</div>' + tagsHtml + '</div>'
           + '<div class="repair-orders-row__cell repair-orders-row__paid-cell"><div class="repair-orders-row__paid" data-empty="' + String(paidTotal === '0') + '">' + escapeHtml(paidTotal) + '</div></div>'
@@ -15282,7 +15443,6 @@ function renderCompactArchiveRows(cards) {
     function refreshVehiclePanel() {
       const profile = cloneVehicleProfile(state.vehicleProfileDraft || emptyVehicleProfile());
       const summaryLines = [];
-      if (profile.vin) summaryLines.push('VIN: ' + profile.vin);
       els.vehiclePanelSummary.textContent = summaryLines.join('\\n');
       els.vehiclePanelSummary.style.display = summaryLines.length ? '' : 'none';
 
