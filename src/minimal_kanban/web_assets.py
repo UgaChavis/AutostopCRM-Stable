@@ -3888,6 +3888,7 @@ BOARD_WEB_APP_HTML = "".join(
         PRINTING_WEB_MODULE_STYLE,
         """
     #cashboxesModal .dialog { width: min(1060px, 100%); }
+    #cashboxTransferModal .dialog { width: min(820px, 100%); }
     .cashboxes-layout {
       display: grid;
       grid-template-columns: minmax(214px, 244px) minmax(0, 1fr);
@@ -4015,6 +4016,103 @@ BOARD_WEB_APP_HTML = "".join(
       flex-wrap: wrap;
     }
     .cashbox-composer__actions .btn {
+      min-height: 34px;
+      padding: 7px 10px;
+    }
+    .cashbox-transfer-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(248px, 290px);
+      gap: 12px;
+      align-items: start;
+    }
+    .cashbox-transfer-pane {
+      display: grid;
+      gap: 8px;
+    }
+    .cashbox-transfer-source {
+      display: grid;
+      gap: 3px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-soft);
+      background: rgba(255,255,255,0.02);
+    }
+    .cashbox-transfer-source__label,
+    .cashbox-transfer-targets__label {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .cashbox-transfer-source__name {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .cashbox-transfer-source__meta {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .cashbox-transfer-targets {
+      display: grid;
+      gap: 6px;
+      max-height: 320px;
+      overflow: auto;
+      padding-right: 3px;
+    }
+    .cashbox-transfer-target {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line-soft);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+    .cashbox-transfer-target.is-active {
+      border-color: rgba(167, 178, 132, 0.64);
+      background: rgba(167, 178, 132, 0.08);
+      box-shadow: inset 3px 0 0 rgba(167, 178, 132, 0.76);
+    }
+    .cashbox-transfer-target__name {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .cashbox-transfer-target__meta {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .cashbox-transfer-summary {
+      display: grid;
+      gap: 6px;
+      padding: 8px 9px;
+      border: 1px solid var(--line-soft);
+      background: rgba(255,255,255,0.02);
+    }
+    .cashbox-transfer-summary .field--compact input[type="text"],
+    .cashbox-transfer-summary .field--compact textarea {
+      min-height: 34px;
+      padding: 6px 8px;
+    }
+    .cashbox-transfer-summary textarea {
+      min-height: 74px;
+      max-height: 112px;
+    }
+    .cashbox-transfer-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .cashbox-transfer-foot .btn {
       min-height: 34px;
       padding: 7px 10px;
     }
@@ -4736,6 +4834,42 @@ BOARD_WEB_APP_HTML = "".join(
     </div>
   </div>
 
+  <div class="modal" id="cashboxTransferModal">
+    <div class="dialog">
+      <div class="dialog__head">
+        <div class="dialog__title">ПЕРЕМЕЩЕНИЕ</div>
+        <button class="btn" data-close="cashbox-transfer">ЗАКРЫТЬ</button>
+      </div>
+      <div class="cashbox-transfer-grid">
+        <div class="cashbox-transfer-pane">
+          <div class="cashbox-transfer-source">
+            <div class="cashbox-transfer-source__label">ОТКУДА</div>
+            <div class="cashbox-transfer-source__name" id="cashboxTransferSourceName">КАССА НЕ ВЫБРАНА</div>
+            <div class="cashbox-transfer-source__meta" id="cashboxTransferSourceMeta"></div>
+          </div>
+          <div class="cashbox-transfer-summary">
+            <div class="field field--compact">
+              <label for="cashboxTransferAmountInput">СУММА</label>
+              <input id="cashboxTransferAmountInput" type="text" inputmode="decimal" maxlength="24" placeholder="1000 или 1000,50">
+            </div>
+            <div class="field field--compact">
+              <label for="cashboxTransferNoteInput">КОММЕНТАРИЙ</label>
+              <textarea id="cashboxTransferNoteInput" maxlength="240" placeholder="Коротко опишите перемещение."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="cashbox-transfer-pane">
+          <div class="cashbox-transfer-targets__label">КУДА ПЕРЕВЕСТИ</div>
+          <div class="cashbox-transfer-targets" id="cashboxTransferTargets"></div>
+        </div>
+      </div>
+      <div class="cashbox-transfer-foot">
+        <button class="btn btn--ghost" data-close="cashbox-transfer">ОТМЕНА</button>
+        <button class="btn btn--accent" id="cashboxTransferConfirmButton">ПЕРЕМЕСТИТЬ</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="gptWallModal">
     <div class="dialog" style="width:min(1040px,100%)">
       <div class="dialog__head">
@@ -5153,6 +5287,12 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxes: [],
       activeCashboxId: '',
       activeCashbox: null,
+      cashboxTransferDraft: {
+        sourceId: '',
+        targetId: '',
+        amount: '',
+        note: '',
+      },
       employees: [],
       activeEmployeeId: '',
       employeeCreateMode: false,
@@ -5565,6 +5705,7 @@ BOARD_WEB_APP_HTML = "".join(
       archiveList: document.getElementById('archiveList'),
       repairOrdersModal: document.getElementById('repairOrdersModal'),
       cashboxesModal: document.getElementById('cashboxesModal'),
+      cashboxTransferModal: document.getElementById('cashboxTransferModal'),
       employeesModal: document.getElementById('employeesModal'),
       employeesList: document.getElementById('employeesList'),
       employeesCardMode: document.getElementById('employeesCardMode'),
@@ -5603,6 +5744,12 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxTransferButton: document.getElementById('cashboxTransferButton'),
       cashboxExpenseButton: document.getElementById('cashboxExpenseButton'),
       cashboxTransactions: document.getElementById('cashboxTransactions'),
+      cashboxTransferSourceName: document.getElementById('cashboxTransferSourceName'),
+      cashboxTransferSourceMeta: document.getElementById('cashboxTransferSourceMeta'),
+      cashboxTransferTargets: document.getElementById('cashboxTransferTargets'),
+      cashboxTransferAmountInput: document.getElementById('cashboxTransferAmountInput'),
+      cashboxTransferNoteInput: document.getElementById('cashboxTransferNoteInput'),
+      cashboxTransferConfirmButton: document.getElementById('cashboxTransferConfirmButton'),
       repairOrdersOpenTab: document.getElementById('repairOrdersOpenTab'),
       repairOrdersClosedTab: document.getElementById('repairOrdersClosedTab'),
       repairOrdersMeta: document.getElementById('repairOrdersMeta'),
@@ -7443,6 +7590,7 @@ BOARD_WEB_APP_HTML = "".join(
         },
         'repair-orders': () => els.repairOrdersModal.classList.remove('is-open'),
         cashboxes: () => els.cashboxesModal.classList.remove('is-open'),
+        'cashbox-transfer': () => els.cashboxTransferModal.classList.remove('is-open'),
         employees: () => {
           if (!confirmDiscardEmployeeChanges()) return;
           els.employeesModal?.classList.remove('is-open');
@@ -13848,18 +13996,6 @@ function renderCompactArchiveRows(cards) {
       return source ? source : 'система';
     }
 
-    function resolveCashboxReference(value) {
-      const requested = String(value || '').trim();
-      if (!requested) return null;
-      const requestedLower = requested.toLowerCase();
-      return (Array.isArray(state.cashboxes) ? state.cashboxes : []).find((item) => {
-        const name = String(item?.name || '').trim().toLowerCase();
-        const shortId = String(item?.short_id || '').trim().toLowerCase();
-        const id = String(item?.id || '').trim().toLowerCase();
-        return requestedLower === name || requestedLower === shortId || requestedLower === id;
-      }) || null;
-    }
-
     function syncCashboxFiltersUi() {
       return;
     }
@@ -14060,48 +14196,111 @@ function renderCompactArchiveRows(cards) {
         setStatus('НЕТ ДРУГОЙ КАССЫ ДЛЯ ПЕРЕМЕЩЕНИЯ.', true);
         return;
       }
-      const promptList = availableCashboxes.map((item) => {
-        const label = String(item?.name || '—').trim();
-        const shortId = String(item?.short_id || item?.id || '').trim();
-        return '- ' + label + ' [' + shortId + ']';
-      }).join('\\n');
-      const targetQuery = String(window.prompt('Куда перевести деньги?\\nУкажи название, short id или id кассы.\\n' + promptList, availableCashboxes[0]?.short_id || availableCashboxes[0]?.id || '') || '').trim();
-      const targetCashbox = resolveCashboxReference(targetQuery);
-      if (!targetCashbox || targetCashbox.id === sourceCashbox.id) {
+      state.cashboxTransferDraft = {
+        sourceId: sourceCashbox.id,
+        targetId: availableCashboxes[0]?.id || '',
+        amount: '',
+        note: '',
+      };
+      if (els.cashboxTransferAmountInput) els.cashboxTransferAmountInput.value = '';
+      if (els.cashboxTransferNoteInput) els.cashboxTransferNoteInput.value = '';
+      renderCashboxTransferModal();
+      maybeOpenModal(els.cashboxTransferModal, true);
+    }
+
+    function renderCashboxTransferModal() {
+      const sourceId = String(state.cashboxTransferDraft?.sourceId || state.activeCashbox?.cashbox?.id || '').trim();
+      const sourceCashbox = (Array.isArray(state.cashboxes) ? state.cashboxes : []).find((item) => item.id === sourceId) || state.activeCashbox?.cashbox || null;
+      const availableCashboxes = (Array.isArray(state.cashboxes) ? state.cashboxes : []).filter((item) => item.id !== sourceId);
+      els.cashboxTransferSourceName.textContent = sourceCashbox?.name || 'КАССА НЕ ВЫБРАНА';
+      els.cashboxTransferSourceMeta.textContent = sourceCashbox?.statistics?.balance_display ? ('Баланс: ' + sourceCashbox.statistics.balance_display) : '';
+      els.cashboxTransferTargets.innerHTML = availableCashboxes.length ? availableCashboxes.map((item) => {
+        const activeClass = item.id === state.cashboxTransferDraft.targetId ? ' is-active' : '';
+        const stats = item?.statistics || {};
+        return '<button class="cashbox-transfer-target' + activeClass + '" type="button" data-cashbox-transfer-target="' + escapeHtml(item.id) + '">'
+          + '<div>'
+          + '<div class="cashbox-transfer-target__name">' + escapeHtml(item.name || '—') + '</div>'
+          + '<div class="cashbox-transfer-target__meta">' + escapeHtml(String(item.short_id || item.id || '')) + '</div>'
+          + '</div>'
+          + '<div class="cashbox-transfer-target__meta">' + escapeHtml(stats?.balance_display || cashboxFormatMinorAmount(stats?.balance_minor || 0)) + '</div>'
+          + '</button>';
+      }).join('') : '<div class="cashboxes-empty">НЕТ ДРУГИХ КАСС.</div>';
+      const selectedTarget = availableCashboxes.find((item) => item.id === state.cashboxTransferDraft.targetId) || availableCashboxes[0] || null;
+      if (selectedTarget && selectedTarget.id !== state.cashboxTransferDraft.targetId) {
+        state.cashboxTransferDraft.targetId = selectedTarget.id;
+      }
+      if (els.cashboxTransferConfirmButton) {
+        const hasAmount = String(els.cashboxTransferAmountInput?.value || state.cashboxTransferDraft.amount || '').trim().length > 0;
+        els.cashboxTransferConfirmButton.disabled = !selectedTarget || !sourceCashbox || !hasAmount;
+      }
+    }
+
+    function setCashboxTransferTarget(cashboxId) {
+      const requestedId = String(cashboxId || '').trim();
+      const sourceId = String(state.cashboxTransferDraft?.sourceId || '').trim();
+      if (!requestedId || requestedId === sourceId) return;
+      state.cashboxTransferDraft.targetId = requestedId;
+      renderCashboxTransferModal();
+    }
+
+    async function submitCashboxTransfer() {
+      const sourceCashbox = (Array.isArray(state.cashboxes) ? state.cashboxes : []).find((item) => item.id === state.cashboxTransferDraft.sourceId) || null;
+      const targetCashbox = (Array.isArray(state.cashboxes) ? state.cashboxes : []).find((item) => item.id === state.cashboxTransferDraft.targetId) || null;
+      if (!sourceCashbox?.id) {
+        setStatus('СНАЧАЛА ВЫБЕРИТЕ КАССУ.', true);
+        return;
+      }
+      if (!targetCashbox?.id || targetCashbox.id === sourceCashbox.id) {
         setStatus('УКАЖИТЕ КАССУ ДЛЯ ПЕРЕМЕЩЕНИЯ.', true);
         return;
       }
-      const amount = String(els.cashboxAmountInput.value || '').trim();
+      const amount = String(els.cashboxTransferAmountInput?.value || '').trim();
       if (!amount) {
         setStatus('УКАЖИТЕ СУММУ.', true);
         return;
       }
       try {
-        els.cashboxIncomeButton.disabled = true;
+        els.cashboxTransferConfirmButton.disabled = true;
         els.cashboxTransferButton.disabled = true;
-        els.cashboxExpenseButton.disabled = true;
         await api('/api/create_cashbox_transfer', {
           method: 'POST',
           body: {
             from_cashbox_id: sourceCashbox.id,
             to_cashbox_id: targetCashbox.id,
             amount,
-            note: String(els.cashboxNoteInput.value || '').trim(),
+            note: String(els.cashboxTransferNoteInput?.value || '').trim(),
             actor_name: state.actor,
             source: 'ui',
           },
         });
-        els.cashboxAmountInput.value = '';
-        els.cashboxNoteInput.value = '';
+        if (els.cashboxTransferAmountInput) els.cashboxTransferAmountInput.value = '';
+        if (els.cashboxTransferNoteInput) els.cashboxTransferNoteInput.value = '';
+        els.cashboxTransferModal.classList.remove('is-open');
         await loadCashboxes(true);
         setStatus('ПЕРЕМЕЩЕНИЕ СОХРАНЕНО.', false);
       } catch (error) {
         setStatus(error.message, true);
       } finally {
-        els.cashboxIncomeButton.disabled = false;
+        els.cashboxTransferConfirmButton.disabled = false;
         els.cashboxTransferButton.disabled = false;
-        els.cashboxExpenseButton.disabled = false;
       }
+    }
+
+    function handleCashboxTransferAmountInput() {
+      state.cashboxTransferDraft.amount = String(els.cashboxTransferAmountInput?.value || '').trim();
+      renderCashboxTransferModal();
+    }
+
+    function handleCashboxTransferNoteInput() {
+      state.cashboxTransferDraft.note = String(els.cashboxTransferNoteInput?.value || '');
+    }
+
+    function handleCashboxTransferTargetsClick(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-cashbox-transfer-target]');
+      if (!button) return;
+      setCashboxTransferTarget(button.getAttribute('data-cashbox-transfer-target'));
     }
 
     async function createCashboxTransaction(direction) {
@@ -14817,6 +15016,10 @@ function renderCompactArchiveRows(cards) {
     els.cashboxIncomeButton.addEventListener('click', () => createCashboxTransaction('income'));
     els.cashboxTransferButton.addEventListener('click', createCashboxTransfer);
     els.cashboxExpenseButton.addEventListener('click', () => createCashboxTransaction('expense'));
+    els.cashboxTransferTargets.addEventListener('click', handleCashboxTransferTargetsClick);
+    els.cashboxTransferConfirmButton.addEventListener('click', submitCashboxTransfer);
+    els.cashboxTransferAmountInput.addEventListener('input', handleCashboxTransferAmountInput);
+    els.cashboxTransferNoteInput.addEventListener('input', handleCashboxTransferNoteInput);
     els.cashboxesList.addEventListener('click', handleCashboxesListClick);
     els.cashboxesList.addEventListener('keydown', handleCashboxesListKeydown);
     els.cashboxAmountInput.addEventListener('keydown', (event) => {
