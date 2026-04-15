@@ -5,8 +5,6 @@ import signal
 import time
 
 from ..api.server import ApiServer
-from ..agent.control import AgentControlService
-from ..agent.storage import AgentStorage
 from ..config import (
     get_api_bearer_token,
     get_api_host,
@@ -107,9 +105,6 @@ def run() -> int:
             if seeded_demo:
                 logger.info("embedded_api_demo_seeded=true")
             operator_service = OperatorAuthService(store, service, logger=logger)
-            agent_service = AgentControlService(AgentStorage(), start_scheduler=True)
-            service.attach_agent_control(agent_service)
-            agent_service.bind_board_service(service)
             resolved_api_host = _runtime_bind_host(
                 get_api_host() if os.environ.get("MINIMAL_KANBAN_API_HOST") is not None else settings.local_api.local_api_host,
                 env_explicit=os.environ.get("MINIMAL_KANBAN_API_HOST") is not None,
@@ -118,7 +113,6 @@ def run() -> int:
                 service,
                 logger,
                 operator_service=operator_service,
-                agent_service=agent_service,
                 host=resolved_api_host,
                 start_port=get_api_port() if os.environ.get("MINIMAL_KANBAN_API_PORT") is not None else settings.local_api.local_api_port,
                 bearer_token=api_bearer_token,

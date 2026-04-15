@@ -144,13 +144,9 @@ def run() -> int:
     api_server = None
     mcp_controller = None
     tunnel_controller = None
-    agent_service = None
-
     try:
         update_splash("Загружаю модули...")
         from .api.server import ApiServer
-        from .agent.control import AgentControlService
-        from .agent.storage import AgentStorage
         from .config import get_api_bearer_token, get_api_host, get_api_port
         from .integration_runtime import McpRuntimeController
         from .logging_setup import close_logger, configure_logging
@@ -167,9 +163,6 @@ def run() -> int:
         store = JsonStore(logger=logger)
         service = CardService(store, logger)
         operator_service = OperatorAuthService(store, service, logger=logger)
-        agent_service = AgentControlService(AgentStorage(), start_scheduler=True)
-        service.attach_agent_control(agent_service)
-        agent_service.bind_board_service(service)
         settings_store = SettingsStore(logger=logger)
         settings_service = SettingsService(settings_store, logger)
         settings = settings_service.load()
@@ -197,17 +190,12 @@ def run() -> int:
             service,
             logger,
             operator_service=operator_service,
-            agent_service=agent_service,
             host=api_host,
             start_port=api_port,
             bearer_token=api_bearer_token,
         )
         try:
             api_server.start()
-            try:
-                agent_service.start_worker(logger=logger, board_api_url=api_server.base_url)
-            except Exception as exc:
-                logger.exception("failed_to_start_embedded_agent_worker error=%s", exc)
         except Exception as exc:
             logger.exception("failed_to_start_api error=%s", exc)
             if splash is not None:
@@ -268,8 +256,6 @@ def run() -> int:
             mcp_controller.stop()
         if api_server is not None:
             api_server.stop()
-        if agent_service is not None:
-            agent_service.close()
         if logger is not None:
             from .logging_setup import close_logger
 

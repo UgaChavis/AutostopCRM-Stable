@@ -72,7 +72,6 @@ from ..vehicle_profile import (
     VehicleProfile,
 )
 from ..agent.openai_client import AgentModelError, OpenAIJsonAgentClient
-from ..agent.config import get_agent_name
 from ..agent.knowledge import build_ai_chat_knowledge_packet
 from ..printing.service import PrintModuleError, PrintModuleService
 from .column_service import ColumnService
@@ -675,10 +674,159 @@ class CardService:
                 },
             }
 
+    def cleanup_card_content(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cards = bundle["cards"]
+            events = bundle["events"]
+            columns = bundle["columns"]
+            card = self._find_card(cards, payload.get("card_id"))
+            self._ensure_not_archived(card)
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+
+            changed = False
+            changed_fields: list[str] = []
+            normalized_description = self._build_card_cleanup_description(card)
+            if normalized_description and normalized_description != card.description:
+                if self._update_description(card, normalized_description, events, actor_name, source):
+                    changed = True
+                    changed_fields.append("description")
+
+            cleanup_vehicle = self._build_card_cleanup_vehicle_label(card)
+            if cleanup_vehicle and cleanup_vehicle != card.vehicle:
+                if self._update_vehicle(card, cleanup_vehicle, events, actor_name, source):
+                    changed = True
+                    changed_fields.append("vehicle")
+
+            profile_patch = self._build_card_cleanup_vehicle_profile_patch(card)
+            if profile_patch:
+                if self._update_vehicle_profile(card, profile_patch, events, actor_name, source):
+                    changed = True
+                    changed_fields.append("vehicle_profile")
+
+            verify = {
+                "description_ok": not normalized_description or card.description == normalized_description,
+                "vehicle_ok": not cleanup_vehicle or card.vehicle == cleanup_vehicle,
+                "vehicle_profile_ok": self._cleanup_profile_patch_applied(card, profile_patch),
+                "external_calls": False,
+            }
+            verify_passed = (
+                bool(verify["description_ok"])
+                and bool(verify["vehicle_ok"])
+                and bool(verify["vehicle_profile_ok"])
+                and not bool(verify["external_calls"])
+            )
+
+            if changed:
+                self._touch_card(card, actor_name)
+                self._append_event(
+                    events,
+                    actor_name=actor_name,
+                    source=source,
+                    action="card_cleanup_applied",
+                    message=f"{actor_name} прибрался в карточке",
+                    card_id=card.id,
+                    details={
+                        "changed_fields": changed_fields,
+                        "verify_passed": verify_passed,
+                        "cleanup_mode": "local_card_cleanup",
+                    },
+                )
+                self._save_bundle(bundle, columns=columns, cards=cards, events=events)
+
+            return {
+                "card": self._serialize_card(card, events, column_labels=self._column_labels(columns)),
+                "meta": {
+                    "changed": changed,
+                    "changed_fields": changed_fields,
+                    "verify": {
+                        **verify,
+                        "passed": verify_passed,
+                    },
+                    "cleanup_mode": "local_card_cleanup",
+                },
+            }
+
+    # Legacy AI entry points are intentionally retired. Keep these thin shims so
+    # any stale internal caller lands on a safe local cleanup path instead of
+    # reviving the old background agent workflow.
+    def set_card_ai_autofill(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cards = bundle["cards"]
+            events = bundle["events"]
+            columns = bundle["columns"]
+            card = self._find_card(cards, payload.get("card_id"))
+            self._ensure_not_archived(card)
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+            had_legacy_state = any(
+                (
+                    bool(card.ai_autofill_active),
+                    bool(card.ai_autofill_until),
+                    bool(card.ai_next_run_at),
+                    bool(card.ai_autofill_prompt),
+                    bool(card.last_card_fingerprint),
+                    int(card.ai_run_count or 0) > 0,
+                )
+            )
+            if had_legacy_state:
+                card.ai_autofill_active = False
+                card.ai_autofill_until = ""
+                card.ai_next_run_at = ""
+                card.ai_autofill_prompt = ""
+                card.last_card_fingerprint = ""
+                card.ai_run_count = 0
+                self._touch_card(card, actor_name)
+                self._append_card_ai_log(
+                    card,
+                    level="DONE",
+                    message="Старое автосопровождение отключено. Доступна только локальная уборка карточки.",
+                )
+                self._append_event(
+                    events,
+                    actor_name=actor_name,
+                    source=source,
+                    action="card_ai_legacy_disabled",
+                    message=f"{actor_name} отключил старое автосопровождение карточки",
+                    card_id=card.id,
+                    details={"cleanup_available": True},
+                )
+                self._save_bundle(bundle, columns=columns, cards=cards, events=events)
+            return {
+                "card": self._serialize_card(card, events, column_labels=self._column_labels(columns)),
+                "meta": {
+                    "enabled": False,
+                    "launched": False,
+                    "prompt_updated": False,
+                    "task_id": "",
+                    "server_available": False,
+                    "next_check_at": "",
+                    "retired": True,
+                    "cleanup_available": True,
+                    "reason": "legacy_agent_runtime_disabled",
+                },
+            }
+
+    def run_full_card_enrichment(self, payload: dict | None = None) -> dict:
+        result = self.cleanup_card_content(payload)
+        result["meta"].update(
+            {
+                "launched": bool(result["meta"].get("changed")),
+                "already_running": False,
+                "task_id": "",
+                "server_available": False,
+                "scenario_id": "card_cleanup",
+                "retired": True,
+                "legacy_request": "run_full_card_enrichment",
+            }
+        )
+        return result
+
     def trigger_due_ai_followups(self) -> dict:
         with self._lock:
-            if self._agent_control is None:
-                return {"launched": [], "failed": []}
+            return {"launched": [], "failed": []}
             bundle = self._store.read_bundle()
             cards = bundle["cards"]
             events = bundle["events"]
@@ -3778,17 +3926,8 @@ class CardService:
         return updated_at
 
     def _notify_agent_card_created(self, card: Card) -> None:
-        if self._agent_control is None:
-            return
-        try:
-            self._agent_control.handle_card_created(
-                {
-                    "card_id": card.id,
-                    "column": card.column,
-                }
-            )
-        except Exception as exc:
-            self._logger.warning("agent_card_created_hook_failed card_id=%s error=%s", card.id, exc)
+        _ = card
+        return
 
     def _card_ai_fingerprint(self, card: Card) -> str:
         payload = {
@@ -3902,15 +4041,8 @@ class CardService:
         return messages[:4]
 
     def _refresh_card_ai_fingerprint_if_agent_changed(self, card: Card, actor_name: str, source: str) -> None:
-        normalized_actor = normalize_actor_name(actor_name, default="").casefold()
-        if not normalized_actor:
-            return
-        agent_name = normalize_actor_name(get_agent_name(), default="").casefold()
-        if normalized_actor != agent_name and str(source or "").strip().lower() not in {"agent", "agent_task", "agent_autofill"}:
-            return
-        if not card.ai_autofill_active:
-            return
-        card.last_card_fingerprint = self._card_ai_fingerprint(card)
+        _ = (card, actor_name, source)
+        return
 
     def _should_seed_demo(self, bundle: dict) -> bool:
         cards = bundle["cards"]
@@ -4513,14 +4645,16 @@ class CardService:
                     return value
         return ""
 
-    def _extract_phone(self, card: Card) -> str:
+    def _extract_phone(self, card: Card, *, fallback: str = "") -> str:
         if card.vehicle_profile.customer_phone:
             return normalize_text(card.vehicle_profile.customer_phone, default="", limit=32)
+        if card.repair_order.phone:
+            return self._format_phone(card.repair_order.phone)
         haystack = self._repair_analysis_text(card)
         match = _PHONE_PATTERN.search(haystack)
         if not match:
-            return ""
-        return self._format_phone(match.group(0))
+            return fallback
+        return self._format_phone(match.group(0)) or fallback
 
     def _format_phone(self, value: str) -> str:
         digits = re.sub(r"\D+", "", str(value or ""))
@@ -4530,24 +4664,58 @@ class CardService:
             return f"+7 {digits[1:4]} {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
         return normalize_text(value, default="", limit=32)
 
-    def _extract_customer_name(self, card: Card) -> str:
+    def _extract_customer_name(self, card: Card, *, fallback: str = "") -> str:
         if card.vehicle_profile.customer_name:
             return normalize_text(card.vehicle_profile.customer_name, default="", limit=80)
+        order_name = normalize_text(card.repair_order.client, default="", limit=80)
+        if order_name:
+            return order_name
+        blocked_tokens = {
+            "ТЕЛЕФОН",
+            "PHONE",
+            "VIN",
+            "ГОСНОМЕР",
+            "ПРОБЕГ",
+            "MILEAGE",
+            "ФАКТЫ",
+            "СУТЬ",
+            "ДАННЫЕ",
+            "РАБОТЫ",
+            "ПРОВЕРКИ",
+        }
+
+        def _normalize_match(value: str) -> str:
+            parts: list[str] = []
+            for part in str(value or "").strip().split():
+                normalized = str(part or "").strip()
+                if not normalized:
+                    continue
+                if normalized.upper().strip(":.,-") in blocked_tokens:
+                    break
+                parts.append(normalized)
+            if not parts:
+                return ""
+            return " ".join(part[:1].upper() + part[1:].lower() for part in parts)[:80]
+
+        for line in self._repair_text_lines(
+            card.description,
+            card.repair_order.reason,
+            card.repair_order.comment,
+            card.repair_order.note,
+            card.vehicle_profile.oem_notes,
+        ):
+            match = _CUSTOMER_NAME_PATTERN.search(line)
+            if not match:
+                continue
+            normalized_match = _normalize_match(str(match.group(1) or ""))
+            if normalized_match:
+                return normalized_match
+
         match = _CUSTOMER_NAME_PATTERN.search(self._repair_analysis_text(card))
         if not match:
-            return ""
-        blocked_tokens = {"ТЕЛЕФОН", "PHONE", "VIN", "ГОСНОМЕР", "ПРОБЕГ", "MILEAGE"}
-        parts: list[str] = []
-        for part in str(match.group(1) or "").strip().split():
-            normalized = str(part or "").strip()
-            if not normalized:
-                continue
-            if normalized.upper().strip(":.,-") in blocked_tokens:
-                break
-            parts.append(normalized)
-        if not parts:
-            return ""
-        return " ".join(part[:1].upper() + part[1:].lower() for part in parts)[:80]
+            return fallback
+        normalized_match = _normalize_match(str(match.group(1) or ""))
+        return normalized_match or fallback
 
     def _repair_analysis_text(self, card: Card) -> str:
         return "\n".join(
@@ -4560,6 +4728,126 @@ class CardService:
             )
             if part
         )
+
+    def _build_card_cleanup_vehicle_label(self, card: Card) -> str:
+        if normalize_text(card.vehicle, default="", limit=CARD_VEHICLE_LIMIT):
+            return ""
+        candidate = normalize_text(card.repair_order.vehicle, default="", limit=CARD_VEHICLE_LIMIT)
+        if candidate:
+            return candidate
+        display_name = normalize_text(card.vehicle_profile.display_name(), default="", limit=CARD_VEHICLE_LIMIT)
+        if display_name:
+            return display_name
+        return ""
+
+    def _build_card_cleanup_vehicle_profile_patch(self, card: Card) -> dict[str, Any]:
+        patch: dict[str, Any] = {}
+        profile = card.vehicle_profile
+        if not normalize_text(profile.customer_name, default="", limit=120):
+            customer_name = self._extract_customer_name(card)
+            if customer_name:
+                patch["customer_name"] = customer_name
+        if not normalize_text(profile.customer_phone, default="", limit=40):
+            customer_phone = self._extract_phone(card)
+            if customer_phone:
+                patch["customer_phone"] = customer_phone
+        if not normalize_text(profile.vin, default="", limit=32):
+            vin = normalize_text(card.repair_order.vin or self._extract_vin(card), default="", limit=32).upper()
+            if vin:
+                patch["vin"] = vin
+        if not profile.mileage:
+            mileage = normalize_text(card.repair_order.mileage or self._extract_mileage(card), default="", limit=40)
+            if mileage:
+                patch["mileage"] = mileage
+        if not normalize_text(profile.oem_notes, default="", limit=1200):
+            notes = "\n".join(self._repair_text_lines(card.repair_order.comment, card.repair_order.note))
+            normalized_notes = normalize_text(notes, default="", limit=1200)
+            if normalized_notes:
+                patch["oem_notes"] = normalized_notes
+        return patch
+
+    def _build_card_cleanup_data_lines(self, card: Card) -> list[str]:
+        lines: list[str] = []
+        vehicle = normalize_text(card.vehicle or card.repair_order.vehicle or card.vehicle_profile.display_name(), default="", limit=120)
+        customer_name = self._extract_customer_name(card)
+        customer_phone = self._extract_phone(card)
+        vin = normalize_text(card.vehicle_profile.vin or card.repair_order.vin or self._extract_vin(card), default="", limit=32).upper()
+        mileage = normalize_text(str(card.vehicle_profile.mileage or "") or card.repair_order.mileage or self._extract_mileage(card), default="", limit=40)
+        for label, value in (
+            ("Автомобиль", vehicle),
+            ("Клиент", customer_name),
+            ("Телефон", customer_phone),
+            ("VIN", vin),
+            ("Пробег", mileage),
+        ):
+            if not value:
+                continue
+            line = f"{label}: {value}"
+            if line not in lines:
+                lines.append(line)
+        return lines
+
+    def _build_card_cleanup_description(self, card: Card) -> str:
+        summary = normalize_text(card.repair_order.reason or self._build_repair_order_reason(card), default="", limit=320)
+        raw_lines = self._repair_text_lines(
+            card.description,
+            card.repair_order.reason,
+            card.repair_order.comment,
+            card.repair_order.note,
+            card.vehicle_profile.oem_notes,
+        )
+        seen: set[str] = set()
+        fact_lines: list[str] = []
+        work_lines: list[str] = []
+        for line in raw_lines:
+            key = line.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            if summary and key == summary.casefold():
+                continue
+            if self._looks_like_work_item(line):
+                work_lines.append(line)
+            else:
+                fact_lines.append(line)
+        for row in card.repair_order.works:
+            work_name = self._clean_repair_text_fragment(row.name, limit=200)
+            if not work_name:
+                continue
+            quantity = normalize_text(row.quantity, default="", limit=40)
+            line = f"{work_name} x {quantity}" if quantity and quantity not in {"0", "1", "1.0"} else work_name
+            if line.casefold() in seen:
+                continue
+            seen.add(line.casefold())
+            work_lines.append(line)
+        sections: list[tuple[str, list[str]]] = []
+        if summary:
+            sections.append(("СУТЬ", [summary]))
+        if fact_lines:
+            sections.append(("ФАКТЫ", fact_lines[:8]))
+        if work_lines:
+            sections.append(("РАБОТЫ / ПРОВЕРКИ", work_lines[:8]))
+        data_lines = self._build_card_cleanup_data_lines(card)
+        if data_lines:
+            sections.append(("ДАННЫЕ", data_lines[:6]))
+        if not sections:
+            return self._validated_description(normalize_text(card.description, default="", limit=CARD_DESCRIPTION_LIMIT))
+        cleaned = "\n\n".join(
+            label + ":\n" + "\n".join(f"- {line}" for line in lines if line)
+            for label, lines in sections
+            if lines
+        )
+        return self._validated_description(cleaned)
+
+    def _cleanup_profile_patch_applied(self, card: Card, patch: dict[str, Any]) -> bool:
+        if not patch:
+            return True
+        profile_payload = card.vehicle_profile.to_storage_dict()
+        for field_name, expected in patch.items():
+            actual = profile_payload.get(field_name)
+            if str(actual or "").strip() != str(expected or "").strip():
+                return False
+        return True
 
     def _repair_text_lines(self, *parts: str) -> list[str]:
         lines: list[str] = []

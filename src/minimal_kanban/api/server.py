@@ -79,7 +79,6 @@ class ApiServer:
         logger: Logger,
         *,
         operator_service: OperatorAuthService | None = None,
-        agent_service=None,
         host: str | None = None,
         start_port: int | None = None,
         fallback_limit: int | None = None,
@@ -98,7 +97,6 @@ class ApiServer:
         self._fallback_limit = resolved_fallback_limit
         self._bearer_token = bearer_token if bearer_token is not None else get_api_bearer_token()
         self._operator_service = operator_service
-        self._agent_service = agent_service
 
     @property
     def base_url(self) -> str:
@@ -144,7 +142,6 @@ class ApiServer:
         logger = self._logger
         bearer_token = self._bearer_token
         operator_service = self._operator_service
-        agent_service = self._agent_service
         base_url = self.base_url
         routes = {
             "/api/create_card": service.create_card,
@@ -156,7 +153,6 @@ class ApiServer:
             "/api/get_cards": service.get_cards,
             "/api/get_card": service.get_card,
             "/api/get_card_context": service.get_card_context,
-            "/api/get_ai_chat_knowledge": service.get_ai_chat_knowledge,
             "/api/get_board_snapshot": service.get_board_snapshot,
             "/api/get_board_context": service.get_board_context,
             "/api/review_board": service.review_board,
@@ -173,9 +169,8 @@ class ApiServer:
             "/api/get_gpt_wall": service.get_gpt_wall,
             "/api/autofill_vehicle_data": service.autofill_vehicle_data,
             "/api/autofill_repair_order": service.autofill_repair_order,
+            "/api/cleanup_card_content": service.cleanup_card_content,
             "/api/update_board_settings": service.update_board_settings,
-            "/api/set_card_ai_autofill": service.set_card_ai_autofill,
-            "/api/run_full_card_enrichment": service.run_full_card_enrichment,
             "/api/get_card_log": service.get_card_log,
             "/api/search_cards": service.search_cards,
             "/api/list_repair_orders": service.list_repair_orders,
@@ -228,9 +223,8 @@ class ApiServer:
             "/api/create_sticky",
             "/api/autofill_vehicle_data",
             "/api/autofill_repair_order",
+            "/api/cleanup_card_content",
             "/api/update_board_settings",
-            "/api/set_card_ai_autofill",
-            "/api/run_full_card_enrichment",
             "/api/update_repair_order",
             "/api/set_repair_order_status",
             "/api/replace_repair_order_works",
@@ -270,22 +264,6 @@ class ApiServer:
             "/api/delete_operator_user",
             "/api/get_operator_user_report",
         }
-        agent_routes: set[str] = set()
-        if agent_service is not None:
-            agent_routes = {
-                "/api/agent_status",
-                "/api/agent_enqueue_task",
-                "/api/agent_runs",
-                "/api/agent_actions",
-                "/api/agent_tasks",
-                "/api/agent_scheduled_tasks",
-                "/api/save_agent_scheduled_task",
-                "/api/delete_agent_scheduled_task",
-                "/api/run_agent_scheduled_task",
-                "/api/pause_agent_scheduled_task",
-                "/api/resume_agent_scheduled_task",
-            }
-            routes.update({route: getattr(agent_service, route.removeprefix("/api/")) for route in agent_routes})
         if operator_service is not None:
             routes.update(
                 {
@@ -300,7 +278,6 @@ class ApiServer:
                 }
             )
             operator_session_routes.update(admin_only_routes)
-            operator_session_routes.update(agent_routes)
 
         class RequestHandler(BaseHTTPRequestHandler):
             ROUTES = routes
@@ -397,16 +374,6 @@ class ApiServer:
                     "/api/list_operator_users",
                     "/api/get_operator_user_report",
                 }
-                if agent_service is not None:
-                    readonly_routes.update(
-                        {
-                            "/api/agent_status",
-                            "/api/agent_runs",
-                            "/api/agent_actions",
-                            "/api/agent_tasks",
-                            "/api/agent_scheduled_tasks",
-                        }
-                    )
                 if route in readonly_routes:
                     if not self._authenticate(request_id, query):
                         return

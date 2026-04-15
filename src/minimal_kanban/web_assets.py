@@ -4560,7 +4560,6 @@ BOARD_WEB_APP_HTML = "".join(
         <button class="btn" id="cashboxesButton">КАССЫ</button>
         <button class="btn" id="employeesButton">СОТРУДНИКИ</button>
         <button class="btn btn--ghost" id="gptWallButton">СТЕНА</button>
-        <button class="btn btn--ghost ai-chat-button" id="aiChatButton" type="button" aria-label="AI чат" title="AI чат" data-entry-surface="ai_chat">AI ЧАТ</button>
         <button class="btn" id="columnButton">+ СТОЛБЕЦ</button>
         <button class="btn btn--accent" id="cardButton">+ КАРТОЧКА</button>
       </div>
@@ -4581,88 +4580,6 @@ BOARD_WEB_APP_HTML = "".join(
       </svg>
     </button>
   </div>
-  <div class="agent-dock" id="agentDock">
-    <button class="agent-dock__button" id="agentDockButton" type="button" aria-label="AI вход" title="AI вход" data-entry-surface="board_control">AI</button>
-  </div>
-
-  <div class="modal" id="aiSurfaceModal">
-    <div class="dialog dialog--agent dialog--ai-entry">
-      <div class="dialog__head">
-        <div class="dialog__title" id="aiSurfaceTitle">AI / ПОМОЩНИК</div>
-        <button class="btn" data-close="ai-surface">ЗАКРЫТЬ</button>
-      </div>
-      <div class="ai-entry-shell">
-        <div class="agent-headline">
-          <div class="agent-context" id="aiSurfaceContextLabel">РЕЖИМ: ОБЩИЙ ЧАТ</div>
-          <div class="agent-status" id="aiSurfaceStatusLabel" data-state="idle">СКРЫТО</div>
-        </div>
-        <div class="ai-entry-summary" id="aiSurfaceSummary">
-          Здесь можно открыть AI-чат, запустить AI-обогащение открытой карточки или посмотреть статус фонового AI-режима.
-        </div>
-        <div class="ai-entry-grid" id="aiSurfaceScenarioGrid"></div>
-        <div class="agent-result" id="aiSurfaceResult" data-state="empty">Выберите, что хотите сделать.</div>
-        <div class="dialog__foot ai-entry-foot">
-          <div class="compact-note">Старое меню агента оставлено только как резервный путь и больше не является основным интерфейсом.</div>
-          <button class="btn btn--ghost ai-entry-legacy" id="aiSurfaceLegacyButton" type="button">СТАРЫЙ АГЕНТ</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="aiChatWindow">
-    <div class="dialog dialog--agent dialog--ai-chat">
-      <div class="ai-chat-window">
-        <div class="ai-chat-window__body ai-chat-window__layout">
-          <header class="dialog__head ai-chat-window__head">
-            <div class="ai-chat-window__title-block">
-              <div class="dialog__title" id="aiChatWindowTitle">AI / ЧАТ</div>
-              <div class="ai-chat-window__context" id="aiChatWindowContextLabel">КОНТЕКСТ: AI-ЧАТ · СВОБОДНАЯ СЕССИЯ</div>
-              <div class="ai-chat-window__subtitle" id="aiChatWindowSubtitle">Отдельный рабочий путь для будущего большого чата.</div>
-            </div>
-            <div class="ai-chat-window__controls">
-              <div class="agent-status" id="aiChatWindowStatusLabel" data-state="idle">HIDDEN</div>
-              <button class="btn btn--ghost" id="aiChatWindowSettingsButton" type="button" title="Профиль чата">НАСТРОЙКИ</button>
-              <button class="btn" data-close="ai-chat">ЗАКРЫТЬ</button>
-            </div>
-          </header>
-          <section class="ai-chat-window__settings" id="aiChatWindowSettingsPane" aria-label="Профиль чата" hidden>
-            <div class="ai-chat-window__settings-head">
-              <div class="ai-chat-window__settings-title">PROMPT PROFILE</div>
-              <div class="ai-chat-window__settings-note">Локальный профиль принадлежит только `ai_chat` и не смешивается с legacy modal flow.</div>
-            </div>
-            <div class="ai-chat-window__settings-grid">
-              <div class="ai-chat-window__profile-card">
-                <div class="ai-chat-window__profile-label">BASE SYSTEM INSTRUCTION</div>
-                <div class="ai-chat-window__profile-value" id="aiChatWindowPromptSystem">Чат отвечает как отдельный рабочий AI surface AutoStop CRM.</div>
-              </div>
-              <div class="ai-chat-window__profile-card">
-                <div class="ai-chat-window__profile-label">RESPONSE PROFILE</div>
-                <div class="ai-chat-window__profile-value" id="aiChatWindowPromptResponse">Кратко, структурно, с читаемыми блоками и без лишнего шума.</div>
-              </div>
-              <label class="ai-chat-window__profile-card ai-chat-window__profile-card--editable ai-chat-window__profile-card--wide" for="aiChatWindowPromptProfileInput">
-                <div class="ai-chat-window__profile-label">USER TUNE</div>
-                <textarea class="input ai-chat-window__profile-input" id="aiChatWindowPromptProfileInput" rows="4" placeholder="Добавь пользовательскую настройку для AI-чата..."></textarea>
-              </label>
-            </div>
-          </section>
-          <section class="ai-chat-window__messages-pane" aria-label="История сообщений">
-            <div class="ai-chat-window__messages" id="aiChatWindowMessages" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></div>
-          </section>
-          <section class="ai-chat-window__composer-pane" aria-label="Поле ввода">
-            <div class="ai-chat-window__composer">
-              <div class="ai-chat-window__composer-label">СООБЩЕНИЕ</div>
-              <textarea class="input ai-chat-window__input" id="aiChatWindowInput" rows="4" placeholder="Опиши задачу для AI-чата..."></textarea>
-              <div class="ai-chat-window__composer-foot">
-                <div class="compact-note">Markdown, send flow и history будут подключены на следующих шагах.</div>
-                <button class="btn btn--accent" id="aiChatWindowSendButton" type="button" disabled>ОТПРАВИТЬ</button>
-              </div>
-            </div>
-          </section>
-          </div>
-      </div>
-    </div>
-  </div>
-
   <div class="modal" id="identityModal">
     <div class="dialog" style="width:min(480px,100%)">
       <div class="dialog__title">КТО РАБОТАЕТ С ДОСКОЙ</div>
@@ -4921,26 +4838,6 @@ BOARD_WEB_APP_HTML = "".join(
           </div>
         </div>
       </div>
-      <div class="field hidden" id="boardControlSettingsRow">
-        <div class="subpanel" style="margin:0; padding:14px;">
-          <div class="panel-title">BOARD CONTROL</div>
-          <label class="checkbox-row" for="boardControlToggle" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-            <span>ТИХИЙ BACKGROUND MODE</span>
-            <input id="boardControlToggle" type="checkbox">
-          </label>
-          <div class="signal-grid" style="margin-top:10px;">
-            <div class="signal-cell">
-              <span>ИНТЕРВАЛ</span>
-              <input id="boardControlIntervalInput" type="number" min="5" max="240" step="5" value="20">
-            </div>
-            <div class="signal-cell">
-              <span>COOLDOWN</span>
-              <input id="boardControlCooldownInput" type="number" min="5" max="1440" step="5" value="60">
-            </div>
-          </div>
-          <div class="compact-note">Hidden rollout seam for `board_control`. It stays quiet and disabled by default.</div>
-        </div>
-      </div>
       <div class="dialog__foot">
         <button class="btn btn--ghost" id="boardScaleReset">СБРОСИТЬ НА 100%</button>
       </div>
@@ -5051,7 +4948,7 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
         <div class="dialog__foot-group dialog__foot-group--main">
           <button class="btn" id="cardModalCloseButtonBottom" data-close="card" onclick="window.__closeCardModal && window.__closeCardModal(); return false;">ОТМЕНА</button>
-          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="AI карточки" aria-label="AI карточки" data-entry-surface="full_card_enrichment"></button>
+          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Прибраться в карточке" aria-label="Прибраться в карточке"></button>
           <button class="btn btn--accent" id="saveCardButton">СОХРАНИТЬ</button>
         </div>
       </div>
@@ -5374,6 +5271,8 @@ BOARD_WEB_APP_HTML = "".join(
       aiChatWindowStatusPayload: null,
       agentLatestTasks: [],
       agentLatestActions: [],
+      cardCleanupState: 'idle',
+      cardCleanupError: '',
     };
 
     const SNAPSHOT_POLL_INTERVAL_MS = 8000;
@@ -12302,6 +12201,61 @@ BOARD_WEB_APP_HTML = "".join(
       return found?.label || String(columnId || '—');
     }
 
+    function renderCardCleanupIndicator() {
+      if (!(els.cardAgentButton instanceof HTMLElement)) return;
+      const currentState = String(state.cardCleanupState || 'idle').trim().toLowerCase();
+      const uiState = currentState === 'running'
+        ? 'busy'
+        : (currentState === 'error' ? 'error' : (state.activeCard?.id ? 'online' : 'idle'));
+      let title = 'Прибраться в карточке';
+      if (currentState === 'running') {
+        title = 'Прибраться в карточке · выполняется';
+      } else if (currentState === 'error') {
+        title = state.cardCleanupError
+          ? 'Прибраться в карточке · ошибка: ' + String(state.cardCleanupError || '').trim()
+          : 'Прибраться в карточке · ошибка';
+      } else if (state.activeCard?.id) {
+        title = 'Прибраться в карточке · готово';
+      }
+      els.cardAgentButton.dataset.state = uiState;
+      els.cardAgentButton.title = title;
+      els.cardAgentButton.setAttribute('aria-label', title);
+      els.cardAgentButton.disabled = currentState === 'running' || !state.activeCard?.id;
+    }
+
+    async function runCardCleanup() {
+      if (!requireOperatorSession()) return;
+      const cardId = String(state.activeCard?.id || '').trim();
+      if (!cardId) {
+        return setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ УБОРКИ.', true);
+      }
+      state.cardCleanupState = 'running';
+      state.cardCleanupError = '';
+      renderCardCleanupIndicator();
+      try {
+        const data = await api('/api/cleanup_card_content', {
+          method: 'POST',
+          body: { card_id: cardId },
+        });
+        if (data?.card) {
+          state.activeCard = data.card;
+          if (els.cardModal?.classList.contains('is-open')) {
+            applyCardModalState(data.card);
+          }
+        }
+        state.cardCleanupState = 'idle';
+        renderCardCleanupIndicator();
+        const changed = Boolean(data?.meta?.changed);
+        setStatus(changed ? 'Карточка приведена в порядок.' : 'Явных изменений для карточки не найдено.', false);
+        await refreshSnapshot(false);
+      } catch (error) {
+        state.cardCleanupState = 'error';
+        state.cardCleanupError = String(error?.message || 'Не удалось прибраться в карточке.');
+        renderCardCleanupIndicator();
+        setStatus(state.cardCleanupError, true);
+      }
+    }
+
     function applyCardModalState(card) {
       const currentCard = card || null;
       state.activeCard = currentCard;
@@ -12329,6 +12283,11 @@ BOARD_WEB_APP_HTML = "".join(
       renderColorTags();
       renderFiles(currentCard);
       renderLogs([]);
+      if (state.cardCleanupState !== 'error') {
+        state.cardCleanupState = currentCard?.id ? 'idle' : 'idle';
+        state.cardCleanupError = '';
+      }
+      renderCardCleanupIndicator();
     }
 
     function resetCardModalState() {
@@ -12339,9 +12298,12 @@ BOARD_WEB_APP_HTML = "".join(
       state.vehicleAutofillResult = null;
       state.draftTags = [];
       state.draftTagColor = 'green';
+      state.cardCleanupState = 'idle';
+      state.cardCleanupError = '';
       refreshRepairOrderEntry(null);
       els.fileInput.value = '';
       syncFileDropzone(null);
+      renderCardCleanupIndicator();
     }
 
     async function persistCardPayload(payload) {
@@ -14959,8 +14921,6 @@ function renderCompactArchiveRows(cards) {
     els.boardControlCooldownInput?.addEventListener('change', persistBoardScaleChange);
     els.columnButton.addEventListener('click', createColumnFromTopbar);
     els.cardButton.addEventListener('click', openDefaultNewCard);
-    els.aiChatButton?.addEventListener('click', openAiChatEntry);
-    els.agentDockButton?.addEventListener('click', () => openAiSurface('board'));
     [els.signalDays, els.signalHours].forEach((input) => {
       input.addEventListener('input', renderSignalPreview);
       input.addEventListener('change', renderSignalPreview);
@@ -14969,7 +14929,7 @@ function renderCompactArchiveRows(cards) {
     els.tagInput.addEventListener('keydown', handleTagInputKeydown);
     configureVehicleAutofillUi();
     els.cardDescription.addEventListener('input', syncCardDescriptionHeight);
-    els.cardAgentButton?.addEventListener('click', runFullCardEnrichment);
+    els.cardAgentButton?.addEventListener('click', runCardCleanup);
     els.vehicleAutofillButton.addEventListener('click', autofillVehicleProfile);
     els.repairOrderAddWorkRowButton.addEventListener('click', (event) => addRepairOrderRowFromButton('works', event));
     els.repairOrderAddMaterialRowButton.addEventListener('click', (event) => addRepairOrderRowFromButton('materials', event));

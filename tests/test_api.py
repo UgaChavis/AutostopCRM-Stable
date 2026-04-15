@@ -171,6 +171,27 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(listed_after["data"]["meta"]["total"], 1)
         self.assertTrue(any(item["card_id"] == card_id for item in listed_after["data"]["repair_orders"]))
 
+    def test_cleanup_card_content_route_runs_local_cleanup(self) -> None:
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "title": "Течь антифриза",
+                "description": "Клиент: Иван Иванов\nТелефон: 89001112233\nVIN: WAUZZZ8V0JA000001\nПроверить радиатор",
+                "deadline": {"hours": 2},
+            },
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, cleaned = self.request("/api/cleanup_card_content", {"card_id": card_id})
+        self.assertEqual(status, 200)
+        self.assertTrue(cleaned["ok"])
+        self.assertTrue(cleaned["data"]["meta"]["changed"])
+        self.assertEqual(cleaned["data"]["meta"]["cleanup_mode"], "local_card_cleanup")
+        self.assertTrue(cleaned["data"]["meta"]["verify"]["passed"])
+        self.assertIn("СУТЬ", cleaned["data"]["card"]["description"])
+        self.assertEqual(cleaned["data"]["card"]["vehicle_profile"]["customer_name"], "Иван Иванов")
+
     def test_head_root_and_health_are_supported(self) -> None:
         parsed = urlsplit(self.base_url)
         connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)

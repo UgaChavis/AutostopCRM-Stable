@@ -263,347 +263,147 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(listed_after["meta"]["total"], 1)
         self.assertEqual(listed_after["repair_orders"][0]["card_id"], card_id)
 
-    def test_set_card_ai_autofill_enqueues_initial_task_and_updates_metadata(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "Toyota Corolla",
-                    "title": "Автосопровождение",
-                    "description": "Диагностика подвески",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            enabled = self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-
-        self.assertTrue(enabled["meta"]["enabled"])
-        self.assertTrue(enabled["meta"]["launched"])
-        self.assertEqual(len(agent.autofill_calls), 1)
-        self.assertEqual(agent.autofill_calls[0]["payload"]["card_id"], card_id)
-        card = enabled["card"]
-        self.assertTrue(card["ai_autofill_active"])
-        self.assertEqual(card["ai_run_count"], 1)
-        self.assertTrue(card["ai_autofill_until"])
-        self.assertTrue(card["ai_next_run_at"])
-        self.assertTrue(card["last_ai_run_at"])
-        self.assertTrue(card["last_card_fingerprint"])
-        self.assertEqual(card["ai_autofill_log"][0]["message"], "Автосопровождение включено.")
-        self.assertEqual(card["ai_autofill_log"][-1]["message"], "Первый проход запущен.")
-
-    def test_set_card_ai_autofill_persists_mini_prompt_without_retriggering(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
+    def test_set_card_ai_autofill_returns_retired_cleanup_state_and_clears_legacy_fields(self) -> None:
         created = self.service.create_card(
             {
                 "vehicle": "Toyota Corolla",
-                "title": "Автосопровождение",
-                "description": "Диагностика подвески",
+                "title": "Legacy AI",
+                "description": "Старый режим.",
                 "deadline": {"hours": 2},
             }
         )
         card_id = created["card"]["id"]
-        enabled = self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-        self.assertEqual(len(agent.autofill_calls), 1)
+        bundle = self.store.read_bundle()
+        card = next(item for item in bundle["cards"] if item.id == card_id)
+        card.ai_autofill_active = True
+        card.ai_autofill_until = "2026-04-12T10:00:00+00:00"
+        card.ai_next_run_at = "2026-04-12T09:00:00+00:00"
+        card.ai_autofill_prompt = "Старый prompt"
+        card.last_card_fingerprint = "legacy-fingerprint"
+        card.ai_run_count = 3
+        self.store.write_bundle(
+            columns=bundle["columns"],
+            cards=bundle["cards"],
+            stickies=bundle["stickies"],
+            cashboxes=bundle["cashboxes"],
+            cash_transactions=bundle["cash_transactions"],
+            events=bundle["events"],
+            settings=bundle["settings"],
+        )
 
-        updated = self.service.set_card_ai_autofill(
+        result = self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
+
+        self.assertFalse(result["meta"]["enabled"])
+        self.assertFalse(result["meta"]["launched"])
+        self.assertTrue(result["meta"]["retired"])
+        self.assertTrue(result["meta"]["cleanup_available"])
+        self.assertEqual(result["meta"]["reason"], "legacy_agent_runtime_disabled")
+        self.assertFalse(result["card"]["ai_autofill_active"])
+        self.assertEqual(result["card"]["ai_autofill_until"], "")
+        self.assertEqual(result["card"]["ai_next_run_at"], "")
+        self.assertEqual(result["card"]["ai_autofill_prompt"], "")
+        self.assertEqual(result["card"]["last_card_fingerprint"], "")
+        self.assertEqual(result["card"]["ai_run_count"], 0)
+        self.assertIn(
+            "Старое автосопровождение отключено. Доступна только локальная уборка карточки.",
+            [entry["message"] for entry in result["card"]["ai_autofill_log"]],
+        )
+
+    def test_cleanup_card_content_normalizes_description_and_fills_obvious_local_fields(self) -> None:
+        created = self.service.create_card(
             {
-                "card_id": card_id,
-                "prompt": "Не переписывай цены и артикулы, добавляй только ИИ-комментарии.",
-                "actor_name": "AI",
+                "title": "Течь антифриза",
+                "description": "Клиент: Иван Иванов\nТелефон: 89001112233\nVIN: WAUZZZ8V0JA000001\nТечь антифриза\nпроверить радиатор\nпроверить радиатор",
+                "deadline": {"hours": 2},
             }
         )
-        self.assertEqual(len(agent.autofill_calls), 1)
-        self.assertTrue(updated["meta"]["prompt_updated"])
-        self.assertTrue(updated["card"]["ai_autofill_active"])
-        self.assertEqual(
-            updated["card"]["ai_autofill_prompt"],
-            "Не переписывай цены и артикулы, добавляй только ИИ-комментарии.",
-        )
-        self.assertIn("ИИ-подсказка автосопровождения обновлена.", [item["message"] for item in updated["card"]["ai_autofill_log"]])
-        log = self.service.get_card_log({"card_id": card_id, "limit": 5})
-        prompt_events = [item for item in log["events"] if item["action"] == "card_ai_autofill_prompt_updated"]
-        self.assertTrue(prompt_events)
-        self.assertIn("обновил mini-prompt", prompt_events[-1]["message"])
-
-    def test_run_full_card_enrichment_enqueues_bounded_task_without_enabling_followup_mode(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        created = self.service.create_card({"vehicle": "BMW X5", "title": "Enrichment", "deadline": {"hours": 2}})
         card_id = created["card"]["id"]
 
-        result = self.service.run_full_card_enrichment(
+        result = self.service.cleanup_card_content({"card_id": card_id, "actor_name": "ОПЕРАТОР"})
+
+        self.assertTrue(result["meta"]["changed"])
+        self.assertTrue(result["meta"]["verify"]["passed"])
+        self.assertEqual(result["meta"]["cleanup_mode"], "local_card_cleanup")
+        self.assertIn("СУТЬ", result["card"]["description"])
+        self.assertIn("ФАКТЫ", result["card"]["description"])
+        self.assertIn("РАБОТЫ / ПРОВЕРКИ", result["card"]["description"])
+        self.assertEqual(result["card"]["vehicle_profile"]["customer_name"], "Иван Иванов")
+        self.assertEqual(result["card"]["vehicle_profile"]["vin"], "WAUZZZ8V0JA000001")
+        self.assertEqual(result["card"]["vehicle_profile"]["customer_phone"], "+7 900 111-22-33")
+
+    def test_cleanup_card_content_does_not_overwrite_manual_fields(self) -> None:
+        created = self.service.create_card(
+            {
+                "title": "Диагностика",
+                "description": "Клиент: Иван Иванов\nТелефон: 89001112233\nVIN: WAUZZZ8V0JA000001",
+                "vehicle_profile": {
+                    "customer_name": "Петр Петров",
+                    "customer_phone": "+7 999 000-00-00",
+                },
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+
+        result = self.service.cleanup_card_content({"card_id": card_id, "actor_name": "ОПЕРАТОР"})
+
+        self.assertEqual(result["card"]["vehicle_profile"]["customer_name"], "Петр Петров")
+        self.assertEqual(result["card"]["vehicle_profile"]["customer_phone"], "+7 999 000-00-00")
+        self.assertEqual(result["card"]["vehicle_profile"]["vin"], "WAUZZZ8V0JA000001")
+
+    def test_run_full_card_enrichment_delegates_to_local_cleanup(self) -> None:
+        created = self.service.create_card(
+            {
+                "title": "Enrichment",
+                "description": "Клиент: Иван\nТелефон: 89001112233\nПроверить радиатор",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+
+        result = self.service.run_full_card_enrichment({"card_id": card_id, "actor_name": "AI"})
+
+        self.assertEqual(result["meta"]["scenario_id"], "card_cleanup")
+        self.assertTrue(result["meta"]["retired"])
+        self.assertEqual(result["meta"]["legacy_request"], "run_full_card_enrichment")
+        self.assertEqual(result["meta"]["cleanup_mode"], "local_card_cleanup")
+        self.assertFalse(result["card"]["ai_autofill_active"])
+
+    def test_trigger_due_ai_followups_is_disabled(self) -> None:
+        self.assertEqual(self.service.trigger_due_ai_followups(), {"launched": [], "failed": []})
+
+    def test_agent_originated_update_does_not_refresh_legacy_fingerprint(self) -> None:
+        created = self.service.create_card(
+            {
+                "vehicle": "Toyota Corolla",
+                "title": "Автосопровождение",
+                "description": "Первичный текст",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+        bundle = self.store.read_bundle()
+        card = next(item for item in bundle["cards"] if item.id == card_id)
+        card.last_card_fingerprint = "legacy-fingerprint"
+        self.store.write_bundle(
+            columns=bundle["columns"],
+            cards=bundle["cards"],
+            stickies=bundle["stickies"],
+            cashboxes=bundle["cashboxes"],
+            cash_transactions=bundle["cash_transactions"],
+            events=bundle["events"],
+            settings=bundle["settings"],
+        )
+
+        updated = self.service.update_card(
             {
                 "card_id": card_id,
-                "actor_name": "AI",
-                "context_packet": {"kind": "compact_context", "scenario_id": "full_card_enrichment"},
+                "description": "Первичный текст\nVIN: WAUZZZ8V0JA000001",
+                "actor_name": get_agent_name(),
             }
         )
 
-        self.assertTrue(result["meta"]["launched"])
-        self.assertEqual(result["meta"]["scenario_id"], "full_card_enrichment")
-        self.assertFalse(result["card"]["ai_autofill_active"])
-        self.assertEqual(len(agent.autofill_calls), 1)
-        call = agent.autofill_calls[0]
-        self.assertEqual(call["source"], "ui_full_card_enrichment")
-        self.assertEqual(call["trigger"], "manual_enrichment")
-        self.assertEqual(call["payload"]["scenario_id"], "full_card_enrichment")
-        self.assertEqual(call["payload"]["context_packet"]["scenario_id"], "full_card_enrichment")
-
-    def test_trigger_due_ai_followups_skips_unchanged_then_enqueues_after_change(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "Toyota Corolla",
-                    "title": "Контроль карточки",
-                    "description": "Первичный осмотр",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-
-        self.assertEqual(len(agent.autofill_calls), 1)
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        initial_next_run = card.ai_next_run_at
-
-        unchanged_time = base + timedelta(minutes=41)
-        patches = self._patch_time(unchanged_time)
-        with patches[0], patches[1], patches[2]:
-            followup = self.service.trigger_due_ai_followups()
-        self.assertEqual(followup["launched"], [])
-        self.assertEqual(len(agent.autofill_calls), 1)
-
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        self.assertNotEqual(card.ai_next_run_at, initial_next_run)
-        deferred_next_run = card.ai_next_run_at
-
-        change_time = base + timedelta(minutes=50)
-        patches = self._patch_time(change_time)
-        with patches[0], patches[1], patches[2]:
-            self.service.update_card({"card_id": card_id, "description": "Появился код ошибки P0300"})
-
-        due_time = base + timedelta(minutes=102)
-        patches = self._patch_time(due_time)
-        with patches[0], patches[1], patches[2]:
-            launched = self.service.trigger_due_ai_followups()
-        self.assertEqual(len(launched["launched"]), 1)
-        self.assertEqual(len(agent.autofill_calls), 2)
-        self.assertEqual(agent.autofill_calls[-1]["trigger"], "adaptive_followup")
-
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        self.assertEqual(card.ai_run_count, 2)
-        self.assertNotEqual(card.ai_next_run_at, deferred_next_run)
-        messages = [entry["message"] for entry in card.ai_autofill_log]
-        self.assertTrue(any(message.startswith("Изменений не обнаружено. Повторная проверка отложена на ") for message in messages))
-        self.assertIn("Обнаружены изменения. Запущен повторный проход.", messages)
-
-    def test_trigger_due_ai_followups_slows_down_repeated_noop_passes(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "Toyota Corolla",
-                    "title": "Контроль карточки",
-                    "description": "Первичный осмотр",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        card.ai_run_count = 5
-        card.ai_next_run_at = base.isoformat()
-        self.store.write_bundle(
-            columns=bundle["columns"],
-            cards=bundle["cards"],
-            stickies=bundle["stickies"],
-            cashboxes=bundle["cashboxes"],
-            cash_transactions=bundle["cash_transactions"],
-            events=bundle["events"],
-            settings=bundle["settings"],
-        )
-
-        due_time = base + timedelta(minutes=1)
-        patches = self._patch_time(due_time)
-        with patches[0], patches[1], patches[2]:
-            launched = self.service.trigger_due_ai_followups()
-
-        self.assertEqual(launched["launched"], [])
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        self.assertEqual(card.ai_next_run_at, (due_time + timedelta(minutes=180)).isoformat())
-        self.assertTrue(any("Повторная проверка отложена на 180 мин." in entry["message"] for entry in card.ai_autofill_log))
-
-    def test_trigger_due_ai_followups_retries_after_failed_pass(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "Toyota Corolla",
-                    "title": "Контроль карточки",
-                    "description": "Первичный осмотр",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            self.service.set_card_ai_autofill(
-                {
-                    "card_id": card_id,
-                    "enabled": True,
-                    "prompt": "Добавляй только ИИ-комментарии.",
-                    "actor_name": "AI",
-                }
-            )
-        self.assertEqual(len(agent.autofill_calls), 1)
-        agent.latest_task_by_card[(card_id, "card_autofill")] = {"status": "failed"}
-
-        due_time = base + timedelta(minutes=46)
-        patches = self._patch_time(due_time)
-        with patches[0], patches[1], patches[2]:
-            launched = self.service.trigger_due_ai_followups()
-
-        self.assertEqual(len(launched["launched"]), 1)
-        self.assertEqual(len(agent.autofill_calls), 2)
-        self.assertEqual(agent.autofill_calls[-1]["trigger"], "retry_after_error")
-        self.assertEqual(agent.autofill_calls[-1]["payload"]["ai_autofill_prompt"], "Добавляй только ИИ-комментарии.")
-        messages = [entry["message"] for entry in self.service.get_card({"card_id": card_id})["card"]["ai_autofill_log"]]
-        self.assertIn("Предыдущий проход завершился ошибкой. Запущен безопасный повтор.", messages)
-
-    def test_trigger_due_ai_followups_allows_more_passes_for_active_diagnostic_cards(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "BMW X5",
-                    "title": "Диагностика DTC",
-                    "description": "VIN: WBAPF71060A798127\nОшибка P0300\nТечь антифриза",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        card.ai_run_count = 6
-        card.ai_next_run_at = (base + timedelta(minutes=41)).isoformat()
-        card.ai_autofill_until = (base + timedelta(hours=4)).isoformat()
-        card.last_card_fingerprint = "stale-fingerprint"
-        self.store.write_bundle(
-            columns=bundle["columns"],
-            cards=bundle["cards"],
-            stickies=bundle["stickies"],
-            cashboxes=bundle["cashboxes"],
-            cash_transactions=bundle["cash_transactions"],
-            events=bundle["events"],
-        )
-
-        due_time = base + timedelta(minutes=41)
-        patches = self._patch_time(due_time)
-        with patches[0], patches[1], patches[2]:
-            launched = self.service.trigger_due_ai_followups()
-
-        self.assertEqual(len(launched["launched"]), 1)
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        self.assertTrue(card.ai_autofill_active)
-        self.assertEqual(card.ai_run_count, 7)
-        messages = [entry["message"] for entry in card.ai_autofill_log]
-        self.assertIn("Обнаружены изменения. Запущен повторный проход.", messages)
-
-    def test_trigger_due_ai_followups_does_not_append_wait_log_when_task_already_running(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "BMW 320I",
-                    "title": "Радиатор",
-                    "description": "VIN: WBAPF71060A798127\nТечет радиатор",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        card.ai_next_run_at = (base + timedelta(minutes=41)).isoformat()
-        self.store.write_bundle(
-            columns=bundle["columns"],
-            cards=bundle["cards"],
-            stickies=bundle["stickies"],
-            cashboxes=bundle["cashboxes"],
-            cash_transactions=bundle["cash_transactions"],
-            events=bundle["events"],
-            settings=bundle["settings"],
-        )
-        before_log = list(card.ai_autofill_log)
-        agent.active_card_tasks.add((card_id, "card_autofill"))
-        due_time = base + timedelta(minutes=41)
-        patches = self._patch_time(due_time)
-        with patches[0], patches[1], patches[2]:
-            launched = self.service.trigger_due_ai_followups()
-        self.assertEqual(launched["launched"], [])
-        bundle = self.store.read_bundle()
-        card = next(item for item in bundle["cards"] if item.id == card_id)
-        self.assertEqual(card.ai_autofill_log, before_log)
-
-    def test_agent_originated_update_refreshes_autofill_fingerprint(self) -> None:
-        agent = _FakeAgentControl()
-        self.service.attach_agent_control(agent)
-        base = datetime(2026, 4, 12, 8, 0, 0, tzinfo=timezone.utc)
-        patches = self._patch_time(base)
-        with patches[0], patches[1], patches[2]:
-            created = self.service.create_card(
-                {
-                    "vehicle": "Toyota Corolla",
-                    "title": "Автосопровождение",
-                    "description": "Первичный текст",
-                    "deadline": {"hours": 2},
-                }
-            )
-            card_id = created["card"]["id"]
-            enabled = self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
-
-        fingerprint_before = enabled["card"]["last_card_fingerprint"]
-        update_time = base + timedelta(minutes=3)
-        patches = self._patch_time(update_time)
-        with patches[0], patches[1], patches[2]:
-            updated = self.service.update_card(
-                {
-                    "card_id": card_id,
-                    "description": "Первичный текст\nVIN: WAUZZZ8V0JA000001",
-                    "actor_name": get_agent_name(),
-                }
-            )
-
-        self.assertNotEqual(updated["card"]["last_card_fingerprint"], fingerprint_before)
-        expected = self.service._card_ai_fingerprint(next(item for item in self.store.read_bundle()["cards"] if item.id == card_id))
-        self.assertEqual(updated["card"]["last_card_fingerprint"], expected)
+        self.assertEqual(updated["card"]["last_card_fingerprint"], "legacy-fingerprint")
 
     def test_inconsistent_archived_card_with_open_repair_order_is_blocked_and_hidden(self) -> None:
         created = self.service.create_card(
