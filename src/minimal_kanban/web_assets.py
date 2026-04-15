@@ -3582,8 +3582,78 @@ BOARD_WEB_APP_HTML = "".join(
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
+    .repair-orders-search-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .repair-orders-search-spinner {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(176, 182, 170, 0.45);
+      border-top-color: rgba(176, 182, 170, 0.14);
+      opacity: 0;
+      transform: scale(0.84);
+      transition: opacity 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+      pointer-events: none;
+    }
+    .repair-orders-search-spinner.is-active {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16);
+      animation: repair-orders-search-spin 720ms linear infinite;
+    }
+    .repair-orders-table-head__searchable {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .repair-orders-search-scope {
+      position: relative;
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
+      border: 1px solid rgba(158, 164, 152, 0.5);
+      border-radius: 999px;
+      background: rgba(112, 118, 108, 0.16);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+      padding: 0;
+      cursor: pointer;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+    }
+    .repair-orders-search-scope::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 999px;
+      background: rgba(160, 164, 156, 0.36);
+      transition: background 140ms ease, box-shadow 140ms ease;
+    }
+    .repair-orders-search-scope:hover {
+      transform: scale(1.08);
+    }
+    .repair-orders-search-scope:active {
+      transform: scale(1.16);
+    }
+    .repair-orders-search-scope.is-active {
+      transform: scale(1.14);
+      border-color: rgba(112, 178, 106, 0.62);
+      background: rgba(44, 74, 41, 0.28);
+      box-shadow: 0 0 0 1px rgba(109, 174, 105, 0.18), 0 0 10px rgba(94, 162, 90, 0.18);
+    }
+    .repair-orders-search-scope.is-active::after {
+      background: rgba(126, 211, 117, 0.9);
+      box-shadow: 0 0 8px rgba(126, 211, 117, 0.32);
+    }
     .repair-orders-table-head__sum {
       text-align: right;
+    }
+    @keyframes repair-orders-search-spin {
+      to {
+        transform: rotate(360deg) scale(1);
+      }
     }
     .repair-orders-row {
       align-items: stretch;
@@ -4883,7 +4953,7 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
         <div class="repair-orders-controls">
         <div class="field field--compact">
-          <label for="repairOrdersSearchInput">ПОИСК</label>
+          <label for="repairOrdersSearchInput" class="repair-orders-search-label"><span>ПОИСК</span><span class="repair-orders-search-spinner" id="repairOrdersSearchSpinner" aria-hidden="true"></span></label>
           <input id="repairOrdersSearchInput" type="text" maxlength="120" placeholder="номер, владелец, телефон, авто, смысл">
         </div>
         <div class="field field--compact">
@@ -4904,13 +4974,13 @@ BOARD_WEB_APP_HTML = "".join(
       </div>
       <div class="wall-meta" id="repairOrdersMeta">ЗАГРУЗКА СПИСКА...</div>
       <div class="repair-orders-table-head" id="repairOrdersTableHead">
-        <div>Номер</div>
-        <div>Даты</div>
+        <div class="repair-orders-table-head__searchable"><span>№</span><button class="repair-orders-search-scope" type="button" data-repair-orders-search-field="number" aria-label="Искать по графе номер" title="Искать по графе номер"></button></div>
+        <div class="repair-orders-table-head__searchable"><span>Даты</span><button class="repair-orders-search-scope" type="button" data-repair-orders-search-field="date" aria-label="Искать по графе даты" title="Искать по графе даты"></button></div>
         <div>Оплата</div>
-        <div>Клиент</div>
-        <div>Телефон</div>
-        <div>Автомобиль</div>
-        <div>Смысл карточки</div>
+        <div class="repair-orders-table-head__searchable"><span>Клиент</span><button class="repair-orders-search-scope" type="button" data-repair-orders-search-field="client" aria-label="Искать по графе клиент" title="Искать по графе клиент"></button></div>
+        <div class="repair-orders-table-head__searchable"><span>Телефон</span><button class="repair-orders-search-scope" type="button" data-repair-orders-search-field="phone" aria-label="Искать по графе телефон" title="Искать по графе телефон"></button></div>
+        <div class="repair-orders-table-head__searchable"><span>Автомобиль</span><button class="repair-orders-search-scope" type="button" data-repair-orders-search-field="vehicle" aria-label="Искать по графе автомобиль" title="Искать по графе автомобиль"></button></div>
+        <div class="repair-orders-table-head__searchable"><span>Смысл карточки</span><button class="repair-orders-search-scope is-active" type="button" data-repair-orders-search-field="summary" aria-label="Искать по графе смысл карточки" title="Искать по графе смысл карточки"></button></div>
         <div class="repair-orders-table-head__sum">Внесено</div>
         <div class="repair-orders-table-head__sum">Сумма</div>
       </div>
@@ -5417,9 +5487,14 @@ BOARD_WEB_APP_HTML = "".join(
       unreadSeenInFlight: new Set(),
       repairOrdersFilter: 'open',
       repairOrdersQuery: '',
+      repairOrdersRemoteQuery: '',
+      repairOrdersSearchField: 'summary',
+      repairOrdersSearchLoading: false,
       repairOrdersSortBy: 'opened_at',
       repairOrdersSortDir: 'desc',
       repairOrdersLoadTimer: null,
+      repairOrdersItems: [],
+      repairOrdersMetaState: null,
       cashboxes: [],
       activeCashboxId: '',
       activeCashbox: null,
@@ -5506,6 +5581,7 @@ BOARD_WEB_APP_HTML = "".join(
     const REPAIR_ORDER_TAG_LIMIT = 5;
     const REPAIR_ORDER_SORT_FIELDS = ['number', 'opened_at', 'closed_at'];
     const REPAIR_ORDER_SORT_DIRECTIONS = ['asc', 'desc'];
+    const REPAIR_ORDER_SEARCH_FIELDS = ['number', 'date', 'client', 'phone', 'vehicle', 'summary'];
     const TAG_COLOR_OPTIONS = [
       { value: 'green', label: 'Зелёная' },
       { value: 'yellow', label: 'Жёлтая' },
@@ -5803,6 +5879,7 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxesButton: document.getElementById('cashboxesButton'),
       employeesButton: document.getElementById('employeesButton'),
       repairOrdersSearchInput: document.getElementById('repairOrdersSearchInput'),
+      repairOrdersSearchSpinner: document.getElementById('repairOrdersSearchSpinner'),
       repairOrdersSortBy: document.getElementById('repairOrdersSortBy'),
       repairOrdersSortDir: document.getElementById('repairOrdersSortDir'),
       gptWallButton: document.getElementById('gptWallButton'),
@@ -13037,19 +13114,52 @@ function renderCompactArchiveRows(cards) {
       return String(status || '').trim().toLowerCase() === 'closed';
     }
 
+    function normalizeRepairOrdersSearchField(value) {
+      const normalized = String(value || '').trim().toLowerCase();
+      return REPAIR_ORDER_SEARCH_FIELDS.includes(normalized) ? normalized : 'summary';
+    }
+
+    function repairOrdersSearchFieldLabel(field = state.repairOrdersSearchField) {
+      const normalized = normalizeRepairOrdersSearchField(field);
+      if (normalized === 'number') return '№';
+      if (normalized === 'date') return 'ДАТЫ';
+      if (normalized === 'client') return 'КЛИЕНТ';
+      if (normalized === 'phone') return 'ТЕЛЕФОН';
+      if (normalized === 'vehicle') return 'АВТОМОБИЛЬ';
+      return 'СМЫСЛ КАРТОЧКИ';
+    }
+
+    function repairOrdersSearchPlaceholder(field = state.repairOrdersSearchField) {
+      const normalized = normalizeRepairOrdersSearchField(field);
+      if (normalized === 'number') return 'поиск по номеру заказ-наряда';
+      if (normalized === 'date') return 'поиск по дате';
+      if (normalized === 'client') return 'поиск по клиенту';
+      if (normalized === 'phone') return 'поиск по телефону';
+      if (normalized === 'vehicle') return 'поиск по автомобилю';
+      return 'поиск по сути карточки';
+    }
+
+    function repairOrdersTableHeadSearchableHtml(label, field) {
+      const normalizedField = normalizeRepairOrdersSearchField(field);
+      const activeClass = state.repairOrdersSearchField === normalizedField ? ' is-active' : '';
+      const labelText = String(label || '').trim();
+      const titleText = 'Искать по графе ' + labelText.toLowerCase();
+      return '<div class="repair-orders-table-head__searchable"><span>' + escapeHtml(labelText) + '</span><button class="repair-orders-search-scope' + activeClass + '" type="button" data-repair-orders-search-field="' + escapeHtml(normalizedField) + '" aria-label="' + escapeHtml(titleText) + '" title="' + escapeHtml(titleText) + '"></button></div>';
+    }
+
     function repairOrdersColumnsValue(status = state.repairOrdersFilter) {
       repairOrdersIsClosedView(status);
       return 'minmax(35px, 46px) minmax(67px, 79px) minmax(100px, 116px) minmax(136px, 168px) minmax(147px, 179px) minmax(138px, 168px) minmax(501px, 4.666fr) minmax(82px, 96px) minmax(82px, 96px)';
     }
 
     function repairOrdersTableHeadHtml(status = state.repairOrdersFilter) {
-      return '<div>№</div>'
-        + '<div>Даты</div>'
+      return repairOrdersTableHeadSearchableHtml('№', 'number')
+        + repairOrdersTableHeadSearchableHtml('Даты', 'date')
         + '<div>Оплата</div>'
-        + '<div>Клиент</div>'
-        + '<div>Телефон</div>'
-        + '<div>Автомобиль</div>'
-        + '<div>Смысл карточки</div>'
+        + repairOrdersTableHeadSearchableHtml('Клиент', 'client')
+        + repairOrdersTableHeadSearchableHtml('Телефон', 'phone')
+        + repairOrdersTableHeadSearchableHtml('Автомобиль', 'vehicle')
+        + repairOrdersTableHeadSearchableHtml('Смысл карточки', 'summary')
         + '<div class="repair-orders-table-head__sum">Внесено</div>'
         + '<div class="repair-orders-table-head__sum">Сумма</div>';
     }
@@ -13059,6 +13169,13 @@ function renderCompactArchiveRows(cards) {
       }
       if (els.repairOrdersTableHead) {
         els.repairOrdersTableHead.innerHTML = repairOrdersTableHeadHtml(status);
+      }
+    }
+
+    function setRepairOrdersSearchLoading(isLoading) {
+      state.repairOrdersSearchLoading = Boolean(isLoading);
+      if (els.repairOrdersSearchSpinner) {
+        els.repairOrdersSearchSpinner.classList.toggle('is-active', state.repairOrdersSearchLoading);
       }
     }
 
@@ -13073,7 +13190,12 @@ function renderCompactArchiveRows(cards) {
     }
 
     function syncRepairOrdersControls() {
-      if (els.repairOrdersSearchInput) els.repairOrdersSearchInput.value = state.repairOrdersQuery;
+      if (els.repairOrdersSearchInput) {
+        const query = String(state.repairOrdersQuery || '');
+        if (els.repairOrdersSearchInput.value !== query) els.repairOrdersSearchInput.value = query;
+        els.repairOrdersSearchInput.placeholder = repairOrdersSearchPlaceholder(state.repairOrdersSearchField);
+      }
+      setRepairOrdersSearchLoading(state.repairOrdersSearchLoading);
       if (els.repairOrdersSortBy) els.repairOrdersSortBy.value = normalizeRepairOrdersSortBy(state.repairOrdersSortBy);
       if (els.repairOrdersSortDir) els.repairOrdersSortDir.value = normalizeRepairOrdersSortDir(state.repairOrdersSortDir);
     }
@@ -13084,7 +13206,7 @@ function renderCompactArchiveRows(cards) {
       params.set('status', state.repairOrdersFilter === 'closed' ? 'closed' : 'open');
       params.set('sort_by', normalizeRepairOrdersSortBy(state.repairOrdersSortBy));
       params.set('sort_dir', normalizeRepairOrdersSortDir(state.repairOrdersSortDir));
-      if (state.repairOrdersQuery) params.set('query', state.repairOrdersQuery);
+      if (state.repairOrdersRemoteQuery) params.set('query', state.repairOrdersRemoteQuery);
       return '/api/list_repair_orders?' + params.toString();
     }
 
@@ -13137,6 +13259,11 @@ function renderCompactArchiveRows(cards) {
 
     async function setRepairOrdersFilter(status, { openModal = false } = {}) {
       state.repairOrdersFilter = String(status || '').trim().toLowerCase() === 'closed' ? 'closed' : 'open';
+      if (state.repairOrdersLoadTimer) {
+        window.clearTimeout(state.repairOrdersLoadTimer);
+        state.repairOrdersLoadTimer = null;
+      }
+      setRepairOrdersSearchLoading(false);
       updateRepairOrdersTabs();
       await loadRepairOrders(openModal);
     }
@@ -13148,6 +13275,7 @@ function renderCompactArchiveRows(cards) {
         modalEl: els.repairOrdersModal,
         onSuccess: renderRepairOrders,
         onError: (error) => {
+          setRepairOrdersSearchLoading(false);
           setModalListError(
             els.repairOrdersMeta,
             els.repairOrdersList,
@@ -13215,6 +13343,96 @@ function renderCompactArchiveRows(cards) {
       return fallback || normalized || '0';
     };
 
+    function repairOrdersDisplayedDateForItem(item, isClosedView = repairOrdersIsClosedView()) {
+      const openedAt = repairOrderListDateDisplayValue(item?.opened_at || item?.created_at || item?.date || item?.updated_at);
+      const closedAt = repairOrderListDateDisplayValue(item?.closed_at);
+      return isClosedView ? (closedAt || openedAt || '-') : (openedAt || closedAt || '-');
+    }
+
+    function repairOrdersNormalizeSearchText(value) {
+      return String(value ?? '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[^a-zа-я0-9]+/gi, ' ')
+        .trim()
+        .replace(/\\s+/g, ' ');
+    }
+
+    function repairOrdersCompactSearchText(value) {
+      return String(value ?? '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[^a-zа-я0-9]+/gi, '');
+    }
+
+    function repairOrdersSearchTokens(value) {
+      const normalized = repairOrdersNormalizeSearchText(value);
+      return normalized ? normalized.split(' ').filter(Boolean) : [];
+    }
+
+    function repairOrdersSearchableText(item, field = state.repairOrdersSearchField) {
+      const normalizedField = normalizeRepairOrdersSearchField(field);
+      if (normalizedField === 'number') return String(item?.number || '').trim();
+      if (normalizedField === 'date') return repairOrdersDisplayedDateForItem(item);
+      if (normalizedField === 'client') return String(item?.client || '').trim();
+      if (normalizedField === 'phone') return String(item?.phone || '').trim();
+      if (normalizedField === 'vehicle') return String(item?.vehicle || '').trim();
+      return [
+        item?.summary,
+        item?.reason,
+        item?.heading,
+        item?.vehicle,
+        item?.client,
+      ].filter(Boolean).join(' ');
+    }
+
+    function repairOrdersMatchesSummarySearch(item, query) {
+      const normalizedQuery = repairOrdersNormalizeSearchText(query);
+      if (!normalizedQuery) return true;
+      const haystack = repairOrdersNormalizeSearchText(repairOrdersSearchableText(item, 'summary'));
+      if (!haystack) return false;
+      if (haystack.includes(normalizedQuery)) return true;
+      const hayTokens = haystack.split(' ').filter(Boolean);
+      const queryTokens = repairOrdersSearchTokens(query);
+      if (!queryTokens.length) return true;
+      return queryTokens.every((token) => hayTokens.some((word) => word.includes(token) || token.includes(word)));
+    }
+
+    function repairOrdersMatchesFieldSearch(item, field, query) {
+      const normalizedField = normalizeRepairOrdersSearchField(field);
+      const normalizedQuery = repairOrdersNormalizeSearchText(query);
+      if (!normalizedQuery) return true;
+      if (normalizedField === 'summary') return repairOrdersMatchesSummarySearch(item, query);
+      const fieldText = repairOrdersSearchableText(item, normalizedField);
+      const normalizedFieldText = repairOrdersNormalizeSearchText(fieldText);
+      if (normalizedFieldText.includes(normalizedQuery)) return true;
+      const compactQuery = repairOrdersCompactSearchText(query);
+      if (!compactQuery) return false;
+      const compactFieldText = repairOrdersCompactSearchText(fieldText);
+      return compactFieldText.includes(compactQuery);
+    }
+
+    function filterRepairOrdersItems(items = state.repairOrdersItems) {
+      const query = String(state.repairOrdersQuery || '').trim();
+      if (!query) return Array.isArray(items) ? items : [];
+      return (Array.isArray(items) ? items : []).filter((item) => repairOrdersMatchesFieldSearch(item, state.repairOrdersSearchField, query));
+    }
+
+    function repairOrdersEmptyStateText() {
+      if (String(state.repairOrdersQuery || '').trim()) return 'ПО ПОИСКУ НИЧЕГО НЕ НАЙДЕНО.';
+      return state.repairOrdersFilter === 'closed' ? 'АРХИВ ЗАКАЗ-НАРЯДОВ ПУСТ.' : 'ОТКРЫТЫХ ЗАКАЗ-НАРЯДОВ ПОКА НЕТ.';
+    }
+
+    function renderRepairOrdersView() {
+      const items = filterRepairOrdersItems(state.repairOrdersItems);
+      const meta = state.repairOrdersMetaState || {};
+      syncRepairOrdersControls();
+      els.repairOrdersMeta.textContent = repairOrdersMetaText(items, meta);
+      els.repairOrdersList.innerHTML = items.length
+        ? renderRepairOrderListRows(items)
+        : '<div class="log-row__meta">' + repairOrdersEmptyStateText() + '</div>';
+    }
+
     // СПИСОК: ДАТА / АВТО / СУТЬ / СУММА
     repairOrdersMetaText = function(items, meta) {
       const parts = [
@@ -13222,7 +13440,8 @@ function renderCompactArchiveRows(cards) {
         'ОТКРЫТЫЕ: ' + (meta.active_total ?? 0),
         'АРХИВ: ' + (meta.archived_total ?? 0),
       ];
-      if (meta.query) parts.push('ПОИСК: ' + String(meta.query).trim());
+      const activeQuery = String(state.repairOrdersQuery || meta.query || '').trim();
+      if (activeQuery) parts.push('ПОИСК: ' + repairOrdersSearchFieldLabel().toUpperCase() + ' = ' + activeQuery);
       const sortBy = normalizeRepairOrdersSortBy(meta.sort_by || state.repairOrdersSortBy);
       const sortDir = normalizeRepairOrdersSortDir(meta.sort_dir || state.repairOrdersSortDir);
       const sortLabel = sortBy === 'number' ? 'НОМЕР' : (sortBy === 'closed_at' ? 'ДАТА ЗАКРЫТИЯ' : 'ДАТА ОТКРЫТИЯ');
@@ -13335,20 +13554,17 @@ function renderCompactArchiveRows(cards) {
       const items = data?.repair_orders || [];
       const meta = data?.meta || {};
       if (meta.status === 'open' || meta.status === 'closed') state.repairOrdersFilter = meta.status;
-      state.repairOrdersQuery = String(meta.query ?? state.repairOrdersQuery ?? '').trim();
       state.repairOrdersSortBy = normalizeRepairOrdersSortBy(meta.sort_by || state.repairOrdersSortBy);
       state.repairOrdersSortDir = normalizeRepairOrdersSortDir(meta.sort_dir || state.repairOrdersSortDir);
+      state.repairOrdersItems = Array.isArray(items) ? items : [];
+      state.repairOrdersMetaState = meta;
       updateRepairOrdersTabs();
-      syncRepairOrdersControls();
-      els.repairOrdersMeta.textContent = repairOrdersMetaText(items, meta);
-      els.repairOrdersList.innerHTML = items.length
-        ? renderRepairOrderListRows(items)
-        : '<div class="log-row__meta">' + (state.repairOrdersQuery
-            ? 'ПО ПОИСКУ НИЧЕГО НЕ НАЙДЕНО.'
-            : (state.repairOrdersFilter === 'closed' ? 'АРХИВ ЗАКАЗ-НАРЯДОВ ПУСТ.' : 'ОТКРЫТЫХ ЗАКАЗ-НАРЯДОВ ПОКА НЕТ.')) + '</div>';
+      setRepairOrdersSearchLoading(false);
+      renderRepairOrdersView();
     };
 
     loadRepairOrders = async function(openModal = false) {
+      state.repairOrdersRemoteQuery = '';
       await loadModalData(repairOrdersRequestPath(), {
         openModal,
         modalEl: els.repairOrdersModal,
@@ -13364,16 +13580,44 @@ function renderCompactArchiveRows(cards) {
       });
     };
 
-    function handleRepairOrdersSearchInput() {
-      state.repairOrdersQuery = String(els.repairOrdersSearchInput?.value || '').trim();
+    function applyRepairOrdersSearch() {
       if (state.repairOrdersLoadTimer) window.clearTimeout(state.repairOrdersLoadTimer);
+      setRepairOrdersSearchLoading(true);
       state.repairOrdersLoadTimer = window.setTimeout(() => {
         state.repairOrdersLoadTimer = null;
-        loadRepairOrders(false);
-      }, 180);
+        window.requestAnimationFrame(() => {
+          renderRepairOrdersView();
+          setRepairOrdersSearchLoading(false);
+        });
+      }, 1000);
+    }
+
+    function handleRepairOrdersSearchInput() {
+      state.repairOrdersQuery = String(els.repairOrdersSearchInput?.value || '');
+      applyRepairOrdersSearch();
+    }
+
+    function handleRepairOrdersSearchFieldClick(event) {
+      const button = event.target.closest('[data-repair-orders-search-field]');
+      if (!button) return;
+      const nextField = normalizeRepairOrdersSearchField(button.dataset.repairOrdersSearchField);
+      if (state.repairOrdersSearchField === nextField) return;
+      if (state.repairOrdersLoadTimer) {
+        window.clearTimeout(state.repairOrdersLoadTimer);
+        state.repairOrdersLoadTimer = null;
+      }
+      setRepairOrdersSearchLoading(false);
+      state.repairOrdersSearchField = nextField;
+      syncRepairOrdersLayout();
+      renderRepairOrdersView();
     }
 
     function handleRepairOrdersSortChange() {
+      if (state.repairOrdersLoadTimer) {
+        window.clearTimeout(state.repairOrdersLoadTimer);
+        state.repairOrdersLoadTimer = null;
+      }
+      setRepairOrdersSearchLoading(false);
       state.repairOrdersSortBy = normalizeRepairOrdersSortBy(els.repairOrdersSortBy?.value);
       state.repairOrdersSortDir = normalizeRepairOrdersSortDir(els.repairOrdersSortDir?.value);
       loadRepairOrders(false);
@@ -14172,8 +14416,17 @@ function renderCompactArchiveRows(cards) {
     function openRepairOrdersModal() {
       state.repairOrdersFilter = 'open';
       state.repairOrdersQuery = '';
+      state.repairOrdersRemoteQuery = '';
+      state.repairOrdersSearchField = 'summary';
+      state.repairOrdersItems = [];
+      state.repairOrdersMetaState = null;
       state.repairOrdersSortBy = 'opened_at';
       state.repairOrdersSortDir = 'desc';
+      if (state.repairOrdersLoadTimer) {
+        window.clearTimeout(state.repairOrdersLoadTimer);
+        state.repairOrdersLoadTimer = null;
+      }
+      setRepairOrdersSearchLoading(false);
       updateRepairOrdersTabs();
       syncRepairOrdersControls();
       loadRepairOrders(true);
@@ -15244,6 +15497,7 @@ function renderCompactArchiveRows(cards) {
     els.repairOrdersOpenTab.addEventListener('click', () => setRepairOrdersFilter('open'));
     els.repairOrdersClosedTab.addEventListener('click', () => setRepairOrdersFilter('closed'));
     els.repairOrdersSearchInput.addEventListener('input', handleRepairOrdersSearchInput);
+    els.repairOrdersTableHead.addEventListener('click', handleRepairOrdersSearchFieldClick);
     els.repairOrdersSortBy.addEventListener('change', handleRepairOrdersSortChange);
     els.repairOrdersSortDir.addEventListener('change', handleRepairOrdersSortChange);
     els.cashboxCreateButton.addEventListener('click', createCashbox);
