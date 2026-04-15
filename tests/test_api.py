@@ -308,6 +308,14 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 401)
         self.assertEqual(blocked_autofill["error"]["details"]["auth_type"], "operator_session")
 
+        status, blocked_transfer = self.request(
+            "/api/create_cashbox_transfer",
+            {"from_cashbox_id": "CB1", "to_cashbox_id": "CB2", "amount": "100", "actor_name": "AUDIT"},
+            headers=proxy_headers,
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(blocked_transfer["error"]["details"]["auth_type"], "operator_session")
+
         status, logged_in = self.request(
             "/api/login_operator",
             {"username": "admin", "password": "admin"},
@@ -620,20 +628,48 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(transaction["data"]["transaction"]["amount_minor"], 250000)
 
+        status, destination_created = self.request("/api/create_cashbox", {"name": "Касса 2", "actor_name": "ADMIN"})
+        self.assertEqual(status, 200)
+        destination_cashbox = destination_created["data"]["cashbox"]
+
+        status, transferred = self.request(
+            "/api/create_cashbox_transfer",
+            {
+                "from_cashbox_id": cashbox["id"],
+                "to_cashbox_id": destination_cashbox["short_id"],
+                "amount": "500",
+                "note": "Перевод на запас",
+                "actor_name": "ADMIN",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(transferred["data"]["source_transaction"]["direction"], "expense")
+        self.assertEqual(transferred["data"]["target_transaction"]["direction"], "income")
+
         status, details = self.request(
             f"/api/get_cashbox?cashbox_id={cashbox['id']}&transaction_limit=10",
             method="GET",
         )
         self.assertEqual(status, 200)
-        self.assertEqual(details["data"]["cashbox"]["statistics"]["transactions_total"], 1)
-        self.assertEqual(details["data"]["transactions"][0]["note"], "Оплата клиента")
+        self.assertEqual(details["data"]["cashbox"]["statistics"]["transactions_total"], 2)
+        self.assertEqual(details["data"]["cashbox"]["statistics"]["balance_minor"], 200000)
+        self.assertIn("Перемещение в Касса 2", details["data"]["transactions"][0]["note"])
+
+        status, destination_details = self.request(
+            f"/api/get_cashbox?cashbox_id={destination_cashbox['id']}&transaction_limit=10",
+            method="GET",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(destination_details["data"]["cashbox"]["statistics"]["transactions_total"], 1)
+        self.assertEqual(destination_details["data"]["cashbox"]["statistics"]["balance_minor"], 50000)
+        self.assertIn("Перемещение из Касса 1", destination_details["data"]["transactions"][0]["note"])
 
         status, deleted = self.request("/api/delete_cashbox", {"cashbox_id": cashbox["id"], "actor_name": "ADMIN"})
         self.assertEqual(status, 400)
         self.assertFalse(deleted["ok"])
         self.assertIn("есть движения", deleted["error"]["message"])
 
-        status, empty_created = self.request("/api/create_cashbox", {"name": "Касса 2", "actor_name": "ADMIN"})
+        status, empty_created = self.request("/api/create_cashbox", {"name": "Касса 3", "actor_name": "ADMIN"})
         self.assertEqual(status, 200)
         empty_cashbox = empty_created["data"]["cashbox"]
 

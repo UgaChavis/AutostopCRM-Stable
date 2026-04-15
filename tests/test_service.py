@@ -691,6 +691,41 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(deleted["meta"]["removed_transactions"], 0)
         self.assertEqual(self.service.list_cashboxes()["meta"]["total"], 1)
 
+    def test_cashbox_transfer_moves_money_between_cashboxes(self) -> None:
+        source_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        target_cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
+
+        self.service.create_cash_transaction(
+            {
+                "cashbox_id": source_cashbox["id"],
+                "direction": "income",
+                "amount": "1000",
+                "note": "Стартовый остаток",
+                "actor_name": "ADMIN",
+            }
+        )
+
+        transferred = self.service.create_cashbox_transfer(
+            {
+                "from_cashbox_id": source_cashbox["short_id"],
+                "to_cashbox_id": target_cashbox["short_id"],
+                "amount": "250",
+                "note": "На размен",
+                "actor_name": "ADMIN",
+            }
+        )
+        self.assertEqual(transferred["source_transaction"]["direction"], "expense")
+        self.assertEqual(transferred["target_transaction"]["direction"], "income")
+        self.assertIn("Перемещение в Безналичный", transferred["source_transaction"]["note"])
+        self.assertIn("Перемещение из Наличный", transferred["target_transaction"]["note"])
+
+        source_details = self.service.get_cashbox({"cashbox_id": source_cashbox["id"], "transaction_limit": 10})
+        target_details = self.service.get_cashbox({"cashbox_id": target_cashbox["id"], "transaction_limit": 10})
+        self.assertEqual(source_details["cashbox"]["statistics"]["balance_minor"], 75000)
+        self.assertEqual(target_details["cashbox"]["statistics"]["balance_minor"], 25000)
+        self.assertEqual(source_details["cashbox"]["statistics"]["transactions_total"], 2)
+        self.assertEqual(target_details["cashbox"]["statistics"]["transactions_total"], 1)
+
     def test_cashbox_creation_is_capped_at_six_items(self) -> None:
         for index in range(6):
             created = self.service.create_cashbox({"name": f"Касса {index + 1}", "actor_name": "ADMIN"})

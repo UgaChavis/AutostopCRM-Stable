@@ -3903,6 +3903,8 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       align-items: center;
       justify-content: flex-start;
+      gap: 6px;
+      flex-wrap: wrap;
     }
     .cashboxes-actions .btn {
       min-height: 34px;
@@ -4031,12 +4033,10 @@ BOARD_WEB_APP_HTML = "".join(
       flex-wrap: wrap;
     }
     .cashbox-detail__head {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: start;
+      display: flex;
+      align-items: flex-start;
       gap: 10px;
     }
-    .cashbox-detail__actions { display: flex; justify-content: flex-end; }
     .cashbox-delete-button {
       border-color: rgba(135, 113, 109, 0.34);
       color: rgba(224, 214, 208, 0.78);
@@ -4695,7 +4695,8 @@ BOARD_WEB_APP_HTML = "".join(
         <div class="subpanel cashboxes-pane">
           <div class="panel-title">КАССЫ</div>
           <div class="cashboxes-actions">
-            <button class="btn btn--accent" id="cashboxCreateButton">+ ДОБАВИТЬ КАССУ</button>
+            <button class="btn btn--accent" id="cashboxCreateButton">+ ДОБАВИТЬ</button>
+            <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">- УДАЛИТЬ</button>
           </div>
           <div class="cashboxes-list" id="cashboxesList"></div>
         </div>
@@ -4705,9 +4706,6 @@ BOARD_WEB_APP_HTML = "".join(
               <div class="panel-title" id="cashboxDetailTitle">КАССА НЕ ВЫБРАНА</div>
               <div class="cashbox-detail__meta" id="cashboxDetailMeta"></div>
             </div>
-          </div>
-          <div class="cashbox-detail__actions">
-            <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">УДАЛИТЬ КАССУ</button>
           </div>
           <div class="cashbox-stats" id="cashboxStats"></div>
           <div class="cashbox-composer">
@@ -4723,6 +4721,7 @@ BOARD_WEB_APP_HTML = "".join(
             </div>
             <div class="cashbox-composer__actions">
               <button class="btn btn--accent" id="cashboxIncomeButton">+ ПОСТУПЛЕНИЕ</button>
+              <button class="btn" id="cashboxTransferButton">↔ ПЕРЕМЕЩЕНИЕ</button>
               <button class="btn" id="cashboxExpenseButton">- СПИСАНИЕ</button>
             </div>
           </div>
@@ -5594,14 +5593,15 @@ BOARD_WEB_APP_HTML = "".join(
       employeeDeleteButton: document.getElementById('employeeDeleteButton'),
       cashboxesList: document.getElementById('cashboxesList'),
       cashboxCreateButton: document.getElementById('cashboxCreateButton'),
+      cashboxDeleteButton: document.getElementById('cashboxDeleteButton'),
       cashboxDetailTitle: document.getElementById('cashboxDetailTitle'),
       cashboxDetailMeta: document.getElementById('cashboxDetailMeta'),
       cashboxStats: document.getElementById('cashboxStats'),
       cashboxAmountInput: document.getElementById('cashboxAmountInput'),
       cashboxNoteInput: document.getElementById('cashboxNoteInput'),
       cashboxIncomeButton: document.getElementById('cashboxIncomeButton'),
+      cashboxTransferButton: document.getElementById('cashboxTransferButton'),
       cashboxExpenseButton: document.getElementById('cashboxExpenseButton'),
-      cashboxDeleteButton: document.getElementById('cashboxDeleteButton'),
       cashboxTransactions: document.getElementById('cashboxTransactions'),
       repairOrdersOpenTab: document.getElementById('repairOrdersOpenTab'),
       repairOrdersClosedTab: document.getElementById('repairOrdersClosedTab'),
@@ -13840,11 +13840,24 @@ function renderCompactArchiveRows(cards) {
 
     function cashboxTransactionSourceLabel(item) {
       const note = String(item?.note || '').trim();
+      if (/^перемещение\b/i.test(note)) return 'перемещение';
       if (/заказ-наряд\\s*№/i.test(note)) return 'заказ-наряд';
       const source = String(item?.source || '').trim().toLowerCase();
       if (source === 'ui') return 'ручное';
       if (source === 'mcp') return 'mcp';
       return source ? source : 'система';
+    }
+
+    function resolveCashboxReference(value) {
+      const requested = String(value || '').trim();
+      if (!requested) return null;
+      const requestedLower = requested.toLowerCase();
+      return (Array.isArray(state.cashboxes) ? state.cashboxes : []).find((item) => {
+        const name = String(item?.name || '').trim().toLowerCase();
+        const shortId = String(item?.short_id || '').trim().toLowerCase();
+        const id = String(item?.id || '').trim().toLowerCase();
+        return requestedLower === name || requestedLower === shortId || requestedLower === id;
+      }) || null;
     }
 
     function syncCashboxFiltersUi() {
@@ -13908,6 +13921,7 @@ function renderCompactArchiveRows(cards) {
         els.cashboxDetailMeta.textContent = '';
         els.cashboxDeleteButton.disabled = true;
         els.cashboxIncomeButton.disabled = true;
+        els.cashboxTransferButton.disabled = true;
         els.cashboxExpenseButton.disabled = true;
         syncCashboxFiltersUi();
         els.cashboxStats.innerHTML = '';
@@ -13920,6 +13934,7 @@ function renderCompactArchiveRows(cards) {
       els.cashboxDetailMeta.textContent = '';
       els.cashboxDeleteButton.disabled = !canDelete;
       els.cashboxIncomeButton.disabled = false;
+      els.cashboxTransferButton.disabled = (Array.isArray(state.cashboxes) ? state.cashboxes.length : 0) < 2;
       els.cashboxExpenseButton.disabled = false;
       syncCashboxFiltersUi();
       renderCashboxStats();
@@ -14031,6 +14046,61 @@ function renderCompactArchiveRows(cards) {
         setStatus(error.message, true);
       } finally {
         els.cashboxDeleteButton.disabled = false;
+      }
+    }
+
+    async function createCashboxTransfer() {
+      const sourceCashbox = state.activeCashbox?.cashbox || null;
+      if (!sourceCashbox?.id) {
+        setStatus('СНАЧАЛА ВЫБЕРИТЕ КАССУ.', true);
+        return;
+      }
+      const availableCashboxes = (Array.isArray(state.cashboxes) ? state.cashboxes : []).filter((item) => item.id !== sourceCashbox.id);
+      if (!availableCashboxes.length) {
+        setStatus('НЕТ ДРУГОЙ КАССЫ ДЛЯ ПЕРЕМЕЩЕНИЯ.', true);
+        return;
+      }
+      const promptList = availableCashboxes.map((item) => {
+        const label = String(item?.name || '—').trim();
+        const shortId = String(item?.short_id || item?.id || '').trim();
+        return '- ' + label + ' [' + shortId + ']';
+      }).join('\\n');
+      const targetQuery = String(window.prompt('Куда перевести деньги?\\nУкажи название, short id или id кассы.\\n' + promptList, availableCashboxes[0]?.short_id || availableCashboxes[0]?.id || '') || '').trim();
+      const targetCashbox = resolveCashboxReference(targetQuery);
+      if (!targetCashbox || targetCashbox.id === sourceCashbox.id) {
+        setStatus('УКАЖИТЕ КАССУ ДЛЯ ПЕРЕМЕЩЕНИЯ.', true);
+        return;
+      }
+      const amount = String(els.cashboxAmountInput.value || '').trim();
+      if (!amount) {
+        setStatus('УКАЖИТЕ СУММУ.', true);
+        return;
+      }
+      try {
+        els.cashboxIncomeButton.disabled = true;
+        els.cashboxTransferButton.disabled = true;
+        els.cashboxExpenseButton.disabled = true;
+        await api('/api/create_cashbox_transfer', {
+          method: 'POST',
+          body: {
+            from_cashbox_id: sourceCashbox.id,
+            to_cashbox_id: targetCashbox.id,
+            amount,
+            note: String(els.cashboxNoteInput.value || '').trim(),
+            actor_name: state.actor,
+            source: 'ui',
+          },
+        });
+        els.cashboxAmountInput.value = '';
+        els.cashboxNoteInput.value = '';
+        await loadCashboxes(true);
+        setStatus('ПЕРЕМЕЩЕНИЕ СОХРАНЕНО.', false);
+      } catch (error) {
+        setStatus(error.message, true);
+      } finally {
+        els.cashboxIncomeButton.disabled = false;
+        els.cashboxTransferButton.disabled = false;
+        els.cashboxExpenseButton.disabled = false;
       }
     }
 
@@ -14717,6 +14787,7 @@ function renderCompactArchiveRows(cards) {
     remountElement('cashboxCreateButton');
     remountElement('cashboxDeleteButton');
     remountElement('cashboxIncomeButton');
+    remountElement('cashboxTransferButton');
     remountElement('cashboxExpenseButton');
     configureOperatorIdentityUi();
 
@@ -14744,6 +14815,7 @@ function renderCompactArchiveRows(cards) {
     els.cashboxCreateButton.addEventListener('click', createCashbox);
     els.cashboxDeleteButton.addEventListener('click', deleteActiveCashbox);
     els.cashboxIncomeButton.addEventListener('click', () => createCashboxTransaction('income'));
+    els.cashboxTransferButton.addEventListener('click', createCashboxTransfer);
     els.cashboxExpenseButton.addEventListener('click', () => createCashboxTransaction('expense'));
     els.cashboxesList.addEventListener('click', handleCashboxesListClick);
     els.cashboxesList.addEventListener('keydown', handleCashboxesListKeydown);

@@ -1030,6 +1030,80 @@ class CardService:
             )
             return {"cashbox": self._serialize_cashbox(cashbox, transactions)}
 
+    def create_cashbox_transfer(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cashboxes = bundle["cashboxes"]
+            transactions = bundle["cash_transactions"]
+            events = bundle["events"]
+            actor_name, source = self._audit_identity(payload, default_source="api")
+            source_cashbox = self._find_cashbox(cashboxes, payload.get("from_cashbox_id") or payload.get("cashbox_id"))
+            target_cashbox = self._find_cashbox(cashboxes, payload.get("to_cashbox_id") or payload.get("target_cashbox_id"))
+            if source_cashbox.id == target_cashbox.id:
+                self._fail("validation_error", "Нельзя переместить деньги в ту же кассу.", details={"field": "to_cashbox_id"})
+            amount_minor = self._validated_cash_amount_minor(payload)
+            base_note = self._validated_cash_transaction_note(payload.get("note"))
+            transfer_out_note = f"Перемещение в {target_cashbox.name}"
+            transfer_in_note = f"Перемещение из {source_cashbox.name}"
+            if base_note:
+                transfer_out_note = f"{transfer_out_note}: {base_note}"
+                transfer_in_note = f"{transfer_in_note}: {base_note}"
+            transfer_created_at = utc_now_iso()
+            source_transaction = self._append_cash_transaction(
+                transactions=transactions,
+                cashbox=source_cashbox,
+                direction="expense",
+                amount_minor=amount_minor,
+                note=transfer_out_note,
+                actor_name=actor_name,
+                source=source,
+                created_at=transfer_created_at,
+            )
+            target_transaction = self._append_cash_transaction(
+                transactions=transactions,
+                cashbox=target_cashbox,
+                direction="income",
+                amount_minor=amount_minor,
+                note=transfer_in_note,
+                actor_name=actor_name,
+                source=source,
+                created_at=transfer_created_at,
+            )
+            self._append_event(
+                events,
+                actor_name=actor_name,
+                source=source,
+                action="cashbox_transfer_created",
+                message=f"{actor_name} переместил деньги между кассами",
+                card_id=None,
+                details={
+                    "from_cashbox_id": source_cashbox.id,
+                    "from_cashbox_name": source_cashbox.name,
+                    "to_cashbox_id": target_cashbox.id,
+                    "to_cashbox_name": target_cashbox.name,
+                    "amount_minor": amount_minor,
+                    "amount_display": format_money_minor(amount_minor),
+                    "note": base_note,
+                    "source_transaction_id": source_transaction.id,
+                    "target_transaction_id": target_transaction.id,
+                },
+            )
+            self._save_bundle(
+                bundle,
+                columns=bundle["columns"],
+                cards=bundle["cards"],
+                cashboxes=cashboxes,
+                cash_transactions=transactions,
+                events=events,
+            )
+            return {
+                "from_cashbox": self._serialize_cashbox(source_cashbox, transactions),
+                "to_cashbox": self._serialize_cashbox(target_cashbox, transactions),
+                "source_transaction": self._serialize_cash_transaction(source_transaction),
+                "target_transaction": self._serialize_cash_transaction(target_transaction),
+            }
+
     def delete_cashbox(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
@@ -1084,19 +1158,15 @@ class CardService:
             events = bundle["events"]
             actor_name, source = self._audit_identity(payload, default_source="api")
             cashbox = self._find_cashbox(cashboxes, payload.get("cashbox_id"))
-            transaction = CashTransaction(
-                id=str(uuid.uuid4()),
-                cashbox_id=cashbox.id,
+            transaction = self._append_cash_transaction(
+                transactions=transactions,
+                cashbox=cashbox,
                 direction=normalize_cash_direction(payload.get("direction"), default="income"),
                 amount_minor=self._validated_cash_amount_minor(payload),
                 note=self._validated_cash_transaction_note(payload.get("note")),
-                created_at=utc_now_iso(),
                 actor_name=actor_name,
                 source=source,
             )
-            transactions.append(transaction)
-            transactions.sort(key=lambda item: (item.created_at, item.id))
-            cashbox.updated_at = transaction.created_at
             self._append_event(
                 events,
                 actor_name=actor_name,
@@ -1125,6 +1195,33 @@ class CardService:
                 "cashbox": self._serialize_cashbox(cashbox, transactions),
                 "transaction": self._serialize_cash_transaction(transaction),
             }
+
+    def _append_cash_transaction(
+        self,
+        *,
+        transactions: list[CashTransaction],
+        cashbox: CashBox,
+        direction: str,
+        amount_minor: int,
+        note: str,
+        actor_name: str,
+        source: str,
+        created_at: str | None = None,
+    ) -> CashTransaction:
+        transaction = CashTransaction(
+            id=str(uuid.uuid4()),
+            cashbox_id=cashbox.id,
+            direction=direction,
+            amount_minor=amount_minor,
+            note=note,
+            created_at=created_at or utc_now_iso(),
+            actor_name=actor_name,
+            source=source,
+        )
+        transactions.append(transaction)
+        transactions.sort(key=lambda item: (item.created_at, item.id))
+        cashbox.updated_at = transaction.created_at
+        return transaction
 
     def update_board_settings(self, payload: dict | None = None) -> dict:
         with self._lock:
