@@ -6080,7 +6080,17 @@ BOARD_WEB_APP_HTML = "".join(
               + '<div class="employees-layout">'
                 + '<div class="employees-pane employees-pane--list">'
                   + '<div class="subpanel">'
-                    + '<div class="employees-panel-head"><div class="panel-title">СПИСОК СОТРУДНИКОВ</div></div>'
+                    + '<div class="employees-panel-head">'
+                      + '<div class="panel-title">СПИСОК СОТРУДНИКОВ</div>'
+                      + '<div class="employees-list-meta" id="employeesListMeta"></div>'
+                    + '</div>'
+                    + '<div class="employees-list-tools">'
+                      + '<input class="employees-search" id="employeesSearchInput" type="search" placeholder="ПОИСК ПО ИМЕНИ, ДОЛЖНОСТИ И ЗАМЕТКЕ">'
+                      + '<div class="employees-filterbar" id="employeesVisibilityFilters">'
+                        + '<button class="btn is-active" type="button" data-filter="active">АКТИВНЫЕ</button>'
+                        + '<button class="btn btn--ghost" type="button" data-filter="all">ВСЕ</button>'
+                      + '</div>'
+                    + '</div>'
                     + '<div class="employees-list" id="employeesList"></div>'
                   + '</div>'
                 + '</div>'
@@ -6093,6 +6103,7 @@ BOARD_WEB_APP_HTML = "".join(
                       + '</div>'
                       + '<div class="employees-card-actions">'
                         + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">ДОБАВИТЬ</button>'
+                        + '<button class="btn btn--ghost" id="employeeToggleButton" type="button">ВЫКЛЮЧИТЬ</button>'
                         + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
                         + '<button class="btn btn--ghost" id="employeeDeleteButton" type="button">УДАЛИТЬ</button>'
                       + '</div>'
@@ -6254,6 +6265,7 @@ BOARD_WEB_APP_HTML = "".join(
       employeeActiveInput: document.getElementById('employeeActiveInput'),
       employeeSaveButton: document.getElementById('employeeSaveButton'),
       employeeDeleteButton: document.getElementById('employeeDeleteButton'),
+      employeeToggleButton: document.getElementById('employeeToggleButton'),
       employeeSalaryTitle: document.getElementById('employeeSalaryTitle'),
       employeeSalaryBalance: document.getElementById('employeeSalaryBalance'),
       employeeSalarySummary: document.getElementById('employeeSalarySummary'),
@@ -6466,6 +6478,7 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeActiveInput = document.getElementById('employeeActiveInput');
       els.employeeSaveButton = document.getElementById('employeeSaveButton');
       els.employeeDeleteButton = document.getElementById('employeeDeleteButton');
+      els.employeeToggleButton = document.getElementById('employeeToggleButton');
       els.employeeSalaryTitle = document.getElementById('employeeSalaryTitle');
       els.employeeSalaryBalance = document.getElementById('employeeSalaryBalance');
       els.employeeSalarySummary = document.getElementById('employeeSalarySummary');
@@ -7765,7 +7778,10 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeesCreateButton?.addEventListener('click', addEmployeeFromForm);
       els.employeeSaveButton?.addEventListener('click', saveEmployee);
       els.employeeDeleteButton?.addEventListener('click', deleteEmployee);
+      els.employeeToggleButton?.addEventListener('click', toggleEmployee);
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
+      els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);
+      els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);
       els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
       els.employeesReportTabs?.addEventListener('click', handleEmployeesReportTabClick);
       els.employeesList?.addEventListener('click', handleEmployeesListClick);
@@ -8257,7 +8273,9 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function normalizeEmployeesVisibilityFilter(value) {
-      return String(value || '').trim() === 'all' ? 'all' : 'active';
+      const normalized = String(value || '').trim();
+      if (normalized === 'all') return 'all';
+      return 'active';
     }
 
     function employeeSalaryModeLabel(mode) {
@@ -8311,7 +8329,53 @@ BOARD_WEB_APP_HTML = "".join(
 
     function filteredEmployeesList() {
       const employees = Array.isArray(state.employees) ? state.employees : [];
-      return employees.slice().sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || ''), 'ru'));
+      const query = String(state.employeesQuery || '').trim().toLowerCase();
+      const visibilityFilter = normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter);
+      return employees
+        .filter((employee) => {
+          if (!employee) return false;
+          if (visibilityFilter === 'active' && !Boolean(employee.is_active)) return false;
+          if (!query) return true;
+          const haystack = [
+            employee.name,
+            employee.position,
+            employee.note,
+            employee.base_salary,
+            employee.work_percent,
+            employeeSalaryModeLabel(employee.salary_mode),
+            employee.is_active ? 'активен' : 'выключен',
+          ].map((item) => String(item || '').toLowerCase()).join(' ');
+          return haystack.includes(query);
+        })
+        .slice()
+        .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || ''), 'ru'));
+    }
+
+    function updateEmployeesListMeta() {
+      if (!els.employeesListMeta) return;
+      const employees = Array.isArray(state.employees) ? state.employees : [];
+      const visibleEmployees = filteredEmployeesList();
+      const activeCount = employees.filter((item) => item && item.is_active).length;
+      const query = String(state.employeesQuery || '').trim();
+      const filterLabel = normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter) === 'all' ? 'ВСЕ' : 'АКТИВНЫЕ';
+      const parts = [
+        String(visibleEmployees.length),
+        'ИЗ',
+        String(employees.length),
+        '·',
+        filterLabel,
+        '·',
+        String(activeCount),
+        'АКТИВН.',
+      ];
+      if (query) parts.push('·', 'ФИЛЬТР', '«' + query + '»');
+      els.employeesListMeta.textContent = parts.join(' ');
+    }
+
+    function renderEmployeesListPanel() {
+      syncEmployeesVisibilityFilterUi();
+      renderEmployeesList();
+      updateEmployeesListMeta();
     }
 
     function payrollSummaryMap() {
@@ -8393,6 +8457,10 @@ BOARD_WEB_APP_HTML = "".join(
       }
       if (els.employeeDeleteButton) {
         els.employeeDeleteButton.disabled = !current;
+      }
+      if (els.employeeToggleButton) {
+        els.employeeToggleButton.disabled = !current;
+        els.employeeToggleButton.textContent = current && current.is_active ? 'ВЫКЛЮЧИТЬ' : 'ВКЛЮЧИТЬ';
       }
       state.employeeFormBaseline = employeeComparableSnapshot(current);
       syncEmployeeSalaryModeUi();
@@ -8683,11 +8751,14 @@ BOARD_WEB_APP_HTML = "".join(
         state.activeEmployeeId = '';
         state.employeeCreateMode = true;
       }
+      if (els.employeesSearchInput) {
+        els.employeesSearchInput.value = state.employeesQuery || '';
+      }
       if (els.employeesMonthInput) {
         els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
       }
       fillEmployeeForm(state.employeeCreateMode ? null : selectedEmployeeRecord());
-      renderEmployeesList();
+      renderEmployeesListPanel();
       renderEmployeesSummary();
       renderEmployeesSummaryStrip();
       renderEmployeesDetails();
@@ -8726,6 +8797,16 @@ BOARD_WEB_APP_HTML = "".join(
       renderEmployeesWorkspace();
       refreshRepairOrderEmployeeSelects();
       if (openModal) els.employeesModal.classList.add('is-open');
+    }
+
+    async function setEmployeesVisibilityFilter(filter) {
+      state.employeesVisibilityFilter = normalizeEmployeesVisibilityFilter(filter);
+      renderEmployeesListPanel();
+    }
+
+    async function setEmployeesSearchQuery(query) {
+      state.employeesQuery = String(query || '').trim();
+      renderEmployeesListPanel();
     }
 
     async function addEmployeeFromForm() {
@@ -8802,6 +8883,50 @@ BOARD_WEB_APP_HTML = "".join(
       } catch (error) {
         setStatus(error.message, true);
       }
+    }
+
+    async function toggleEmployee() {
+      const employee = selectedEmployeeRecord();
+      if (!employee) {
+        setStatus('ВЫБЕРИ СОТРУДНИКА ДЛЯ ПЕРЕКЛЮЧЕНИЯ.', true);
+        return;
+      }
+      try {
+        const data = await api('/api/toggle_employee', {
+          method: 'POST',
+          body: {
+            employee_id: employee.id,
+            actor_name: state.actor,
+            source: 'ui',
+          },
+        });
+        state.employees = Array.isArray(data?.employees) ? data.employees : [];
+        state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
+        state.employeeCreateMode = false;
+        await loadPayrollReport();
+        renderEmployeesWorkspace();
+        refreshRepairOrderEmployeeSelects();
+        setStatus(data?.employee?.is_active ? 'СОТРУДНИК АКТИВЕН.' : 'СОТРУДНИК ВЫКЛЮЧЕН.', false);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    function handleEmployeesSearchInput(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      state.employeesQuery = String(target.value || '').trim();
+      renderEmployeesListPanel();
+    }
+
+    function handleEmployeesVisibilityFilterClick(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-filter]');
+      if (!(button instanceof HTMLElement)) return;
+      const nextFilter = normalizeEmployeesVisibilityFilter(button.dataset.filter);
+      state.employeesVisibilityFilter = nextFilter;
+      renderEmployeesListPanel();
     }
 
     function handleEmployeesListClick(event) {

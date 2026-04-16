@@ -1248,6 +1248,19 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(len(listed_after["data"]["employees"]), 1)
         self.assertEqual(listed_after["data"]["employees"][0]["id"], first["data"]["employee"]["id"])
 
+    def test_employee_routes_toggle_active_state(self) -> None:
+        status, saved = self.request("/api/save_employee", {"name": "Иван", "position": "Мастер"})
+        self.assertEqual(status, 200)
+        employee_id = saved["data"]["employee"]["id"]
+
+        status, toggled_off = self.request("/api/toggle_employee", {"employee_id": employee_id})
+        self.assertEqual(status, 200)
+        self.assertFalse(toggled_off["data"]["employee"]["is_active"])
+
+        status, toggled_on = self.request("/api/toggle_employee", {"employee_id": employee_id})
+        self.assertEqual(status, 200)
+        self.assertTrue(toggled_on["data"]["employee"]["is_active"])
+
     def test_employee_routes_support_up_to_fifteen_and_reject_sixteenth(self) -> None:
         checkpoints = {1, 2, 3, 10, 15}
         seen_ids: set[str] = set()

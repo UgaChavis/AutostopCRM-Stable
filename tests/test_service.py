@@ -738,6 +738,17 @@ class CardServiceTests(unittest.TestCase):
         self.assertNotEqual(first["id"], second["id"])
         self.assertCountEqual([item["name"] for item in listed], ["Иван", "Пётр"])
 
+    def test_employee_toggle_updates_active_state(self) -> None:
+        employee = self.service.save_employee({"name": "Иван", "position": "Мастер"})["employee"]
+
+        toggled_off = self.service.toggle_employee({"employee_id": employee["id"], "actor_name": "ADMIN"})
+        self.assertFalse(toggled_off["employee"]["is_active"])
+        self.assertTrue(any(item["id"] == employee["id"] and not item["is_active"] for item in toggled_off["employees"]))
+
+        toggled_on = self.service.toggle_employee({"employee_id": employee["id"], "actor_name": "ADMIN"})
+        self.assertTrue(toggled_on["employee"]["is_active"])
+        self.assertTrue(any(item["id"] == employee["id"] and item["is_active"] for item in toggled_on["employees"]))
+
     def test_employee_creation_rejects_more_than_fifteen_records(self) -> None:
         for index in range(15):
             self.service.save_employee({"name": f"Сотрудник {index + 1}"})
