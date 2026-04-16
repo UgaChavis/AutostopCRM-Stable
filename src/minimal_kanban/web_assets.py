@@ -15056,7 +15056,7 @@ function renderCompactArchiveRows(cards) {
       }
       const amount = cashboxFormatMinorAmount(latestTransaction.amount_minor || 0).replace(/^-/, '');
       const note = String(latestTransaction.note || '').trim() || 'Без комментария';
-      if (!window.confirm('Отменить последнее движение по кассе "' + String(cashbox.name || '').trim() + '"?\n' + note + '\n' + amount)) {
+      if (!window.confirm('Отменить последнее движение по кассе "' + String(cashbox.name || '').trim() + '"?\\n' + note + '\\n' + amount)) {
         return;
       }
       try {
