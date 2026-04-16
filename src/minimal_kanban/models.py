@@ -670,6 +670,9 @@ class CashTransaction:
     created_at: str
     actor_name: str
     source: AuditSource
+    employee_id: str = ""
+    employee_name: str = ""
+    transaction_kind: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -683,6 +686,9 @@ class CashTransaction:
             "created_at": self.created_at,
             "actor_name": self.actor_name,
             "source": self.source,
+            "employee_id": self.employee_id,
+            "employee_name": self.employee_name,
+            "transaction_kind": self.transaction_kind,
         }
 
     def to_storage_dict(self) -> dict[str, Any]:
@@ -695,6 +701,9 @@ class CashTransaction:
             "created_at": self.created_at,
             "actor_name": self.actor_name,
             "source": self.source,
+            "employee_id": self.employee_id,
+            "employee_name": self.employee_name,
+            "transaction_kind": self.transaction_kind,
         }
 
     @classmethod
@@ -714,6 +723,9 @@ class CashTransaction:
             created_at=created_at.isoformat(),
             actor_name=normalize_actor_name(payload.get("actor_name")),
             source=normalize_source(payload.get("source"), default="api"),
+            employee_id=normalize_text(payload.get("employee_id"), default="", limit=64),
+            employee_name=normalize_text(payload.get("employee_name"), default="", limit=80),
+            transaction_kind=normalize_text(payload.get("transaction_kind"), default="", limit=32),
         )
 
 

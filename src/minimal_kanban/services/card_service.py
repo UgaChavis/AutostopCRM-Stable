@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 from io import BytesIO
@@ -1202,6 +1202,9 @@ class CardService:
                 note=self._validated_cash_transaction_note(payload.get("note")),
                 actor_name=actor_name,
                 source=source,
+                employee_id=normalize_text(payload.get("employee_id"), default="", limit=64),
+                employee_name=normalize_text(payload.get("employee_name"), default="", limit=80),
+                transaction_kind=normalize_text(payload.get("transaction_kind"), default="", limit=32),
             )
             self._append_event(
                 events,
@@ -1230,6 +1233,78 @@ class CardService:
             return {
                 "cashbox": self._serialize_cashbox(cashbox, transactions),
                 "transaction": self._serialize_cash_transaction(transaction),
+            }
+
+    def create_employee_salary_transaction(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cashboxes = bundle["cashboxes"]
+            transactions = bundle["cash_transactions"]
+            events = bundle["events"]
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+            settings = bundle["settings"]
+            employees = self._employees_from_settings(settings)
+            employee_id = normalize_text(payload.get("employee_id"), default="", limit=64)
+            if not employee_id:
+                self._fail("validation_error", "Нужно передать employee_id.", details={"field": "employee_id"})
+            employee = next((item for item in employees if item["id"] == employee_id), None)
+            if employee is None:
+                self._fail("not_found", "Сотрудник не найден.", status_code=404, details={"employee_id": employee_id})
+            kind = self._normalize_salary_transaction_kind(payload.get("transaction_kind") or payload.get("kind"))
+            amount_minor = self._validated_cash_amount_minor(payload)
+            cashbox = self._salary_cashbox(cashboxes)
+            if cashbox is None:
+                self._fail(
+                    "validation_error",
+                    "Для выплат зарплаты нужна касса \"Наличный\".",
+                    details={"cashbox_name": "Наличный"},
+                )
+            note_prefix = "Выплата зарплаты" if kind == "salary_payout" else "Аванс"
+            note = self._validated_cash_transaction_note(
+                payload.get("note") or f"{note_prefix}: {employee['name']}",
+            )
+            transaction = self._append_cash_transaction(
+                transactions=transactions,
+                cashbox=cashbox,
+                direction="expense",
+                amount_minor=amount_minor,
+                note=note,
+                actor_name=actor_name,
+                source=source,
+                employee_id=employee["id"],
+                employee_name=employee["name"],
+                transaction_kind=kind,
+            )
+            self._append_event(
+                events,
+                actor_name=actor_name,
+                source=source,
+                action="employee_salary_transaction_created",
+                message=f"{actor_name} провёл {'выплату зарплаты' if kind == 'salary_payout' else 'аванс'} сотруднику",
+                card_id=None,
+                details={
+                    "employee_id": employee["id"],
+                    "employee_name": employee["name"],
+                    "transaction_kind": kind,
+                    "cashbox_id": cashbox.id,
+                    "cashbox_name": cashbox.name,
+                    "amount_minor": transaction.amount_minor,
+                    "amount_display": format_money_minor(transaction.amount_minor),
+                },
+            )
+            self._save_bundle(
+                bundle,
+                columns=bundle["columns"],
+                cards=bundle["cards"],
+                cashboxes=cashboxes,
+                cash_transactions=transactions,
+                events=events,
+            )
+            return {
+                "cashbox": self._serialize_cashbox(cashbox, transactions),
+                "transaction": self._serialize_cash_transaction(transaction),
+                "employee": employee,
             }
 
     def cancel_last_cash_transaction(self, payload: dict | None = None) -> dict:
@@ -1344,6 +1419,9 @@ class CardService:
         actor_name: str,
         source: str,
         created_at: str | None = None,
+        employee_id: str = "",
+        employee_name: str = "",
+        transaction_kind: str = "",
     ) -> CashTransaction:
         transaction = CashTransaction(
             id=str(uuid.uuid4()),
@@ -1354,6 +1432,9 @@ class CardService:
             created_at=created_at or utc_now_iso(),
             actor_name=actor_name,
             source=source,
+            employee_id=normalize_text(employee_id, default="", limit=64),
+            employee_name=normalize_text(employee_name, default="", limit=80),
+            transaction_kind=normalize_text(transaction_kind, default="", limit=32),
         )
         transactions.append(transaction)
         transactions.sort(key=lambda item: (item.created_at, item.id))
@@ -1964,6 +2045,137 @@ class CardService:
                 "summary": report["summary"],
                 "detail_rows": report["detail_rows"],
             }
+
+    def _build_employee_salary_ledger(
+        self,
+        cards: list[Card],
+        cashboxes: list[CashBox],
+        cash_transactions: list[CashTransaction],
+        employee: dict[str, Any],
+        *,
+        months: int = 6,
+    ) -> dict[str, Any]:
+        period_start = utc_now() - timedelta(days=30 * months)
+        employee_id = employee["id"]
+        cashboxes_by_id = {cashbox.id: cashbox for cashbox in cashboxes}
+        journal_rows: list[dict[str, Any]] = []
+        accrual_total = Decimal("0")
+        payout_total = Decimal("0")
+        advance_total = Decimal("0")
+
+        for card in cards:
+            order = card.repair_order
+            if order.status != REPAIR_ORDER_STATUS_CLOSED:
+                continue
+            closed_at = self._parse_repair_order_datetime(order.closed_at)
+            if closed_at is None:
+                continue
+            is_recent = closed_at >= period_start
+            for source_row in order.works:
+                row = RepairOrderRow.from_dict(source_row.to_dict() if isinstance(source_row, RepairOrderRow) else source_row)
+                if row.executor_id != employee_id:
+                    continue
+                amount = self._parse_payroll_decimal(row.salary_amount)
+                accrual_total += amount
+                if not is_recent:
+                    continue
+                journal_rows.append(
+                    {
+                        "kind": "accrual",
+                        "kind_label": "НАЧИСЛЕНИЕ",
+                        "created_at": order.closed_at,
+                        "closed_at": order.closed_at,
+                        "repair_order_number": order.number,
+                        "card_id": card.id,
+                        "vehicle": order.vehicle or card.vehicle,
+                        "work_name": row.name,
+                        "amount_display": self._format_payroll_decimal(amount),
+                        "source_label": "заказ-наряд",
+                    }
+                )
+
+        for transaction in cash_transactions:
+            if transaction.employee_id != employee_id:
+                continue
+            kind = normalize_text(transaction.transaction_kind, default="", limit=32).casefold()
+            if kind not in {"salary_payout", "salary_advance"}:
+                continue
+            amount = Decimal(transaction.amount_minor) / Decimal("100")
+            if kind == "salary_payout":
+                payout_total += amount
+                kind_label = "ВЫПЛАТА"
+            else:
+                advance_total += amount
+                kind_label = "АВАНС"
+            created_at = parse_datetime(transaction.created_at)
+            if created_at is not None and created_at < period_start:
+                continue
+            cashbox_name = cashboxes_by_id.get(transaction.cashbox_id).name if cashboxes_by_id.get(transaction.cashbox_id) else "касса"
+            journal_rows.append(
+                {
+                    "kind": kind,
+                    "kind_label": kind_label,
+                    "created_at": transaction.created_at,
+                    "closed_at": "",
+                    "repair_order_number": "",
+                    "card_id": "",
+                    "vehicle": "",
+                    "work_name": "",
+                    "amount_display": format_money_minor(transaction.amount_minor),
+                    "source_label": cashbox_name,
+                    "cashbox_id": transaction.cashbox_id,
+                    "note": transaction.note,
+                }
+            )
+
+        journal_rows.sort(
+            key=lambda item: (
+                self._repair_order_sortable_datetime(item["created_at"]),
+                item["kind_label"],
+                item.get("repair_order_number") or "",
+                item.get("work_name") or "",
+            ),
+            reverse=True,
+        )
+        balance_total = accrual_total - payout_total - advance_total
+        return {
+            "employee_id": employee_id,
+            "employee_name": employee["name"],
+            "position": employee["position"],
+            "period_months": months,
+            "period_start": period_start.isoformat(),
+            "balance_total": self._format_payroll_decimal(balance_total),
+            "balance_display": self._format_payroll_decimal(balance_total),
+            "accrued_total": self._format_payroll_decimal(accrual_total),
+            "accrued_total_display": self._format_payroll_decimal(accrual_total),
+            "payout_total": self._format_payroll_decimal(payout_total),
+            "payout_total_display": self._format_payroll_decimal(payout_total),
+            "advance_total": self._format_payroll_decimal(advance_total),
+            "advance_total_display": self._format_payroll_decimal(advance_total),
+            "journal_rows": journal_rows,
+            "journal_total": len(journal_rows),
+        }
+
+    def get_employee_salary_ledger(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            employees = self._employees_from_settings(bundle["settings"])
+            employee_id = normalize_text(payload.get("employee_id"), default="", limit=64)
+            if not employee_id:
+                self._fail("validation_error", "Нужно передать employee_id.", details={"field": "employee_id"})
+            months = self._validated_limit(payload.get("months"), default=6, maximum=12)
+            employee = next((item for item in employees if item["id"] == employee_id), None)
+            if employee is None:
+                self._fail("not_found", "Сотрудник не найден.", status_code=404, details={"employee_id": employee_id})
+            ledger = self._build_employee_salary_ledger(
+                bundle["cards"],
+                bundle["cashboxes"],
+                bundle["cash_transactions"],
+                employee,
+                months=months,
+            )
+            return ledger
 
     def get_repair_order_text_download(self, card_id: str) -> tuple[Path, str]:
         with self._lock:
@@ -3114,6 +3326,9 @@ class CardService:
         return f"{sign}{absolute_amount:,}".replace(",", " ") + " ₽"
 
     def _cash_transaction_source_label(self, transaction: CashTransaction) -> str:
+        transaction_kind = self._cash_transaction_kind_label(transaction.transaction_kind)
+        if transaction_kind:
+            return transaction_kind
         note = normalize_text(transaction.note, default="", limit=240)
         if note.casefold().startswith("перемещение"):
             return "перемещение"
@@ -3125,6 +3340,33 @@ class CardService:
         if source == "mcp":
             return "mcp"
         return source or "система"
+
+    def _cash_transaction_kind_label(self, transaction_kind: str) -> str:
+        normalized = normalize_text(transaction_kind, default="", limit=32).casefold()
+        if normalized == "salary_payout":
+            return "зарплата"
+        if normalized == "salary_advance":
+            return "аванс"
+        return ""
+
+    def _normalize_salary_transaction_kind(self, value: Any) -> str:
+        normalized = normalize_text(value, default="", limit=32).casefold()
+        if normalized in {"salary_payout", "payout", "salary", "salary_payment"}:
+            return "salary_payout"
+        if normalized in {"salary_advance", "advance", "avans"}:
+            return "salary_advance"
+        self._fail("validation_error", "Неверный тип операции по зарплате.", details={"field": "transaction_kind"})
+
+    def _salary_cashbox(self, cashboxes: list[CashBox]) -> CashBox | None:
+        if not cashboxes:
+            return None
+        exact = [item for item in cashboxes if item.name.casefold() == "наличный"]
+        if exact:
+            return exact[0]
+        loose = [item for item in cashboxes if "налич" in item.name.casefold() or "cash" in item.name.casefold()]
+        if loose:
+            return loose[0]
+        return None
 
     def _cash_journal_text(
         self,
@@ -5956,6 +6198,20 @@ class CardService:
             return datetime.strptime(raw_value, "%d.%m.%Y %H:%M").strftime("%Y%m%d%H%M%S")
         except ValueError:
             return raw_value
+
+    def _parse_repair_order_datetime(self, value: str | None) -> datetime | None:
+        parsed = parse_datetime(value)
+        if parsed is not None:
+            return parsed.astimezone(timezone.utc)
+        raw_value = normalize_text(value, default="", limit=32)
+        if not raw_value:
+            return None
+        try:
+            local_dt = datetime.strptime(raw_value, "%d.%m.%Y %H:%M")
+        except ValueError:
+            return None
+        local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+        return local_dt.replace(tzinfo=local_tz).astimezone(timezone.utc)
 
     def _repair_order_opened_sort_value(self, card: Card) -> str:
         order = card.repair_order

@@ -548,6 +548,124 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(reopened_row["salary_mode_snapshot"], "")
         self.assertEqual(reopened_row["base_salary_snapshot"], "")
         self.assertEqual(reopened_row["work_percent_snapshot"], "")
+
+    def test_employee_salary_ledger_combines_closed_orders_payouts_and_advances(self) -> None:
+        employee = self.service.save_employee(
+            {
+                "name": "Антон Слесарь",
+                "position": "Слесарь",
+                "salary_mode": "salary_plus_percent",
+                "base_salary": "30000",
+                "work_percent": "20",
+            }
+        )["employee"]
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        open_card = self.service.create_card(
+            {
+                "vehicle": "KIA RIO",
+                "title": "Открытый наряд",
+                "deadline": {"hours": 2},
+            }
+        )["card"]
+        closed_card = self.service.create_card(
+            {
+                "vehicle": "BMW X5",
+                "title": "Закрытый наряд",
+                "deadline": {"hours": 2},
+            }
+        )["card"]
+
+        self.service.update_card(
+            {
+                "card_id": open_card["id"],
+                "repair_order": {
+                    "number": "101",
+                    "status": "open",
+                    "vehicle": "KIA RIO",
+                    "works": [
+                        {
+                            "name": "Диагностика",
+                            "quantity": "1",
+                            "price": "5000",
+                            "executor_id": employee["id"],
+                        }
+                    ],
+                },
+            }
+        )
+        self.service.update_card(
+            {
+                "card_id": closed_card["id"],
+                "repair_order": {
+                    "number": "102",
+                    "status": "open",
+                    "vehicle": "BMW X5",
+                    "payments": [
+                        {
+                            "amount": "7000",
+                            "paid_at": "16.04.2026 12:00",
+                            "payment_method": "cash",
+                        }
+                    ],
+                    "works": [
+                        {
+                            "name": "Замена масла",
+                            "quantity": "1",
+                            "price": "7000",
+                            "executor_id": employee["id"],
+                        }
+                    ],
+                },
+            }
+        )
+        self.service.set_repair_order_status({"card_id": closed_card["id"], "status": "closed"})
+
+        payout = self.service.create_employee_salary_transaction(
+            {
+                "employee_id": employee["id"],
+                "transaction_kind": "salary_payout",
+                "amount": "6000",
+                "actor_name": "ADMIN",
+            }
+        )["transaction"]
+        advance = self.service.create_employee_salary_transaction(
+            {
+                "employee_id": employee["id"],
+                "transaction_kind": "salary_advance",
+                "amount": "2000",
+                "actor_name": "ADMIN",
+            }
+        )["transaction"]
+
+        bundle = self.service._store.read_bundle()
+        old_transaction = next(item for item in bundle["cash_transactions"] if item.id == payout["id"])
+        old_transaction.created_at = (utc_now() - timedelta(days=220)).isoformat()
+        self.service._store.write_bundle(
+            columns=bundle["columns"],
+            cards=bundle["cards"],
+            stickies=bundle["stickies"],
+            cashboxes=bundle["cashboxes"],
+            cash_transactions=bundle["cash_transactions"],
+            events=bundle["events"],
+            settings=bundle["settings"],
+        )
+
+        ledger = self.service.get_employee_salary_ledger({"employee_id": employee["id"]})
+        self.assertEqual(ledger["employee_id"], employee["id"])
+        self.assertEqual(ledger["balance_total"], "-6600")
+        self.assertEqual(ledger["accrued_total"], "1400")
+        self.assertEqual(ledger["payout_total"], "6000")
+        self.assertEqual(ledger["advance_total"], "2000")
+        self.assertTrue(any(row["kind"] == "accrual" and row["card_id"] == closed_card["id"] for row in ledger["journal_rows"]))
+        self.assertFalse(any(row["kind"] == "accrual" and row["card_id"] == open_card["id"] for row in ledger["journal_rows"]))
+        self.assertFalse(any(row["kind"] == "salary_payout" and row["repair_order_number"] == "" and row["created_at"] == old_transaction.created_at for row in ledger["journal_rows"]))
+
+        reopened = self.service.set_repair_order_status({"card_id": closed_card["id"], "status": "open"})
+        self.assertEqual(reopened["repair_order"]["works"][0]["salary_amount"], "")
+        reopened_row = reopened["repair_order"]["works"][0]
+        ledger_after_reopen = self.service.get_employee_salary_ledger({"employee_id": employee["id"]})
+        self.assertEqual(ledger_after_reopen["balance_total"], "-8000")
+        self.assertFalse(any(row["kind"] == "accrual" and row["card_id"] == closed_card["id"] for row in ledger_after_reopen["journal_rows"]))
         self.assertEqual(reopened_row["salary_amount"], "")
         self.assertEqual(reopened_row["salary_accrued_at"], "")
 
