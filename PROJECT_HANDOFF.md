@@ -63,14 +63,14 @@ Important operational note:
 - production still currently accepts the default admin account
 - this is a real risk, but it has not been rotated in the current line yet
 
-Latest verified base head before the current uncommitted stabilization pass:
+Latest verified synchronized head:
 
-- `4879de3` `Add license plate search mode`
+- `2b9d3a1` `Stabilize repair order flow and cashbox journal`
 
-Current local reality during this handoff update:
+Current alignment at handoff update time:
 
-- local worktree contains validated but not yet committed fixes on top of `4879de3`
-- GitHub and production may still be behind those local fixes until the next explicit sync
+- local `autostopCRM`, GitHub `origin/autostopCRM`, and production `/opt/autostopcrm` are aligned on the same commit
+- local worktree is clean after synchronization
 
 ## 3. Runtime Architecture
 
@@ -225,7 +225,7 @@ Latest completed wave, in practical terms:
 - AI follow-up became quieter and less wasteful on repeated no-op cycles
 - MCP and server-agent test/runtime paths were cleaned up and hardened
 
-Current in-progress stabilization wave, already validated locally by regression:
+Latest completed stabilization wave:
 
 - repair-order modal stack from `desktop -> repair orders -> repair order -> nested windows` was fixed in UI shell so the repair-orders list remains the real parent layer
 - opening a repair order from the list no longer intentionally closes the list first or leaves the user falling back into an unexpected card layer
@@ -268,11 +268,12 @@ Operational reality:
 - production is currently healthy enough for continued iterative work
 - the main workflow risk is accidental drift between local, GitHub, and server state
 
-Current pre-sync note for the active stabilization pass:
+Current post-sync note for the active stabilization pass:
 
 - local regression is green
-- local worktree is intentionally dirty with validated fixes
-- production and GitHub should be treated as potentially behind local until the next explicit commit + deploy
+- local/GitHub/production are synchronized on `2b9d3a1`
+- connector and MCP live checks passed after deploy
+- separate `check_agent_runtime.py` still expects `/api/agent_status`, while the current production API surface does not expose that route on the deployed app container
 
 ## 8. Test And Verification Baseline
 
