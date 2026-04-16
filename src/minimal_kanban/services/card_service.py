@@ -1232,6 +1232,107 @@ class CardService:
                 "transaction": self._serialize_cash_transaction(transaction),
             }
 
+    def cancel_last_cash_transaction(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cards = bundle["cards"]
+            cashboxes = bundle["cashboxes"]
+            transactions = bundle["cash_transactions"]
+            events = bundle["events"]
+            settings = bundle["settings"]
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+            cashbox = self._find_cashbox(cashboxes, payload.get("cashbox_id"))
+            related_transactions = self._cashbox_transactions(transactions, cashbox.id)
+            if not related_transactions:
+                self._fail("validation_error", "В кассе нет движений для отмены.", details={"field": "cashbox_id"})
+            latest_transaction = related_transactions[0]
+            requested_transaction = self._find_cash_transaction(transactions, payload.get("transaction_id")) or latest_transaction
+            if requested_transaction.id != latest_transaction.id:
+                self._fail(
+                    "validation_error",
+                    "Можно отменить только последнее движение по выбранной кассе.",
+                    details={"field": "transaction_id", "cashbox_id": cashbox.id, "latest_transaction_id": latest_transaction.id},
+                )
+            if self._is_cashbox_transfer_transaction(latest_transaction):
+                self._fail(
+                    "validation_error",
+                    "Последнее движение — перемещение между кассами. Автоотмена перемещений не поддерживается.",
+                    details={"transaction_id": latest_transaction.id, "cashbox_id": cashbox.id},
+                )
+
+            linked_card, linked_payment = self._find_repair_order_payment_by_cash_transaction(cards, latest_transaction.id)
+            response_meta: dict[str, object] = {
+                "cancelled": True,
+                "transaction_id": latest_transaction.id,
+                "cashbox_id": cashbox.id,
+                "repair_order_card_id": linked_card.id if linked_card is not None else None,
+            }
+            if linked_card is not None and linked_payment is not None:
+                next_order_payload = linked_card.repair_order.to_storage_dict()
+                next_order_payload["payments"] = [
+                    payment.to_storage_dict()
+                    for payment in linked_card.repair_order.payments
+                    if payment.id != linked_payment.id
+                ]
+                if not next_order_payload["payments"]:
+                    next_order_payload["prepayment"] = ""
+                changed = self._update_repair_order(
+                    linked_card,
+                    cards,
+                    next_order_payload,
+                    events,
+                    actor_name,
+                    source,
+                    cashboxes=cashboxes,
+                    cash_transactions=transactions,
+                    settings=settings,
+                )
+                if not changed:
+                    self._fail(
+                        "validation_error",
+                        "Не удалось отменить последнее движение по кассе.",
+                        details={"transaction_id": latest_transaction.id, "cashbox_id": cashbox.id},
+                    )
+                self._touch_card(linked_card, actor_name)
+                self._refresh_card_ai_fingerprint_if_agent_changed(linked_card, actor_name, source)
+                if self._card_has_repair_order(linked_card):
+                    self._ensure_repair_order_text_file(linked_card, force=True)
+            else:
+                transactions[:] = [item for item in transactions if item.id != latest_transaction.id]
+                self._append_event(
+                    events,
+                    actor_name=actor_name,
+                    source=source,
+                    action="cash_transaction_deleted",
+                    message=f"{actor_name} отменил последнее движение по кассе",
+                    card_id=None,
+                    details={
+                        "cash_transaction_id": latest_transaction.id,
+                        "cashbox_id": latest_transaction.cashbox_id,
+                        "cashbox_name": cashbox.name,
+                        "direction": latest_transaction.direction,
+                        "amount_minor": latest_transaction.amount_minor,
+                        "amount_display": format_money_minor(latest_transaction.amount_minor),
+                        "note": latest_transaction.note,
+                    },
+                )
+
+            self._refresh_cashbox_updated_at(cashbox, transactions)
+            self._save_bundle(
+                bundle,
+                columns=bundle["columns"],
+                cards=cards,
+                cashboxes=cashboxes,
+                cash_transactions=transactions,
+                events=events,
+            )
+            return {
+                "cashbox": self._serialize_cashbox(cashbox, transactions),
+                "cancelled_transaction": self._serialize_cash_transaction(latest_transaction),
+                "meta": response_meta,
+            }
+
     def _append_cash_transaction(
         self,
         *,
@@ -4637,6 +4738,28 @@ class CardService:
             payment.note or "",
             payment.cashbox_id or "",
         )
+
+    def _is_cashbox_transfer_transaction(self, transaction: CashTransaction) -> bool:
+        note = normalize_text(transaction.note, default="", limit=240).casefold()
+        return note.startswith("перемещение в ") or note.startswith("перемещение из ")
+
+    def _find_repair_order_payment_by_cash_transaction(
+        self,
+        cards: list[Card],
+        transaction_id: str | None,
+    ) -> tuple[Card | None, RepairOrderPayment | None]:
+        requested_id = normalize_text(transaction_id, default="", limit=128)
+        if not requested_id:
+            return None, None
+        for card in cards:
+            for payment in card.repair_order.payments:
+                if payment.cash_transaction_id == requested_id:
+                    return card, payment
+        return None, None
+
+    def _refresh_cashbox_updated_at(self, cashbox: CashBox, transactions: list[CashTransaction]) -> None:
+        latest_transaction = next(iter(self._cashbox_transactions(transactions, cashbox.id)), None)
+        cashbox.updated_at = latest_transaction.created_at if latest_transaction is not None else cashbox.created_at
 
     def _sync_repair_order_payment_transactions(
         self,

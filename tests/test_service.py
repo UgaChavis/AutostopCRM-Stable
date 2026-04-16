@@ -726,6 +726,82 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(source_details["cashbox"]["statistics"]["transactions_total"], 2)
         self.assertEqual(target_details["cashbox"]["statistics"]["transactions_total"], 1)
 
+    def test_cancel_last_cash_transaction_removes_latest_manual_movement(self) -> None:
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        first = self.service.create_cash_transaction(
+            {
+                "cashbox_id": cashbox["id"],
+                "direction": "income",
+                "amount": "1000",
+                "note": "Старт",
+                "actor_name": "ADMIN",
+            }
+        )["transaction"]
+        last = self.service.create_cash_transaction(
+            {
+                "cashbox_id": cashbox["id"],
+                "direction": "expense",
+                "amount": "250",
+                "note": "Расход",
+                "actor_name": "ADMIN",
+            }
+        )["transaction"]
+
+        cancelled = self.service.cancel_last_cash_transaction(
+            {
+                "cashbox_id": cashbox["id"],
+                "transaction_id": last["id"],
+                "actor_name": "ADMIN",
+            }
+        )
+
+        self.assertTrue(cancelled["meta"]["cancelled"])
+        self.assertEqual(cancelled["cancelled_transaction"]["id"], last["id"])
+        details = self.service.get_cashbox({"cashbox_id": cashbox["id"], "transaction_limit": 10})
+        self.assertEqual(details["cashbox"]["statistics"]["transactions_total"], 1)
+        self.assertEqual(details["cashbox"]["statistics"]["balance_minor"], 100000)
+        self.assertEqual(details["transactions"][0]["id"], first["id"])
+
+    def test_cancel_last_cash_transaction_removes_linked_repair_order_payment(self) -> None:
+        cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
+        created = self.service.create_card({"vehicle": "KIA RIO", "title": "Оплата", "deadline": {"hours": 2}})["card"]
+        updated = self.service.update_card(
+            {
+                "card_id": created["id"],
+                "repair_order": {
+                    "works": [{"name": "Диагностика", "quantity": "1", "price": "2000"}],
+                    "payments": [
+                        {
+                            "amount": "500",
+                            "paid_at": "06.04.2026 10:00",
+                            "note": "Аванс",
+                            "payment_method": "cashless",
+                            "cashbox_id": cashbox["id"],
+                            "actor_name": "ADMIN",
+                        }
+                    ],
+                },
+            }
+        )["card"]["repair_order"]
+        payment = updated["payments"][0]
+
+        cancelled = self.service.cancel_last_cash_transaction(
+            {
+                "cashbox_id": cashbox["id"],
+                "transaction_id": payment["cash_transaction_id"],
+                "actor_name": "ADMIN",
+            }
+        )
+
+        self.assertTrue(cancelled["meta"]["cancelled"])
+        self.assertEqual(cancelled["meta"]["repair_order_card_id"], created["id"])
+        card = self.service.get_card({"card_id": created["id"]})["card"]
+        self.assertEqual(card["repair_order"]["payments"], [])
+        self.assertEqual(card["repair_order"]["paid_total"], "0")
+        cashbox_details = self.service.get_cashbox({"cashbox_id": cashbox["id"], "transaction_limit": 10})
+        self.assertEqual(cashbox_details["cashbox"]["statistics"]["transactions_total"], 0)
+        self.assertEqual(cashbox_details["transactions"], [])
+
     def test_cashbox_creation_is_capped_at_six_items(self) -> None:
         for index in range(6):
             created = self.service.create_cashbox({"name": f"Касса {index + 1}", "actor_name": "ADMIN"})

@@ -696,6 +696,50 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("КАССОВЫЙ ЖУРНАЛ", journal["data"]["text"])
         self.assertGreaterEqual(journal["data"]["meta"]["returned"], 1)
 
+    def test_cancel_last_cash_transaction_route_removes_latest_manual_movement(self) -> None:
+        status, created = self.request("/api/create_cashbox", {"name": "Касса API", "actor_name": "ADMIN"})
+        self.assertEqual(status, 200)
+        cashbox = created["data"]["cashbox"]
+        status, first = self.request(
+            "/api/create_cash_transaction",
+            {
+                "cashbox_id": cashbox["id"],
+                "direction": "income",
+                "amount": "1000",
+                "note": "Старт",
+                "actor_name": "ADMIN",
+            },
+        )
+        self.assertEqual(status, 200)
+        status, last = self.request(
+            "/api/create_cash_transaction",
+            {
+                "cashbox_id": cashbox["id"],
+                "direction": "expense",
+                "amount": "300",
+                "note": "Расход",
+                "actor_name": "ADMIN",
+            },
+        )
+        self.assertEqual(status, 200)
+
+        status, cancelled = self.request(
+            "/api/cancel_last_cash_transaction",
+            {
+                "cashbox_id": cashbox["id"],
+                "transaction_id": last["data"]["transaction"]["id"],
+                "actor_name": "ADMIN",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(cancelled["data"]["meta"]["cancelled"])
+        self.assertEqual(cancelled["data"]["cancelled_transaction"]["id"], last["data"]["transaction"]["id"])
+
+        status, details = self.request(f"/api/get_cashbox?cashbox_id={cashbox['id']}&transaction_limit=10", method="GET")
+        self.assertEqual(status, 200)
+        self.assertEqual(details["data"]["cashbox"]["statistics"]["transactions_total"], 1)
+        self.assertEqual(details["data"]["transactions"][0]["id"], first["data"]["transaction"]["id"])
+
     def test_snapshot_compact_query_returns_board_friendly_cards(self) -> None:
         status, created = self.request(
             "/api/create_card",

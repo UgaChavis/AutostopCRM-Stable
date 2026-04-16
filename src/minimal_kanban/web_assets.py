@@ -4352,6 +4352,10 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 8px;
       flex-wrap: wrap;
     }
+    .cashbox-cancel-last-button[disabled] {
+      opacity: 0.5;
+      cursor: default;
+    }
     .cashbox-detail__head {
       display: flex;
       align-items: flex-start;
@@ -5105,6 +5109,7 @@ BOARD_WEB_APP_HTML = "".join(
           <div class="cashbox-transactions-card">
             <div class="cashbox-transactions-head">
               <div class="panel-title">ДВИЖЕНИЯ</div>
+              <button class="btn btn--ghost cashbox-cancel-last-button" id="cashboxCancelLastButton">ОТМЕНИТЬ ПОСЛЕДНЕЕ</button>
             </div>
             <div class="cashbox-transactions" id="cashboxTransactions"></div>
           </div>
@@ -6038,6 +6043,7 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxJournalButton: document.getElementById('cashboxJournalButton'),
       cashboxJournalDownloadButton: document.getElementById('cashboxJournalDownloadButton'),
       cashboxDeleteButton: document.getElementById('cashboxDeleteButton'),
+      cashboxCancelLastButton: document.getElementById('cashboxCancelLastButton'),
       cashboxDetailTitle: document.getElementById('cashboxDetailTitle'),
       cashboxDetailMeta: document.getElementById('cashboxDetailMeta'),
       cashboxStats: document.getElementById('cashboxStats'),
@@ -14610,6 +14616,16 @@ function renderCompactArchiveRows(cards) {
       return Array.isArray(state.activeCashbox?.transactions) ? state.activeCashbox.transactions : [];
     }
 
+    function activeCashboxLatestTransaction() {
+      const transactions = filteredCashboxTransactions();
+      return transactions.length ? transactions[0] : null;
+    }
+
+    function cashboxTransactionIsTransfer(item) {
+      const note = String(item?.note || '').trim().toLowerCase();
+      return note.startsWith('перемещение в ') || note.startsWith('перемещение из ');
+    }
+
     function buildCashboxStatistics(transactions) {
       const items = Array.isArray(transactions) ? transactions : [];
       let incomeMinor = 0;
@@ -14707,6 +14723,8 @@ function renderCompactArchiveRows(cards) {
         els.cashboxDetailTitle.textContent = 'КАССА НЕ ВЫБРАНА';
         els.cashboxDetailMeta.textContent = '';
         els.cashboxDeleteButton.disabled = true;
+        els.cashboxCancelLastButton.disabled = true;
+        els.cashboxCancelLastButton.title = 'НЕТ ДВИЖЕНИЙ ДЛЯ ОТМЕНЫ.';
         els.cashboxIncomeButton.disabled = true;
         els.cashboxTransferButton.disabled = true;
         els.cashboxExpenseButton.disabled = true;
@@ -14717,9 +14735,15 @@ function renderCompactArchiveRows(cards) {
       }
       const stats = activeCashboxStatistics();
       const canDelete = Number(stats.transactions_total || 0) === 0;
+      const latestTransaction = activeCashboxLatestTransaction();
+      const canCancelLast = !!latestTransaction && !cashboxTransactionIsTransfer(latestTransaction);
       els.cashboxDetailTitle.textContent = cashbox.name || 'КАССА';
       els.cashboxDetailMeta.textContent = '';
       els.cashboxDeleteButton.disabled = !canDelete;
+      els.cashboxCancelLastButton.disabled = !canCancelLast;
+      els.cashboxCancelLastButton.title = !latestTransaction
+        ? 'НЕТ ДВИЖЕНИЙ ДЛЯ ОТМЕНЫ.'
+        : (cashboxTransactionIsTransfer(latestTransaction) ? 'ПОСЛЕДНЕЕ ДВИЖЕНИЕ — ПЕРЕМЕЩЕНИЕ МЕЖДУ КАССАМИ.' : '');
       els.cashboxIncomeButton.disabled = false;
       els.cashboxTransferButton.disabled = (Array.isArray(state.cashboxes) ? state.cashboxes.length : 0) < 2;
       els.cashboxExpenseButton.disabled = false;
@@ -15010,6 +15034,42 @@ function renderCompactArchiveRows(cards) {
       } finally {
         els.cashboxIncomeButton.disabled = false;
         els.cashboxExpenseButton.disabled = false;
+      }
+    }
+
+    async function cancelLastCashboxTransaction() {
+      const cashbox = state.activeCashbox?.cashbox || null;
+      const latestTransaction = activeCashboxLatestTransaction();
+      if (!cashbox?.id || !latestTransaction?.id) {
+        setStatus('НЕТ ДВИЖЕНИЯ ДЛЯ ОТМЕНЫ.', true);
+        return;
+      }
+      if (cashboxTransactionIsTransfer(latestTransaction)) {
+        setStatus('ПОСЛЕДНЕЕ ДВИЖЕНИЕ — ПЕРЕМЕЩЕНИЕ МЕЖДУ КАССАМИ.', true);
+        return;
+      }
+      const amount = cashboxFormatMinorAmount(latestTransaction.amount_minor || 0).replace(/^-/, '');
+      const note = String(latestTransaction.note || '').trim() || 'Без комментария';
+      if (!window.confirm('Отменить последнее движение по кассе "' + String(cashbox.name || '').trim() + '"?\n' + note + '\n' + amount)) {
+        return;
+      }
+      try {
+        els.cashboxCancelLastButton.disabled = true;
+        await api('/api/cancel_last_cash_transaction', {
+          method: 'POST',
+          body: {
+            cashbox_id: cashbox.id,
+            transaction_id: latestTransaction.id,
+            actor_name: state.actor,
+            source: 'ui',
+          },
+        });
+        await loadCashboxDetail(cashbox.id, { openModal: true });
+        setStatus('ПОСЛЕДНЕЕ ДВИЖЕНИЕ ОТМЕНЕНО.', false);
+      } catch (error) {
+        setStatus(String(error?.message || 'НЕ УДАЛОСЬ ОТМЕНИТЬ ПОСЛЕДНЕЕ ДВИЖЕНИЕ.'), true);
+      } finally {
+        renderCashboxDetail();
       }
     }
 
@@ -15660,6 +15720,7 @@ function renderCompactArchiveRows(cards) {
     remountElement('cashboxJournalButton');
     remountElement('cashboxJournalDownloadButton');
     remountElement('cashboxDeleteButton');
+    remountElement('cashboxCancelLastButton');
     remountElement('cashboxIncomeButton');
     remountElement('cashboxTransferButton');
     remountElement('cashboxExpenseButton');
@@ -15691,6 +15752,7 @@ function renderCompactArchiveRows(cards) {
     els.cashboxJournalButton.addEventListener('click', openCashJournalModal);
     els.cashboxJournalDownloadButton.addEventListener('click', downloadCashJournal);
     els.cashboxDeleteButton.addEventListener('click', deleteActiveCashbox);
+    els.cashboxCancelLastButton.addEventListener('click', cancelLastCashboxTransaction);
     els.cashboxIncomeButton.addEventListener('click', () => createCashboxTransaction('income'));
     els.cashboxTransferButton.addEventListener('click', createCashboxTransfer);
     els.cashboxExpenseButton.addEventListener('click', () => createCashboxTransaction('expense'));
