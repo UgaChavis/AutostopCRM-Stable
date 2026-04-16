@@ -5994,7 +5994,7 @@ BOARD_WEB_APP_HTML = "".join(
                         + '<div class="employees-card-title"><strong id="employeesCardMode">НОВЫЙ СОТРУДНИК</strong><div class="employees-profile-meta" id="employeesMeta">НОВЫЙ СОТРУДНИК</div></div>'
                       + '</div>'
                       + '<div class="employees-card-actions">'
-                        + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">НОВЫЙ</button>'
+                        + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">ДОБАВИТЬ</button>'
                         + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
                         + '<button class="btn btn--ghost" id="employeeDeleteButton" type="button">УДАЛИТЬ</button>'
                       + '</div>'
@@ -7598,7 +7598,7 @@ BOARD_WEB_APP_HTML = "".join(
     function bindEmployeesUiEvents() {
       if (state.employeesUiBound) return;
       hydrateEmployeesUiRefs();
-      els.employeesCreateButton?.addEventListener('click', resetEmployeeForm);
+      els.employeesCreateButton?.addEventListener('click', addEmployeeFromForm);
       els.employeeSaveButton?.addEventListener('click', saveEmployee);
       els.employeeDeleteButton?.addEventListener('click', deleteEmployee);
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
@@ -8434,19 +8434,10 @@ BOARD_WEB_APP_HTML = "".join(
       if (openModal) els.employeesModal.classList.add('is-open');
     }
 
-    function resetEmployeeForm() {
-      if (!confirmDiscardEmployeeChanges()) return;
-      state.employeesQuery = '';
-      state.activeEmployeeId = '';
+    async function addEmployeeFromForm() {
       state.employeeCreateMode = true;
-      if (els.employeesSearchInput) els.employeesSearchInput.value = '';
-      fillEmployeeForm(null);
-      renderEmployeesList();
-      renderEmployeesSummaryStrip();
-      renderEmployeesDetails();
-      renderEmployeeProfileMeta();
-      requestAnimationFrame(() => els.employeeNameInput?.focus());
-      setStatus('РЕЖИМ СОЗДАНИЯ СОТРУДНИКА.', false);
+      state.activeEmployeeId = '';
+      await saveEmployee();
     }
 
     function openEmployeesModal() {
