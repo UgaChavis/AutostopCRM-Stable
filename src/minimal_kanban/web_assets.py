@@ -4537,7 +4537,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-layout {
       display: grid;
-      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
       gap: 14px;
       align-items: start;
     }
@@ -4545,6 +4545,8 @@ BOARD_WEB_APP_HTML = "".join(
       display: grid;
       gap: 10px;
       min-height: 0;
+      align-content: start;
+      grid-auto-rows: min-content;
     }
     .employees-pane--list {
       align-content: start;
