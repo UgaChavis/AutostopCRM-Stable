@@ -1,6 +1,8 @@
 # ruff: noqa: I001
 from __future__ import annotations
 
+import re
+from html.parser import HTMLParser
 import sys
 import unittest
 from pathlib import Path
@@ -11,6 +13,27 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from minimal_kanban.web_assets import BOARD_WEB_APP_HTML  # noqa: E402
+
+
+class _EmployeesLayoutParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.stack: list[tuple[str, str]] = []
+        self.layout_children: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_map = {key: value or "" for key, value in attrs}
+        class_name = attrs_map.get("class", "")
+        parent = self.stack[-1] if self.stack else None
+        if parent and parent[0] == "div" and parent[1] == "employees-layout" and tag == "div":
+            self.layout_children.append(class_name)
+        self.stack.append((tag, class_name))
+
+    def handle_endtag(self, tag: str) -> None:
+        while self.stack:
+            stack_tag, _ = self.stack.pop()
+            if stack_tag == tag:
+                break
 
 
 class WebAssetsTests(unittest.TestCase):
@@ -284,7 +307,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('class="btn btn--ghost" id="employeeToggleButton"', BOARD_WEB_APP_HTML)
         self.assertIn(".employees-layout {", BOARD_WEB_APP_HTML)
         self.assertIn(
-            "grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);", BOARD_WEB_APP_HTML
+            "grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);", BOARD_WEB_APP_HTML
         )
         self.assertIn(".employees-list-tools {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-search {", BOARD_WEB_APP_HTML)
@@ -548,6 +571,19 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn(".vehicle-group--identity .vehicle-group__grid {", BOARD_WEB_APP_HTML)
         self.assertIn(".vehicle-field__label label,", BOARD_WEB_APP_HTML)
         self.assertIn(".vehicle-copy {", BOARD_WEB_APP_HTML)
+
+    def test_employees_modal_keeps_both_panes_inside_the_layout(self) -> None:
+        start = BOARD_WEB_APP_HTML.index("+ '<div class=\"employees-layout\">'")
+        end = BOARD_WEB_APP_HTML.index('+ \'<div class="modal" id="employeeSalaryModal">\'')
+        fragment = BOARD_WEB_APP_HTML[start:end]
+        html = "".join(re.findall(r"\+\s*'([^']*)'", fragment))
+
+        parser = _EmployeesLayoutParser()
+        parser.feed(html)
+
+        self.assertEqual(2, len(parser.layout_children))
+        self.assertEqual("employees-pane employees-pane--list", parser.layout_children[0])
+        self.assertEqual("employees-pane", parser.layout_children[1])
 
     def test_cards_use_stepwise_deadline_heat_variables(self) -> None:
         self.assertIn("--deadline-heat-border:", BOARD_WEB_APP_HTML)

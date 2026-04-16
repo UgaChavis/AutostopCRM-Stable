@@ -6089,7 +6089,6 @@ BOARD_WEB_APP_HTML = "".join(
                     + '</div>'
                     + '<div class="employees-list" id="employeesList"></div>'
                   + '</div>'
-                + '</div>'
                 + '<div class="employees-pane">'
                   + '<div class="subpanel">'
                     + '<div class="employees-card-head">'
