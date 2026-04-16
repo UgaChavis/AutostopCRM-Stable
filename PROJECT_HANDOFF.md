@@ -63,6 +63,15 @@ Important operational note:
 - production still currently accepts the default admin account
 - this is a real risk, but it has not been rotated in the current line yet
 
+Latest verified base head before the current uncommitted stabilization pass:
+
+- `4879de3` `Add license plate search mode`
+
+Current local reality during this handoff update:
+
+- local worktree contains validated but not yet committed fixes on top of `4879de3`
+- GitHub and production may still be behind those local fixes until the next explicit sync
+
 ## 3. Runtime Architecture
 
 The system is intentionally split into layers.
@@ -216,6 +225,14 @@ Latest completed wave, in practical terms:
 - AI follow-up became quieter and less wasteful on repeated no-op cycles
 - MCP and server-agent test/runtime paths were cleaned up and hardened
 
+Current in-progress stabilization wave, already validated locally by regression:
+
+- repair-order modal stack from `desktop -> repair orders -> repair order -> nested windows` was fixed in UI shell so the repair-orders list remains the real parent layer
+- opening a repair order from the list no longer intentionally closes the list first or leaves the user falling back into an unexpected card layer
+- cashbox journal API and UI were added for the latest `3` months, including formatted modal text and text-file download
+- repair-order cashless totals now follow the selected rule: cashless path = subtotal + `15%`, taxes reflect that `15%` component, and due totals use the same model across domain, API, UI, and MCP text output
+- MCP repair-order expectations were updated to match the corrected cashless total model
+
 Most recent important commits in the current line:
 
 - `1796ec9` `Fix board column drag capture area`
@@ -226,6 +243,8 @@ Most recent important commits in the current line:
 - `c157434` `Improve agent follow-up caching and backoff`
 - `d4693b0` `Refine agent follow-up and MCP read resilience`
 - `cfe7f9a` `Improve agent follow-up limits and status visibility`
+- `f52aa15` `Add scoped repair order search`
+- `4879de3` `Add license plate search mode`
 
 Current stability note:
 
@@ -234,7 +253,7 @@ Current stability note:
 
 ## 7. Production Verification Snapshot
 
-At the last verification after `1796ec9`, production reported:
+At the last fully documented production verification after `1796ec9`, production reported:
 
 - site returns `200 OK`
 - MCP live check passes
@@ -248,6 +267,12 @@ Operational reality:
 
 - production is currently healthy enough for continued iterative work
 - the main workflow risk is accidental drift between local, GitHub, and server state
+
+Current pre-sync note for the active stabilization pass:
+
+- local regression is green
+- local worktree is intentionally dirty with validated fixes
+- production and GitHub should be treated as potentially behind local until the next explicit commit + deploy
 
 ## 8. Test And Verification Baseline
 
@@ -264,6 +289,8 @@ Current known verification baseline:
 - latest targeted mixed `tests.test_agent`, `tests.test_mcp`, `tests.test_mcp_main`, and `tests.test_api` runs are green
 - MCP tests now pass cleanly even with `-W error::ResourceWarning`
 - import smoke for `main.py`, `main_mcp.py`, and `main_agent.py` is green
+- latest full-suite validation on the current local stabilization pass: `344/344 OK`
+- latest focused validation on MCP/settings/UI startup chain: `61/61 OK`
 
 Main test areas:
 

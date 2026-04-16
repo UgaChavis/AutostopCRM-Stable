@@ -677,6 +677,12 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(deleted["data"]["meta"]["deleted"])
 
+        status, journal = self.request("/api/get_cash_journal?months=3&limit=100", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(journal["ok"])
+        self.assertIn("КАССОВЫЙ ЖУРНАЛ", journal["data"]["text"])
+        self.assertGreaterEqual(journal["data"]["meta"]["returned"], 1)
+
     def test_snapshot_compact_query_returns_board_friendly_cards(self) -> None:
         status, created = self.request(
             "/api/create_card",
@@ -801,9 +807,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         cashless_order = updated_cashless["data"]["card"]["repair_order"]
         self.assertEqual(cashless_order["payment_method"], "cashless")
-        self.assertEqual(cashless_order["taxes_total"], "75")
-        self.assertEqual(cashless_order["grand_total"], "1075")
-        self.assertEqual(cashless_order["due_total"], "575")
+        self.assertEqual(cashless_order["taxes_total"], "150")
+        self.assertEqual(cashless_order["grand_total"], "1150")
+        self.assertEqual(cashless_order["due_total"], "650")
 
         status, cash_cashbox = self.request("/api/create_cashbox", {"name": "Наличный", "actor_name": "ADMIN"})
         self.assertEqual(status, 200)
@@ -836,10 +842,10 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         mixed_order = mixed_paid["data"]["card"]["repair_order"]
-        self.assertEqual(mixed_order["taxes_total"], "75")
-        self.assertEqual(mixed_order["grand_total"], "1075")
+        self.assertEqual(mixed_order["taxes_total"], "150")
+        self.assertEqual(mixed_order["grand_total"], "1150")
         self.assertEqual(mixed_order["paid_total"], "1000")
-        self.assertEqual(mixed_order["due_total"], "75")
+        self.assertEqual(mixed_order["due_total"], "150")
 
         status, created = self.request("/api/create_card", {"vehicle": "BMW X5", "title": "API карта", "deadline": {"hours": 2}})
         self.assertEqual(status, 200)
@@ -1318,9 +1324,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(updated["data"]["card"]["repair_order"]["works_total"], "1500")
         self.assertEqual(updated["data"]["card"]["repair_order"]["materials_total"], "0")
         self.assertEqual(updated["data"]["card"]["repair_order"]["subtotal_total"], "1500")
-        self.assertEqual(updated["data"]["card"]["repair_order"]["taxes_total"], "75")
-        self.assertEqual(updated["data"]["card"]["repair_order"]["grand_total"], "1575")
-        self.assertEqual(updated["data"]["card"]["repair_order"]["due_total"], "1075")
+        self.assertEqual(updated["data"]["card"]["repair_order"]["taxes_total"], "225")
+        self.assertEqual(updated["data"]["card"]["repair_order"]["grand_total"], "1725")
+        self.assertEqual(updated["data"]["card"]["repair_order"]["due_total"], "1225")
 
     def test_repair_order_context_and_patch_routes(self) -> None:
         status, created = self.request(

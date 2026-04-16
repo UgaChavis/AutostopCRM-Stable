@@ -992,6 +992,34 @@ class CardService:
                 },
             }
 
+    def get_cash_journal(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            months = self._validated_limit(payload.get("months"), default=3, maximum=12)
+            limit = self._validated_limit(payload.get("limit"), default=5000, maximum=10000)
+            bundle = self._store.read_bundle()
+            period_start = utc_now() - timedelta(days=30 * months)
+            recent_transactions: list[CashTransaction] = []
+            for item in bundle["cash_transactions"]:
+                created_at = parse_datetime(item.created_at)
+                if created_at is None or created_at < period_start:
+                    continue
+                recent_transactions.append(item)
+            recent_transactions.sort(key=lambda item: (item.created_at, item.id), reverse=True)
+            returned_transactions = recent_transactions[:limit]
+            cashboxes_by_id = {cashbox.id: cashbox for cashbox in bundle["cashboxes"]}
+            return {
+                "entries": [self._serialize_cash_transaction(item) for item in returned_transactions],
+                "text": self._cash_journal_text(returned_transactions, cashboxes_by_id, months=months),
+                "meta": {
+                    "months": months,
+                    "limit": limit,
+                    "total": len(recent_transactions),
+                    "returned": len(returned_transactions),
+                    "period_start": period_start.isoformat(),
+                },
+            }
+
     def create_cashbox(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
@@ -2960,6 +2988,87 @@ class CardService:
         matched = [item for item in transactions if item.cashbox_id == cashbox_id]
         matched.sort(key=lambda item: (item.created_at, item.id), reverse=True)
         return matched
+
+    def _cash_journal_amount_text(
+        self,
+        amount_minor: int,
+        *,
+        allow_sign: bool = False,
+        force_negative: bool = False,
+    ) -> str:
+        absolute_amount = round(abs(int(amount_minor)) / 100)
+        sign = ""
+        if force_negative:
+            sign = "-"
+        elif allow_sign and int(amount_minor) > 0:
+            sign = "+"
+        return f"{sign}{absolute_amount:,}".replace(",", " ") + " ₽"
+
+    def _cash_transaction_source_label(self, transaction: CashTransaction) -> str:
+        note = normalize_text(transaction.note, default="", limit=240)
+        if note.casefold().startswith("перемещение"):
+            return "перемещение"
+        if "заказ-наряд" in note.casefold():
+            return "заказ-наряд"
+        source = normalize_text(transaction.source, default="", limit=64).casefold()
+        if source == "ui":
+            return "ручное"
+        if source == "mcp":
+            return "mcp"
+        return source or "система"
+
+    def _cash_journal_text(
+        self,
+        transactions: list[CashTransaction],
+        cashboxes_by_id: dict[str, CashBox],
+        *,
+        months: int,
+    ) -> str:
+        if not transactions:
+            return f"КАССОВЫЙ ЖУРНАЛ\nПЕРИОД: ПОСЛЕДНИЕ {months} МЕС.\n\nЗА ВЫБРАННЫЙ ПЕРИОД ДВИЖЕНИЙ НЕТ."
+
+        grouped: dict[str, list[CashTransaction]] = {}
+        for item in transactions:
+            created_at = parse_datetime(item.created_at)
+            if created_at is None:
+                continue
+            grouped.setdefault(created_at.strftime("%d.%m.%y"), []).append(item)
+
+        lines = [
+            "КАССОВЫЙ ЖУРНАЛ",
+            f"ПЕРИОД: ПОСЛЕДНИЕ {months} МЕС.",
+            f"ДВИЖЕНИЙ: {len(transactions)}",
+            "",
+        ]
+        for date_label, day_items in grouped.items():
+            income_minor = sum(item.amount_minor for item in day_items if item.direction == "income")
+            expense_minor = sum(item.amount_minor for item in day_items if item.direction == "expense")
+            day_balance_minor = income_minor - expense_minor
+            lines.append(date_label)
+            lines.append(
+                "ИТОГО ЗА ДЕНЬ: "
+                + f"ПОСТУПЛЕНИЯ {self._cash_journal_amount_text(income_minor)} | "
+                + f"СПИСАНИЯ {self._cash_journal_amount_text(expense_minor)} | "
+                + f"БАЛАНС {self._cash_journal_amount_text(day_balance_minor, allow_sign=True)}"
+            )
+            for item in day_items:
+                created_at = parse_datetime(item.created_at)
+                time_label = created_at.strftime("%H:%M") if created_at is not None else "—"
+                cashbox_name = cashboxes_by_id.get(item.cashbox_id).name if cashboxes_by_id.get(item.cashbox_id) else "Неизвестная касса"
+                direction_label = "ПОСТУПЛЕНИЕ" if item.direction == "income" else "СПИСАНИЕ"
+                amount_label = self._cash_journal_amount_text(
+                    item.amount_minor,
+                    allow_sign=item.direction == "income",
+                    force_negative=item.direction == "expense",
+                )
+                lines.append(f"  {time_label} | {cashbox_name} | {direction_label} | {amount_label}")
+                note = normalize_text(item.note, default="Без комментария", limit=240)
+                lines.append(f"    {note}")
+                lines.append(
+                    f"    {normalize_actor_name(item.actor_name)} | {self._cash_transaction_source_label(item)}"
+                )
+            lines.append("")
+        return "\n".join(lines).strip()
 
     def _cashbox_statistics(
         self,

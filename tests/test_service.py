@@ -734,6 +734,27 @@ class CardServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Нельзя создать больше 6 касс"):
             self.service.create_cashbox({"name": "Касса 7", "actor_name": "ADMIN"})
 
+    def test_cash_journal_returns_recent_three_months_text(self) -> None:
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        self.service.create_cash_transaction(
+            {
+                "cashbox_id": cashbox["id"],
+                "direction": "income",
+                "amount": "1000",
+                "note": "Оплата клиента",
+                "actor_name": "ADMIN",
+            }
+        )
+
+        journal = self.service.get_cash_journal({"months": 3, "limit": 100})
+
+        self.assertEqual(journal["meta"]["months"], 3)
+        self.assertEqual(journal["meta"]["returned"], 1)
+        self.assertIn("КАССОВЫЙ ЖУРНАЛ", journal["text"])
+        self.assertIn("Наличный", journal["text"])
+        self.assertIn("ОПЛАТА КЛИЕНТА", journal["text"].upper())
+        self.assertIn("1 000 ₽", journal["text"])
+
     def test_move_card_can_reorder_within_same_column(self) -> None:
         first = self.service.create_card({"title": "First", "column": "inbox", "deadline": {"hours": 2}})
         second = self.service.create_card({"title": "Second", "column": "inbox", "deadline": {"hours": 2}})
@@ -1824,9 +1845,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(order["works_total"], "2500")
         self.assertEqual(order["materials_total"], "2800")
         self.assertEqual(order["subtotal_total"], "5300")
-        self.assertEqual(order["taxes_total"], "150")
-        self.assertEqual(order["grand_total"], "5450")
-        self.assertEqual(order["due_total"], "4450")
+        self.assertEqual(order["taxes_total"], "795")
+        self.assertEqual(order["grand_total"], "6095")
+        self.assertEqual(order["due_total"], "5095")
         self.assertTrue(order["has_taxes"])
         self.assertTrue(order["has_prepayment"])
 
@@ -1844,9 +1865,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(stored["payment_status"], "unpaid")
         self.assertEqual(len(stored["payments"]), 1)
         self.assertEqual(stored["payments"][0]["cashbox_name"], cashbox["name"])
-        self.assertEqual(stored["taxes_total"], "150")
-        self.assertEqual(stored["grand_total"], "5450")
-        self.assertEqual(stored["due_total"], "4450")
+        self.assertEqual(stored["taxes_total"], "795")
+        self.assertEqual(stored["grand_total"], "6095")
+        self.assertEqual(stored["due_total"], "5095")
 
     def test_repair_order_cash_taxes_depend_on_selected_cashbox(self) -> None:
         cashless_cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
@@ -1871,9 +1892,9 @@ class CardServiceTests(unittest.TestCase):
             }
         )["card"]["repair_order"]
         self.assertEqual(updated_cashless["payment_method"], "cashless")
-        self.assertEqual(updated_cashless["taxes_total"], "75")
-        self.assertEqual(updated_cashless["grand_total"], "1075")
-        self.assertEqual(updated_cashless["due_total"], "575")
+        self.assertEqual(updated_cashless["taxes_total"], "150")
+        self.assertEqual(updated_cashless["grand_total"], "1150")
+        self.assertEqual(updated_cashless["due_total"], "650")
 
         updated_mixed = self.service.update_card(
             {
@@ -1902,10 +1923,10 @@ class CardServiceTests(unittest.TestCase):
             }
         )["card"]["repair_order"]
         self.assertEqual(updated_mixed["payment_method"], "cashless")
-        self.assertEqual(updated_mixed["taxes_total"], "75")
-        self.assertEqual(updated_mixed["grand_total"], "1075")
+        self.assertEqual(updated_mixed["taxes_total"], "150")
+        self.assertEqual(updated_mixed["grand_total"], "1150")
         self.assertEqual(updated_mixed["paid_total"], "1000")
-        self.assertEqual(updated_mixed["due_total"], "75")
+        self.assertEqual(updated_mixed["due_total"], "150")
 
         maria_cashbox = self.service.create_cashbox({"name": "Карта Мария", "actor_name": "ADMIN"})["cashbox"]
         card_maria = self.service.create_card({"vehicle": "BMW X5", "title": "Осмотр", "deadline": {"hours": 2}})["card"]

@@ -569,11 +569,9 @@ class RepairOrder:
         return prepayment
 
     def taxes_value(self) -> Decimal:
-        if self.payments:
-            return sum((payment.taxes_value() for payment in self.payments), Decimal("0"))
         if self.payment_method != REPAIR_ORDER_PAYMENT_METHOD_CASHLESS:
             return Decimal("0")
-        return _round_money(self.cashless_payments_value() * REPAIR_ORDER_PAYMENT_TAX_RATE)
+        return _round_money(self.subtotal_value() * REPAIR_ORDER_PAYMENT_TAX_RATE)
 
     def taxes_amount(self) -> str:
         return _format_decimal(self.taxes_value())

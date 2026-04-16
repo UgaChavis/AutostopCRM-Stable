@@ -4132,6 +4132,14 @@ BOARD_WEB_APP_HTML = "".join(
       flex-direction: column;
       gap: 8px;
     }
+    .cashboxes-pane__foot {
+      margin-top: auto;
+      padding-top: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
     .cashboxes-actions {
       display: flex;
       align-items: center;
@@ -4234,12 +4242,13 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .cashbox-composer__row .field--compact input[type="text"],
     .cashbox-composer__row .field--compact textarea {
-      min-height: 34px;
+      min-height: 54px;
       padding: 6px 8px;
     }
     .cashbox-composer textarea {
       min-height: 54px;
-      max-height: 72px;
+      max-height: 54px;
+      resize: none;
     }
     .cashbox-composer__actions {
       display: flex;
@@ -4391,8 +4400,11 @@ BOARD_WEB_APP_HTML = "".join(
       gap: 8px;
     }
     .cashbox-transaction__badge {
-      min-width: 58px;
-      text-align: center;
+      width: 104px;
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       padding: 3px 6px;
       border: 1px solid var(--line-soft);
       font-size: 9.5px;
@@ -4414,6 +4426,47 @@ BOARD_WEB_APP_HTML = "".join(
       letter-spacing: 0.08em;
       text-transform: uppercase;
       white-space: nowrap;
+    }
+    .cashbox-journal-text {
+      border: 1px solid var(--line-soft);
+      background: rgba(8, 12, 10, 0.68);
+      padding: 14px 16px;
+      min-height: 420px;
+      max-height: min(68vh, 720px);
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.62;
+      font-variant-numeric: tabular-nums;
+    }
+    .cashbox-journal-download-button {
+      min-width: 34px;
+      width: 34px;
+      min-height: 34px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-color: rgba(167, 178, 132, 0.42);
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(239, 242, 226, 0.92);
+      line-height: 1;
+    }
+    .cashbox-journal-download-button svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .cashbox-journal-download-button:hover {
+      border-color: rgba(167, 178, 132, 0.68);
+      background: rgba(167, 178, 132, 0.08);
+      color: #f5f8e6;
     }
     .cashbox-transaction__note {
       font-size: 12.5px;
@@ -5013,6 +5066,16 @@ BOARD_WEB_APP_HTML = "".join(
             <button class="btn btn--ghost cashbox-delete-button" id="cashboxDeleteButton">- УДАЛИТЬ</button>
           </div>
           <div class="cashboxes-list" id="cashboxesList"></div>
+          <div class="cashboxes-pane__foot">
+            <button class="btn btn--ghost" id="cashboxJournalButton">ЖУРНАЛ</button>
+            <button class="btn btn--ghost cashbox-journal-download-button" id="cashboxJournalDownloadButton" title="СКАЧАТЬ ЖУРНАЛ" aria-label="СКАЧАТЬ ЖУРНАЛ">
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M8 2v7"></path>
+                <path d="M5.5 6.5 8 9l2.5-2.5"></path>
+                <path d="M3 12.5h10"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="subpanel cashbox-detail cashboxes-pane">
           <div class="cashbox-detail__head">
@@ -5047,6 +5110,16 @@ BOARD_WEB_APP_HTML = "".join(
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="cashboxJournalModal">
+    <div class="dialog" style="width:min(980px,100%)">
+      <div class="dialog__head">
+        <div class="dialog__title">ЖУРНАЛ ДВИЖЕНИЯ ДЕНЕГ</div>
+        <button class="btn" data-close="cashbox-journal">ЗАКРЫТЬ</button>
+      </div>
+      <div class="cashbox-journal-text" id="cashboxJournalText">ЗАГРУЗКА...</div>
     </div>
   </div>
 
@@ -5506,6 +5579,7 @@ BOARD_WEB_APP_HTML = "".join(
       repairOrdersLoadTimer: null,
       repairOrdersItems: [],
       repairOrdersMetaState: null,
+      repairOrderParentLayer: '',
       cashboxes: [],
       activeCashboxId: '',
       activeCashbox: null,
@@ -5931,6 +6005,7 @@ BOARD_WEB_APP_HTML = "".join(
       archiveList: document.getElementById('archiveList'),
       repairOrdersModal: document.getElementById('repairOrdersModal'),
       cashboxesModal: document.getElementById('cashboxesModal'),
+      cashboxJournalModal: document.getElementById('cashboxJournalModal'),
       cashboxTransferModal: document.getElementById('cashboxTransferModal'),
       employeesModal: document.getElementById('employeesModal'),
       employeesList: document.getElementById('employeesList'),
@@ -5960,6 +6035,8 @@ BOARD_WEB_APP_HTML = "".join(
       employeeDeleteButton: document.getElementById('employeeDeleteButton'),
       cashboxesList: document.getElementById('cashboxesList'),
       cashboxCreateButton: document.getElementById('cashboxCreateButton'),
+      cashboxJournalButton: document.getElementById('cashboxJournalButton'),
+      cashboxJournalDownloadButton: document.getElementById('cashboxJournalDownloadButton'),
       cashboxDeleteButton: document.getElementById('cashboxDeleteButton'),
       cashboxDetailTitle: document.getElementById('cashboxDetailTitle'),
       cashboxDetailMeta: document.getElementById('cashboxDetailMeta'),
@@ -5970,6 +6047,7 @@ BOARD_WEB_APP_HTML = "".join(
       cashboxTransferButton: document.getElementById('cashboxTransferButton'),
       cashboxExpenseButton: document.getElementById('cashboxExpenseButton'),
       cashboxTransactions: document.getElementById('cashboxTransactions'),
+      cashboxJournalText: document.getElementById('cashboxJournalText'),
       cashboxTransferSourceName: document.getElementById('cashboxTransferSourceName'),
       cashboxTransferTargets: document.getElementById('cashboxTransferTargets'),
       cashboxTransferAmountInput: document.getElementById('cashboxTransferAmountInput'),
@@ -7818,6 +7896,7 @@ BOARD_WEB_APP_HTML = "".join(
         },
         'repair-orders': () => els.repairOrdersModal.classList.remove('is-open'),
         cashboxes: () => els.cashboxesModal.classList.remove('is-open'),
+        'cashbox-journal': () => els.cashboxJournalModal.classList.remove('is-open'),
         'cashbox-transfer': () => els.cashboxTransferModal.classList.remove('is-open'),
         employees: () => {
           if (!confirmDiscardEmployeeChanges()) return;
@@ -11769,7 +11848,16 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function syncRepairOrderPaymentMethodFromPayments() {
-      return syncRepairOrderPaymentMethod(repairOrderPaymentMethodFromPayments(state.repairOrderPayments, 'cash'));
+      return syncRepairOrderPaymentMethod(
+        repairOrderPaymentMethodFromPayments(
+          state.repairOrderPayments,
+          els.repairOrderPaymentMethod?.value || 'cash'
+        )
+      );
+    }
+
+    function repairOrderProjectedTaxesValue(subtotal, paymentMethod) {
+      return repairOrderRoundMoney(subtotal * repairOrderTaxRate(paymentMethod));
     }
 
     function renderRepairOrderPaymentCashboxOptions(selectedId = '') {
@@ -12229,13 +12317,12 @@ BOARD_WEB_APP_HTML = "".join(
       const worksTotal = syncRepairOrderSectionTotals('works');
       const materialsTotal = syncRepairOrderSectionTotals('materials');
       const subtotal = repairOrderRoundMoney(worksTotal + materialsTotal);
-      const cashPayments = repairOrderCashPaymentsValue(state.repairOrderPayments);
-      const cashlessPayments = repairOrderCashlessPaymentsValue(state.repairOrderPayments);
-      const taxes = repairOrderRoundMoney(cashlessPayments * repairOrderTaxRate('cashless'));
+      const paymentMethod = syncRepairOrderPaymentMethodFromPayments();
+      const taxes = repairOrderProjectedTaxesValue(subtotal, paymentMethod);
       const grandTotal = repairOrderRoundMoney(subtotal + taxes);
       const prepayment = repairOrderPaymentsTotalValue(state.repairOrderPayments);
-      const cashlessDue = repairOrderRoundMoney(grandTotal - cashlessPayments);
-      const cashDue = repairOrderRoundMoney(subtotal - cashPayments);
+      const cashlessDue = grandTotal;
+      const cashDue = subtotal;
       if (els.repairOrderPrepayment) {
         els.repairOrderPrepayment.value = repairOrderNumberToRaw(prepayment);
       }
@@ -12262,10 +12349,10 @@ BOARD_WEB_APP_HTML = "".join(
 
     function renderRepairOrderPayments() {
       const payments = Array.isArray(state.repairOrderPayments) ? state.repairOrderPayments : [];
-      syncRepairOrderPaymentMethodFromPayments();
+      const paymentMethod = syncRepairOrderPaymentMethodFromPayments();
       const total = repairOrderPaymentsTotalValue(payments);
       const subtotal = repairOrderRoundMoney(syncRepairOrderSectionTotals('works') + syncRepairOrderSectionTotals('materials'));
-      const taxes = repairOrderRoundMoney(repairOrderCashlessPaymentsValue(payments) * repairOrderTaxRate('cashless'));
+      const taxes = repairOrderProjectedTaxesValue(subtotal, paymentMethod);
       const due = repairOrderRoundMoney(subtotal + taxes - total);
       if (els.repairOrderPaymentsMeta) {
         const latestPayment = payments.length ? payments[payments.length - 1] : null;
@@ -12486,12 +12573,20 @@ BOARD_WEB_APP_HTML = "".join(
         }
       }
       applyRepairOrderToForm(order);
+      if (!state.repairOrderParentLayer && els.cardModal.classList.contains('is-open')) {
+        state.repairOrderParentLayer = 'card';
+      }
       els.repairOrderModal.classList.add('is-open');
     }
 
     function closeRepairOrderModal() {
+      const parentLayer = String(state.repairOrderParentLayer || '').trim();
       els.repairOrderModal.classList.remove('is-open');
       closeRepairOrderPaymentsModal();
+      state.repairOrderParentLayer = '';
+      if (parentLayer === 'repair-orders') {
+        resetCardModalState();
+      }
     }
 
     function addRepairOrderRow(section) {
@@ -13096,19 +13191,26 @@ function renderCompactArchiveRows(cards) {
       }
     }
 
-    async function openCardWorkspace(cardId, { closeModalEl = null, openRepairOrder = false } = {}) {
+    async function openCardWorkspace(cardId, { closeModalEl = null, openCardModalEl = true, openRepairOrder = false, repairOrderParentLayer = '' } = {}) {
       const normalizedCardId = String(cardId || '').trim();
       if (!normalizedCardId) return null;
       const data = await api('/api/open_card', { method: 'POST', body: { card_id: normalizedCardId } });
-      if (closeModalEl) closeModalEl.classList.remove('is-open');
-      openCardModal(data.card);
-      if (openRepairOrder) await openRepairOrderModal();
+      if (openCardModalEl) {
+        if (closeModalEl) closeModalEl.classList.remove('is-open');
+        openCardModal(data.card);
+      } else {
+        applyCardModalState(data.card);
+      }
+      if (openRepairOrder) {
+        state.repairOrderParentLayer = String(repairOrderParentLayer || (openCardModalEl ? 'card' : '')).trim();
+        await openRepairOrderModal();
+      }
       return data.card;
     }
 
     async function openRepairOrderCard(cardId) {
       try {
-        await openCardWorkspace(cardId, { closeModalEl: els.repairOrdersModal, openRepairOrder: true });
+        await openCardWorkspace(cardId, { openCardModalEl: false, openRepairOrder: true, repairOrderParentLayer: 'repair-orders' });
       } catch (error) {
         setStatus(error.message, true);
       }
@@ -14036,6 +14138,7 @@ function renderCompactArchiveRows(cards) {
         els.archiveModal,
         els.repairOrdersModal,
         els.cashboxesModal,
+        els.cashboxJournalModal,
         els.employeesModal,
         els.agentModal,
         els.agentTasksModal,
@@ -14463,8 +14566,8 @@ function renderCompactArchiveRows(cards) {
     function cashboxFormatMinorAmount(value) {
       const amount = Number(value || 0);
       const sign = amount < 0 ? '-' : '';
-      const absolute = Math.abs(amount) / 100;
-      return sign + absolute.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ?';
+      const absolute = Math.round(Math.abs(amount) / 100);
+      return sign + absolute.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ₽';
     }
 
     function activeCashboxStatistics() {
@@ -14541,7 +14644,7 @@ function renderCompactArchiveRows(cards) {
         return '<button class="cashbox-row' + activeClass + '" type="button" data-cashbox-id="' + escapeHtml(item.id) + '">'
           + '<div class="cashbox-row__head">'
           + '<div class="cashbox-row__name">' + escapeHtml(item.name || '—') + '</div>'
-          + '<div class="cashbox-row__balance" data-balance-sign="' + escapeHtml(balanceMinor < 0 ? 'negative' : 'positive') + '">' + escapeHtml(stats?.balance_display || cashboxFormatMinorAmount(balanceMinor)) + '</div>'
+          + '<div class="cashbox-row__balance" data-balance-sign="' + escapeHtml(balanceMinor < 0 ? 'negative' : 'positive') + '">' + escapeHtml(cashboxFormatMinorAmount(balanceMinor)) + '</div>'
           + '</div>'
           + '</button>';
       }).join('') : '<div class="cashboxes-empty">КАСС ПОКА НЕТ.</div>';
@@ -14551,9 +14654,9 @@ function renderCompactArchiveRows(cards) {
       const stats = buildCashboxStatistics(filteredCashboxTransactions());
       const balanceMinor = Number(stats.balance_minor || 0);
       els.cashboxStats.innerHTML = [
-        { label: 'Баланс', value: stats.balance_display || cashboxFormatMinorAmount(balanceMinor), sign: balanceMinor < 0 ? 'negative' : 'positive' },
-        { label: 'Поступления', value: stats.income_total_display || cashboxFormatMinorAmount(stats.income_total_minor || 0), sign: 'positive' },
-        { label: 'Списания', value: stats.expense_total_display || cashboxFormatMinorAmount(stats.expense_total_minor || 0), sign: 'positive' },
+        { label: 'Баланс', value: cashboxFormatMinorAmount(balanceMinor), sign: balanceMinor < 0 ? 'negative' : 'positive' },
+        { label: 'Поступления', value: cashboxFormatMinorAmount(stats.income_total_minor || 0), sign: 'positive' },
+        { label: 'Списания', value: cashboxFormatMinorAmount(stats.expense_total_minor || 0), sign: 'positive' },
       ].map((item) => '<div class="cashbox-stat-grid"><div class="cashbox-stat-grid__label">' + escapeHtml(item.label) + '</div><div class="cashbox-stat-grid__value" data-balance-sign="' + escapeHtml(item.sign) + '">' + escapeHtml(item.value) + '</div></div>').join('');
     }
 
@@ -14564,10 +14667,11 @@ function renderCompactArchiveRows(cards) {
         const note = String(item?.note || '').trim() || 'Без комментария';
         const actor = String(item?.actor_name || '').trim() || '—';
         const sourceLabel = cashboxTransactionSourceLabel(item);
+        const absoluteAmount = cashboxFormatMinorAmount(item?.amount_minor || 0).replace(/^-/, '');
         return '<div class="cashbox-transaction">'
           + '<div class="cashbox-transaction__badge" data-direction="' + escapeHtml(direction) + '">' + escapeHtml(direction === 'expense' ? 'списание' : 'поступление') + '</div>'
           + '<div class="cashbox-transaction__body"><div class="cashbox-transaction__summary"><div class="cashbox-transaction__note">' + escapeHtml(note) + '</div><div class="cashbox-transaction__context">' + escapeHtml(sourceLabel) + '</div></div><div class="cashbox-transaction__meta">' + escapeHtml(formatDate(item?.created_at)) + ' | ' + escapeHtml(actor) + '</div></div>'
-          + '<div class="cashbox-transaction__amount" data-direction="' + escapeHtml(direction) + '">' + escapeHtml(direction === 'expense' ? '-' : '+') + escapeHtml(item?.amount_display || cashboxFormatMinorAmount(item?.amount_minor || 0)) + '</div>'
+          + '<div class="cashbox-transaction__amount" data-direction="' + escapeHtml(direction) + '">' + escapeHtml(direction === 'expense' ? '-' : '+') + escapeHtml(absoluteAmount) + '</div>'
           + '</div>';
       }).join('') : '<div class="cashboxes-empty">ПО ФИЛЬТРУ НИЧЕГО НЕ НАЙДЕНО.</div>';
     }
@@ -14657,6 +14761,34 @@ function renderCompactArchiveRows(cards) {
 
     function openCashboxesModal() {
       loadCashboxes(true);
+    }
+
+    async function loadCashJournalText() {
+      const data = await api('/api/get_cash_journal?months=3&limit=5000');
+      return String(data?.text || 'ЗА ВЫБРАННЫЙ ПЕРИОД ДВИЖЕНИЙ НЕТ.');
+    }
+
+    async function openCashJournalModal() {
+      els.cashboxJournalText.textContent = 'ЗАГРУЗКА...';
+      maybeOpenModal(els.cashboxJournalModal, true);
+      try {
+        els.cashboxJournalText.textContent = await loadCashJournalText();
+      } catch (error) {
+        els.cashboxJournalText.textContent = String(error?.message || 'НЕ УДАЛОСЬ ЗАГРУЗИТЬ ЖУРНАЛ.');
+        setStatus(String(error?.message || 'НЕ УДАЛОСЬ ЗАГРУЗИТЬ ЖУРНАЛ.'), true);
+      }
+    }
+
+    async function downloadCashJournal() {
+      try {
+        const text = await loadCashJournalText();
+        const blob = new Blob([text.trim() + '\n'], { type: 'text/plain;charset=utf-8' });
+        const fileName = 'cash-journal-' + new Date().toISOString().slice(0, 10) + '.txt';
+        triggerBlobDownload(blob, fileName);
+        setStatus('ЖУРНАЛ СКАЧАН.', false);
+      } catch (error) {
+        setStatus(String(error?.message || 'НЕ УДАЛОСЬ СКАЧАТЬ ЖУРНАЛ.'), true);
+      }
     }
 
     async function createCashbox() {
@@ -15500,6 +15632,8 @@ function renderCompactArchiveRows(cards) {
     remountElement('cashboxesButton');
     remountElement('employeesButton');
     remountElement('cashboxCreateButton');
+    remountElement('cashboxJournalButton');
+    remountElement('cashboxJournalDownloadButton');
     remountElement('cashboxDeleteButton');
     remountElement('cashboxIncomeButton');
     remountElement('cashboxTransferButton');
@@ -15529,6 +15663,8 @@ function renderCompactArchiveRows(cards) {
     els.repairOrdersSortBy.addEventListener('change', handleRepairOrdersSortChange);
     els.repairOrdersSortDir.addEventListener('change', handleRepairOrdersSortChange);
     els.cashboxCreateButton.addEventListener('click', createCashbox);
+    els.cashboxJournalButton.addEventListener('click', openCashJournalModal);
+    els.cashboxJournalDownloadButton.addEventListener('click', downloadCashJournal);
     els.cashboxDeleteButton.addEventListener('click', deleteActiveCashbox);
     els.cashboxIncomeButton.addEventListener('click', () => createCashboxTransaction('income'));
     els.cashboxTransferButton.addEventListener('click', createCashboxTransfer);
