@@ -14719,12 +14719,15 @@ function renderCompactArchiveRows(cards) {
 
     function renderCashboxDetail() {
       const cashbox = state.activeCashbox?.cashbox || null;
+      const cancelButton = els.cashboxCancelLastButton;
       if (!cashbox) {
         els.cashboxDetailTitle.textContent = 'КАССА НЕ ВЫБРАНА';
         els.cashboxDetailMeta.textContent = '';
         els.cashboxDeleteButton.disabled = true;
-        els.cashboxCancelLastButton.disabled = true;
-        els.cashboxCancelLastButton.title = 'НЕТ ДВИЖЕНИЙ ДЛЯ ОТМЕНЫ.';
+        if (cancelButton) {
+          cancelButton.disabled = true;
+          cancelButton.title = 'НЕТ ДВИЖЕНИЙ ДЛЯ ОТМЕНЫ.';
+        }
         els.cashboxIncomeButton.disabled = true;
         els.cashboxTransferButton.disabled = true;
         els.cashboxExpenseButton.disabled = true;
@@ -14740,10 +14743,12 @@ function renderCompactArchiveRows(cards) {
       els.cashboxDetailTitle.textContent = cashbox.name || 'КАССА';
       els.cashboxDetailMeta.textContent = '';
       els.cashboxDeleteButton.disabled = !canDelete;
-      els.cashboxCancelLastButton.disabled = !canCancelLast;
-      els.cashboxCancelLastButton.title = !latestTransaction
-        ? 'НЕТ ДВИЖЕНИЙ ДЛЯ ОТМЕНЫ.'
-        : (cashboxTransactionIsTransfer(latestTransaction) ? 'ПОСЛЕДНЕЕ ДВИЖЕНИЕ — ПЕРЕМЕЩЕНИЕ МЕЖДУ КАССАМИ.' : '');
+      if (cancelButton) {
+        cancelButton.disabled = !canCancelLast;
+        cancelButton.title = !latestTransaction
+          ? 'НЕТ ДВИЖЕНИЙ ДЛЯ ОТМЕНЫ.'
+          : (cashboxTransactionIsTransfer(latestTransaction) ? 'ПОСЛЕДНЕЕ ДВИЖЕНИЕ — ПЕРЕМЕЩЕНИЕ МЕЖДУ КАССАМИ.' : '');
+      }
       els.cashboxIncomeButton.disabled = false;
       els.cashboxTransferButton.disabled = (Array.isArray(state.cashboxes) ? state.cashboxes.length : 0) < 2;
       els.cashboxExpenseButton.disabled = false;
@@ -15040,6 +15045,7 @@ function renderCompactArchiveRows(cards) {
     async function cancelLastCashboxTransaction() {
       const cashbox = state.activeCashbox?.cashbox || null;
       const latestTransaction = activeCashboxLatestTransaction();
+      const cancelButton = els.cashboxCancelLastButton;
       if (!cashbox?.id || !latestTransaction?.id) {
         setStatus('НЕТ ДВИЖЕНИЯ ДЛЯ ОТМЕНЫ.', true);
         return;
@@ -15054,7 +15060,7 @@ function renderCompactArchiveRows(cards) {
         return;
       }
       try {
-        els.cashboxCancelLastButton.disabled = true;
+        if (cancelButton) cancelButton.disabled = true;
         await api('/api/cancel_last_cash_transaction', {
           method: 'POST',
           body: {
@@ -15752,7 +15758,9 @@ function renderCompactArchiveRows(cards) {
     els.cashboxJournalButton.addEventListener('click', openCashJournalModal);
     els.cashboxJournalDownloadButton.addEventListener('click', downloadCashJournal);
     els.cashboxDeleteButton.addEventListener('click', deleteActiveCashbox);
-    els.cashboxCancelLastButton.addEventListener('click', cancelLastCashboxTransaction);
+    if (els.cashboxCancelLastButton) {
+      els.cashboxCancelLastButton.addEventListener('click', cancelLastCashboxTransaction);
+    }
     els.cashboxIncomeButton.addEventListener('click', () => createCashboxTransaction('income'));
     els.cashboxTransferButton.addEventListener('click', createCashboxTransfer);
     els.cashboxExpenseButton.addEventListener('click', () => createCashboxTransaction('expense'));
