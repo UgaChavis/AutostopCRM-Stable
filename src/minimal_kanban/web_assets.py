@@ -5772,8 +5772,6 @@ BOARD_WEB_APP_HTML = "".join(
       activeEmployeeId: '',
       employeeCreateMode: false,
       employeesReportTab: 'summary',
-      employeesQuery: '',
-      employeesVisibilityFilter: 'active',
       employeeFormBaseline: null,
       payrollMonth: '',
       payrollReport: null,
@@ -6085,13 +6083,6 @@ BOARD_WEB_APP_HTML = "".join(
                   + '<div class="subpanel">'
                     + '<div class="employees-panel-head">'
                       + '<div class="panel-title">СПИСОК СОТРУДНИКОВ</div>'
-                      + '<div class="employees-list-meta" id="employeesListMeta"></div>'
-                    + '</div>'
-                    + '<div class="employees-list-tools">'
-                      + '<input class="employees-search" id="employeesSearchInput" type="search" placeholder="ПОИСК ПО ИМЕНИ, ДОЛЖНОСТИ И ЗАМЕТКЕ">'
-                      + '<div class="employees-filterbar" id="employeesVisibilityFilters">'
-                        + '<button class="btn is-active" type="button" data-filter="active">АКТИВНЫЕ</button>'
-                        + '<button class="btn btn--ghost" type="button" data-filter="all">ВСЕ</button>'
                       + '</div>'
                     + '</div>'
                     + '<div class="employees-list" id="employeesList"></div>'
@@ -6245,9 +6236,6 @@ BOARD_WEB_APP_HTML = "".join(
       employeeSalaryModal: document.getElementById('employeeSalaryModal'),
       employeesList: document.getElementById('employeesList'),
       employeesCardMode: document.getElementById('employeesCardMode'),
-      employeesSearchInput: document.getElementById('employeesSearchInput'),
-      employeesVisibilityFilters: document.getElementById('employeesVisibilityFilters'),
-      employeesListMeta: document.getElementById('employeesListMeta'),
       employeesReportTabs: document.getElementById('employeesReportTabs'),
       employeesSummaryPanel: document.getElementById('employeesSummaryPanel'),
       employeesDetailsPanel: document.getElementById('employeesDetailsPanel'),
@@ -6458,9 +6446,6 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeSalaryModal = document.getElementById('employeeSalaryModal');
       els.employeesList = document.getElementById('employeesList');
       els.employeesCardMode = document.getElementById('employeesCardMode');
-      els.employeesSearchInput = document.getElementById('employeesSearchInput');
-      els.employeesVisibilityFilters = document.getElementById('employeesVisibilityFilters');
-      els.employeesListMeta = document.getElementById('employeesListMeta');
       els.employeesReportTabs = document.getElementById('employeesReportTabs');
       els.employeesSummaryPanel = document.getElementById('employeesSummaryPanel');
       els.employeesDetailsPanel = document.getElementById('employeesDetailsPanel');
@@ -7783,8 +7768,6 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeDeleteButton?.addEventListener('click', deleteEmployee);
       els.employeeToggleButton?.addEventListener('click', toggleEmployee);
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
-      els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);
-      els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);
       els.employeesMonthInput?.addEventListener('change', handleEmployeesMonthChange);
       els.employeesReportTabs?.addEventListener('click', handleEmployeesReportTabClick);
       els.employeesList?.addEventListener('click', handleEmployeesListClick);
@@ -8275,12 +8258,6 @@ BOARD_WEB_APP_HTML = "".join(
       return (state.employees || []).find((item) => item.id === state.activeEmployeeId) || null;
     }
 
-    function normalizeEmployeesVisibilityFilter(value) {
-      const normalized = String(value || '').trim();
-      if (normalized === 'all') return 'all';
-      return 'active';
-    }
-
     function employeeSalaryModeLabel(mode) {
       if (mode === 'salary_only') return 'ОКЛАД';
       if (mode === 'percent_only') return '% ОТ РАБОТ';
@@ -8332,53 +8309,17 @@ BOARD_WEB_APP_HTML = "".join(
 
     function filteredEmployeesList() {
       const employees = Array.isArray(state.employees) ? state.employees : [];
-      const query = String(state.employeesQuery || '').trim().toLowerCase();
-      const visibilityFilter = normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter);
       return employees
         .filter((employee) => {
           if (!employee) return false;
-          if (visibilityFilter === 'active' && !Boolean(employee.is_active)) return false;
-          if (!query) return true;
-          const haystack = [
-            employee.name,
-            employee.position,
-            employee.note,
-            employee.base_salary,
-            employee.work_percent,
-            employeeSalaryModeLabel(employee.salary_mode),
-            employee.is_active ? 'активен' : 'выключен',
-          ].map((item) => String(item || '').toLowerCase()).join(' ');
-          return haystack.includes(query);
+          return Boolean(employee.is_active);
         })
         .slice()
         .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || ''), 'ru'));
     }
 
-    function updateEmployeesListMeta() {
-      if (!els.employeesListMeta) return;
-      const employees = Array.isArray(state.employees) ? state.employees : [];
-      const visibleEmployees = filteredEmployeesList();
-      const activeCount = employees.filter((item) => item && item.is_active).length;
-      const query = String(state.employeesQuery || '').trim();
-      const filterLabel = normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter) === 'all' ? 'ВСЕ' : 'АКТИВНЫЕ';
-      const parts = [
-        String(visibleEmployees.length),
-        'ИЗ',
-        String(employees.length),
-        '·',
-        filterLabel,
-        '·',
-        String(activeCount),
-        'АКТИВН.',
-      ];
-      if (query) parts.push('·', 'ФИЛЬТР', '«' + query + '»');
-      els.employeesListMeta.textContent = parts.join(' ');
-    }
-
     function renderEmployeesListPanel() {
-      syncEmployeesVisibilityFilterUi();
       renderEmployeesList();
-      updateEmployeesListMeta();
     }
 
     function payrollSummaryMap() {
@@ -8387,15 +8328,6 @@ BOARD_WEB_APP_HTML = "".join(
         map.set(String(row.employee_id || ''), row);
         return map;
       }, new Map());
-    }
-
-    function syncEmployeesVisibilityFilterUi() {
-      if (!els.employeesVisibilityFilters) return;
-      const activeFilter = normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter);
-      els.employeesVisibilityFilters.querySelectorAll('[data-filter]').forEach((button) => {
-        if (!(button instanceof HTMLElement)) return;
-        button.classList.toggle('is-active', String(button.dataset.filter || '') === activeFilter);
-      });
     }
 
     function renderEmployeeProfileMeta() {
@@ -8747,9 +8679,6 @@ BOARD_WEB_APP_HTML = "".join(
         state.activeEmployeeId = '';
         state.employeeCreateMode = true;
       }
-      if (els.employeesSearchInput) {
-        els.employeesSearchInput.value = state.employeesQuery || '';
-      }
       if (els.employeesMonthInput) {
         els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
       }
@@ -8795,16 +8724,6 @@ BOARD_WEB_APP_HTML = "".join(
       if (openModal) els.employeesModal.classList.add('is-open');
     }
 
-    async function setEmployeesVisibilityFilter(filter) {
-      state.employeesVisibilityFilter = normalizeEmployeesVisibilityFilter(filter);
-      renderEmployeesListPanel();
-    }
-
-    async function setEmployeesSearchQuery(query) {
-      state.employeesQuery = String(query || '').trim();
-      renderEmployeesListPanel();
-    }
-
     async function addEmployeeFromForm() {
       if (!confirmDiscardEmployeeChanges()) return;
       state.employeeCreateMode = true;
@@ -8837,7 +8756,6 @@ BOARD_WEB_APP_HTML = "".join(
         state.employees = Array.isArray(data?.employees) ? data.employees : [];
         state.employeeCreateMode = false;
         state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
-        state.employeesQuery = '';
         await loadPayrollReport();
         if (String(state.activeEmployeeSalaryId || '') === String(data?.employee?.id || '')) {
           await loadEmployeeSalarySheet(state.activeEmployeeSalaryId, { openModal: true });
@@ -8905,9 +8823,6 @@ BOARD_WEB_APP_HTML = "".join(
         state.employees = Array.isArray(data?.employees) ? data.employees : [];
         state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
         state.employeeCreateMode = false;
-        if (data?.employee && !data.employee.is_active && normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter) === 'active') {
-          state.employeesVisibilityFilter = 'all';
-        }
         await loadPayrollReport();
         renderEmployeesWorkspace();
         refreshRepairOrderEmployeeSelects();
@@ -8915,13 +8830,6 @@ BOARD_WEB_APP_HTML = "".join(
       } catch (error) {
         setStatus(error.message, true);
       }
-    }
-
-    function handleEmployeesSearchInput(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement)) return;
-      state.employeesQuery = String(target.value || '').trim();
-      renderEmployeesListPanel();
     }
 
     async function handleEmployeesMonthChange() {
@@ -8936,16 +8844,6 @@ BOARD_WEB_APP_HTML = "".join(
       } catch (error) {
         setStatus(error.message, true);
       }
-    }
-
-    function handleEmployeesVisibilityFilterClick(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const button = target.closest('[data-filter]');
-      if (!(button instanceof HTMLElement)) return;
-      const nextFilter = normalizeEmployeesVisibilityFilter(button.dataset.filter);
-      state.employeesVisibilityFilter = nextFilter;
-      renderEmployeesListPanel();
     }
 
     function handleEmployeesListClick(event) {

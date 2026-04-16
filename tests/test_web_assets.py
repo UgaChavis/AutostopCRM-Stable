@@ -241,9 +241,9 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('id="employeeSalaryActionDialog"', BOARD_WEB_APP_HTML)
         self.assertIn('id="employeeSalaryPayoutButton"', BOARD_WEB_APP_HTML)
         self.assertIn('id="employeeSalaryAdvanceButton"', BOARD_WEB_APP_HTML)
-        self.assertIn('id="employeesSearchInput"', BOARD_WEB_APP_HTML)
-        self.assertIn('id="employeesVisibilityFilters"', BOARD_WEB_APP_HTML)
-        self.assertIn('id="employeesListMeta"', BOARD_WEB_APP_HTML)
+        self.assertNotIn('id="employeesSearchInput"', BOARD_WEB_APP_HTML)
+        self.assertNotIn('id="employeesVisibilityFilters"', BOARD_WEB_APP_HTML)
+        self.assertNotIn('id="employeesListMeta"', BOARD_WEB_APP_HTML)
         self.assertIn('id="employeeToggleButton"', BOARD_WEB_APP_HTML)
         self.assertIn("function openEmployeesModal()", BOARD_WEB_APP_HTML)
         self.assertIn("function saveEmployee()", BOARD_WEB_APP_HTML)
@@ -251,8 +251,8 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function toggleEmployee()", BOARD_WEB_APP_HTML)
         self.assertIn("function filteredEmployeesList()", BOARD_WEB_APP_HTML)
         self.assertIn("function renderEmployeesListPanel()", BOARD_WEB_APP_HTML)
-        self.assertIn("function handleEmployeesSearchInput(event)", BOARD_WEB_APP_HTML)
-        self.assertIn("function handleEmployeesVisibilityFilterClick(event)", BOARD_WEB_APP_HTML)
+        self.assertNotIn("function handleEmployeesSearchInput(event)", BOARD_WEB_APP_HTML)
+        self.assertNotIn("function handleEmployeesVisibilityFilterClick(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function confirmDiscardEmployeeChanges()", BOARD_WEB_APP_HTML)
         self.assertIn("function renderEmployeesSummary()", BOARD_WEB_APP_HTML)
         self.assertIn("function openEmployeeSalaryModal(", BOARD_WEB_APP_HTML)
@@ -269,7 +269,6 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function addEmployeeFromForm()", BOARD_WEB_APP_HTML)
         self.assertIn("employeeCreateMode: false", BOARD_WEB_APP_HTML)
         self.assertIn("employeesReportTab: 'summary'", BOARD_WEB_APP_HTML)
-        self.assertIn("employeesVisibilityFilter: 'active'", BOARD_WEB_APP_HTML)
         self.assertIn("state.employeeCreateMode = true;", BOARD_WEB_APP_HTML)
         self.assertIn("create_mode: Boolean(state.employeeCreateMode)", BOARD_WEB_APP_HTML)
         self.assertIn(
@@ -277,11 +276,11 @@ class WebAssetsTests(unittest.TestCase):
             BOARD_WEB_APP_HTML,
         )
         self.assertIn("setStatus('УКАЖИ ИМЯ СОТРУДНИКА.', true);", BOARD_WEB_APP_HTML)
-        self.assertIn('class="employees-search" id="employeesSearchInput"', BOARD_WEB_APP_HTML)
-        self.assertIn(
+        self.assertNotIn('class="employees-search" id="employeesSearchInput"', BOARD_WEB_APP_HTML)
+        self.assertNotIn(
             'class="employees-filterbar" id="employeesVisibilityFilters"', BOARD_WEB_APP_HTML
         )
-        self.assertIn('class="employees-list-meta" id="employeesListMeta"', BOARD_WEB_APP_HTML)
+        self.assertNotIn('class="employees-list-meta" id="employeesListMeta"', BOARD_WEB_APP_HTML)
         self.assertIn('class="btn btn--ghost" id="employeeToggleButton"', BOARD_WEB_APP_HTML)
         self.assertIn(".employees-layout {", BOARD_WEB_APP_HTML)
         self.assertIn(
@@ -335,11 +334,11 @@ class WebAssetsTests(unittest.TestCase):
             "els.employeeToggleButton?.addEventListener('click', toggleEmployee);",
             BOARD_WEB_APP_HTML,
         )
-        self.assertIn(
+        self.assertNotIn(
             "els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);",
             BOARD_WEB_APP_HTML,
         )
-        self.assertIn(
+        self.assertNotIn(
             "els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);",
             BOARD_WEB_APP_HTML,
         )
@@ -362,14 +361,13 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("if (!confirmDiscardEmployeeChanges()) return;", BOARD_WEB_APP_HTML)
         self.assertIn("renderEmployeesWorkspace();", BOARD_WEB_APP_HTML)
         self.assertIn("els.employeeNameInput.focus();", BOARD_WEB_APP_HTML)
-        self.assertIn("state.employeesVisibilityFilter = 'all';", BOARD_WEB_APP_HTML)
         self.assertNotIn("await saveEmployee();", BOARD_WEB_APP_HTML)
         self.assertIn('data-repair-order-cell="executor_id"', BOARD_WEB_APP_HTML)
         self.assertIn("function repairOrderExecutorOptionsHtml", BOARD_WEB_APP_HTML)
         self.assertIn(
             "els.employeesButton.addEventListener('click', openEmployeesModal);", BOARD_WEB_APP_HTML
         )
-        self.assertIn("function updateEmployeesListMeta()", BOARD_WEB_APP_HTML)
+        self.assertNotIn("function updateEmployeesListMeta()", BOARD_WEB_APP_HTML)
 
     def test_card_description_textarea_allows_extended_text(self) -> None:
         self.assertIn('id="cardDescription" maxlength="20000"', BOARD_WEB_APP_HTML)
