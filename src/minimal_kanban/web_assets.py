@@ -1,4 +1,4 @@
-﻿from .printing.web_module import (
+from .printing.web_module import (
     PRINTING_WEB_MODULE_HTML,
     PRINTING_WEB_MODULE_SCRIPT,
     PRINTING_WEB_MODULE_STYLE,
@@ -4596,7 +4596,7 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
+      gap: 6px;
       align-items: stretch;
     }
     .employees-row__body {
@@ -4618,9 +4618,11 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-row__salary {
       min-height: 100%;
-      padding-inline: 12px;
+      min-width: 86px;
+      padding-inline: 10px;
       white-space: nowrap;
       align-self: stretch;
+      justify-self: end;
     }
     .employees-row__top {
       display: flex;
@@ -4645,11 +4647,6 @@ BOARD_WEB_APP_HTML = "".join(
       opacity: 0.78;
       line-height: 1.3;
     }
-    .employees-row__comp {
-      font-size: 10.5px;
-      color: rgba(231, 226, 193, 0.86);
-      line-height: 1.25;
-    }
     .employees-row__summary {
       display: flex;
       align-items: center;
@@ -4659,6 +4656,12 @@ BOARD_WEB_APP_HTML = "".join(
       border-top: 1px solid rgba(164, 173, 138, 0.1);
       font-size: 10.5px;
       color: rgba(231, 226, 193, 0.76);
+    }
+    .employees-row__summary-label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 9.5px;
+      opacity: 0.8;
     }
     .employees-row__summary strong {
       font-size: 11.5px;
@@ -5920,7 +5923,7 @@ BOARD_WEB_APP_HTML = "".join(
         button.className = 'btn btn--ghost repair-order-money-button';
         button.id = 'repairOrderPaymentsButton';
         button.type = 'button';
-        button.textContent = '\u20BD';
+        button.textContent = '\u20bd';
         button.title = 'ОПЛАТЫ';
         button.setAttribute('aria-label', 'ОПЛАТЫ');
         footerActions.insertBefore(button, document.getElementById('repairOrderPrintButton'));
@@ -8498,21 +8501,14 @@ BOARD_WEB_APP_HTML = "".join(
       }
       els.employeesList.innerHTML = visibleEmployees.map((employee) => {
         const isActive = !state.employeeCreateMode && employee.id === state.activeEmployeeId;
-        const modeLabel = employeeSalaryModeLabel(employee.salary_mode);
-        const comp = [
-          employee.base_salary ? ('Оклад ' + employee.base_salary) : '',
-          employee.work_percent ? (employee.work_percent + '%') : '',
-          modeLabel,
-        ].filter(Boolean).join(' · ');
         const summary = summaryMap.get(String(employee.id || ''));
-        const summaryLabel = String(summary?.works_count || '0') + ' раб.';
+        const summaryLabel = 'К ВЫПЛАТЕ';
         const summaryValue = String(summary?.total_salary || '0');
         return '<div class="employees-row' + (isActive ? ' is-active' : '') + '">'
           + '<button class="employees-row__body" type="button" data-employee-id="' + escapeHtml(employee.id) + '">'
             + '<div class="employees-row__top"><div class="employees-row__title">' + escapeHtml(employee.name) + '</div></div>'
             + '<div class="employees-row__meta">' + escapeHtml(employee.position || 'Без должности') + '</div>'
-            + '<div class="employees-row__comp">' + escapeHtml(comp || modeLabel) + '</div>'
-            + '<div class="employees-row__summary"><span>' + escapeHtml(summaryLabel) + '</span><strong>' + escapeHtml(summaryValue) + '</strong></div>'
+            + '<div class="employees-row__summary"><span class="employees-row__summary-label">' + escapeHtml(summaryLabel) + '</span><strong>' + escapeHtml(summaryValue) + '</strong></div>'
           + '</button>'
           + '<button class="btn btn--ghost employees-row__salary" type="button" data-employee-salary="' + escapeHtml(employee.id) + '">ЗАРПЛАТА</button>'
           + '</div>';
@@ -16729,5 +16725,3 @@ function renderCompactArchiveRows(cards) {
 """,
     ]
 )
-
-
