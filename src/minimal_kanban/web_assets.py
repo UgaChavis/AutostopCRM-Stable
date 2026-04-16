@@ -5975,14 +5975,7 @@ BOARD_WEB_APP_HTML = "".join(
               + '<div class="employees-layout">'
                 + '<div class="employees-pane employees-pane--list">'
                   + '<div class="subpanel">'
-                    + '<div class="employees-panel-head"><div class="panel-title">СПИСОК СОТРУДНИКОВ</div><div class="employees-list-meta" id="employeesListMeta">СПИСОК ПУСТ</div></div>'
-                    + '<div class="employees-list-tools">'
-                      + '<input class="repair-orders-search employees-search" id="employeesSearchInput" type="search" maxlength="80" placeholder="Поиск по имени или должности">'
-                      + '<div class="employees-filterbar" id="employeesVisibilityFilters">'
-                        + '<button class="btn is-active" type="button" data-filter="active">АКТИВНЫЕ</button>'
-                        + '<button class="btn btn--ghost" type="button" data-filter="all">ВСЕ</button>'
-                      + '</div>'
-                    + '</div>'
+                    + '<div class="employees-panel-head"><div class="panel-title">СПИСОК СОТРУДНИКОВ</div></div>'
                     + '<div class="employees-list" id="employeesList"></div>'
                   + '</div>'
                 + '</div>'
@@ -5991,7 +5984,7 @@ BOARD_WEB_APP_HTML = "".join(
                     + '<div class="employees-card-head">'
                       + '<div class="employees-card-head-main">'
                         + '<div class="panel-title">ПРОФИЛЬ</div>'
-                        + '<div class="employees-card-title"><strong id="employeesCardMode">НОВЫЙ СОТРУДНИК</strong><div class="employees-profile-meta" id="employeesMeta">НОВЫЙ СОТРУДНИК</div></div>'
+                        + '<div class="employees-card-title"><strong id="employeesCardMode">НОВЫЙ СОТРУДНИК</strong></div>'
                       + '</div>'
                       + '<div class="employees-card-actions">'
                         + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">ДОБАВИТЬ</button>'
@@ -6005,13 +5998,12 @@ BOARD_WEB_APP_HTML = "".join(
                       + '<div class="field employees-field--span-6 employees-field--compact employees-field--mode"><label for="employeeSalaryModeInput">СХЕМА</label><select id="employeeSalaryModeInput"><option value="salary_plus_percent">ОКЛАД + %</option><option value="percent_only">% ОТ РАБОТ</option><option value="salary_only">ТОЛЬКО ОКЛАД</option></select></div>'
                       + '<div class="field employees-field--span-2 employees-field--compact employees-field--salary"><label for="employeeBaseSalaryInput">ОКЛАД</label><input id="employeeBaseSalaryInput" type="text" inputmode="decimal" maxlength="40" placeholder="0"></div>'
                       + '<div class="field employees-field--span-2 employees-field--compact employees-field--percent"><label for="employeeWorkPercentInput">ПРОЦЕНТ</label><input id="employeeWorkPercentInput" type="text" inputmode="decimal" maxlength="40" placeholder="0"></div>'
-                      + '<label class="employees-check employees-field--span-2 employees-field--active"><input id="employeeActiveInput" type="checkbox" checked> АКТИВЕН</label>'
                     + '</div>'
                     + '<details class="employees-note-details" id="employeeNoteDetails"><summary>ЗАМЕТКА</summary><div class="field field--secondary"><input id="employeeNoteInput" type="text" maxlength="240"></div></details>'
                     + '<div class="employees-summary-strip" id="employeesSummaryStrip"></div>'
                   + '</div>'
                   + '<div class="subpanel">'
-                    + '<div class="employees-panel-head"><div class="panel-title">ОТЧЁТ ПО СОТРУДНИКУ</div><div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><div class="employees-report-meta" id="employeesReportMeta">0 СТРОК</div><input class="repair-orders-search" id="employeesMonthInput" type="month"></div></div>'
+                    + '<div class="employees-panel-head"><div class="panel-title">ОТЧЁТ ПО СОТРУДНИКУ</div><input class="repair-orders-search" id="employeesMonthInput" type="month"></div>'
                     + '<div class="employees-report-shell">'
                       + '<div class="employees-report-tabs" id="employeesReportTabs">'
                         + '<button class="btn is-active" type="button" data-employees-report-tab="summary">СВОДКА</button>'
@@ -7604,8 +7596,6 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
       els.employeesMonthInput?.addEventListener('change', () => loadEmployeesWorkspace(false).catch((error) => setStatus(error.message, true)));
       els.employeesReportTabs?.addEventListener('click', handleEmployeesReportTabClick);
-      els.employeesSearchInput?.addEventListener('input', handleEmployeesSearchInput);
-      els.employeesVisibilityFilters?.addEventListener('click', handleEmployeesVisibilityFilterClick);
       els.employeesList?.addEventListener('click', handleEmployeesListClick);
       els.employeesSummaryTable?.addEventListener('click', handleEmployeesListClick);
       els.employeesDetailTable?.addEventListener('click', handleEmployeesDetailClick);
@@ -8127,7 +8117,7 @@ BOARD_WEB_APP_HTML = "".join(
         base_salary: normalizeEmployeeComparableNumber(els.employeeBaseSalaryInput?.value),
         work_percent: normalizeEmployeeComparableNumber(els.employeeWorkPercentInput?.value),
         note: normalizeEmployeeComparableText(els.employeeNoteInput?.value),
-        is_active: Boolean(els.employeeActiveInput?.checked),
+        is_active: Boolean(selectedEmployeeRecord()?.is_active ?? true),
       };
     }
 
@@ -8143,30 +8133,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     function filteredEmployeesList() {
       const employees = Array.isArray(state.employees) ? state.employees : [];
-      const query = String(state.employeesQuery || '').trim().toLocaleLowerCase('ru');
-      const visibilityFilter = normalizeEmployeesVisibilityFilter(state.employeesVisibilityFilter);
-      const visibleEmployees = employees
-        .filter((employee) => {
-          if (visibilityFilter === 'active' && !employee?.is_active) return false;
-          if (!query) return true;
-          const haystack = [
-            employee?.name,
-            employee?.position,
-            employeeSalaryModeLabel(employee?.salary_mode),
-          ].join(' ').toLocaleLowerCase('ru');
-          return haystack.includes(query);
-        })
-        .sort((left, right) => {
-          const leftActive = left?.is_active ? 1 : 0;
-          const rightActive = right?.is_active ? 1 : 0;
-          if (leftActive !== rightActive) return rightActive - leftActive;
-          return String(left?.name || '').localeCompare(String(right?.name || ''), 'ru');
-        });
-      const selectedEmployee = selectedEmployeeRecord();
-      if (selectedEmployee && !visibleEmployees.some((item) => item?.id === selectedEmployee.id)) {
-        visibleEmployees.unshift(selectedEmployee);
-      }
-      return visibleEmployees;
+      return employees.slice().sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || ''), 'ru'));
     }
 
     function payrollSummaryMap() {
@@ -8243,7 +8210,6 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeBaseSalaryInput.value = current?.base_salary || '';
       els.employeeWorkPercentInput.value = current?.work_percent || '';
       els.employeeNoteInput.value = current?.note || '';
-      els.employeeActiveInput.checked = current ? Boolean(current.is_active) : true;
       if (els.employeeNoteDetails) {
         els.employeeNoteDetails.open = Boolean(String(current?.note || '').trim());
       }
@@ -8255,6 +8221,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function readEmployeeFormPayload() {
+      const selectedEmployee = selectedEmployeeRecord();
       return {
         create_mode: Boolean(state.employeeCreateMode),
         employee_id: state.employeeCreateMode ? '' : (state.activeEmployeeId || ''),
@@ -8264,7 +8231,7 @@ BOARD_WEB_APP_HTML = "".join(
         base_salary: els.employeeBaseSalaryInput.value,
         work_percent: els.employeeWorkPercentInput.value,
         note: els.employeeNoteInput.value,
-        is_active: Boolean(els.employeeActiveInput.checked),
+        is_active: selectedEmployee ? Boolean(selectedEmployee.is_active) : true,
         actor_name: state.actor,
         source: 'ui',
       };
@@ -8274,14 +8241,6 @@ BOARD_WEB_APP_HTML = "".join(
       const employees = Array.isArray(state.employees) ? state.employees : [];
       const visibleEmployees = filteredEmployeesList();
       const summaryMap = payrollSummaryMap();
-      syncEmployeesVisibilityFilterUi();
-      if (els.employeesListMeta) {
-        if (!employees.length) {
-          els.employeesListMeta.textContent = 'СПИСОК ПУСТ';
-        } else {
-          els.employeesListMeta.textContent = 'ПОКАЗАНО ' + visibleEmployees.length + ' / ' + employees.length + ' · ЛИМИТ 15';
-        }
-      }
       if (!els.employeesList) return;
       if (!employees.length) {
         els.employeesList.innerHTML = '<div class="cashboxes-empty">Нет сотрудников.</div>';
@@ -8303,7 +8262,7 @@ BOARD_WEB_APP_HTML = "".join(
         const summaryLabel = String(summary?.works_count || '0') + ' раб.';
         const summaryValue = String(summary?.total_salary || '0');
         return '<button class="employees-row' + (isActive ? ' is-active' : '') + '" type="button" data-employee-id="' + escapeHtml(employee.id) + '">'
-          + '<div class="employees-row__top"><div class="employees-row__title">' + escapeHtml(employee.name) + '</div><div class="employees-row__state">' + (employee.is_active ? 'АКТИВЕН' : 'ВЫКЛ') + '</div></div>'
+          + '<div class="employees-row__top"><div class="employees-row__title">' + escapeHtml(employee.name) + '</div></div>'
           + '<div class="employees-row__meta">' + escapeHtml(employee.position || 'Без должности') + '</div>'
           + '<div class="employees-row__comp">' + escapeHtml(comp || modeLabel) + '</div>'
           + '<div class="employees-row__summary"><span>' + escapeHtml(summaryLabel) + '</span><strong>' + escapeHtml(summaryValue) + '</strong></div>'
@@ -8384,21 +8343,13 @@ BOARD_WEB_APP_HTML = "".join(
       if (els.employeesMonthInput) {
         els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
       }
-      if (els.employeesSearchInput) {
-        els.employeesSearchInput.value = state.employeesQuery || '';
-      }
       fillEmployeeForm(state.employeeCreateMode ? null : selectedEmployeeRecord());
       renderEmployeesList();
       renderEmployeesSummary();
       renderEmployeesSummaryStrip();
       renderEmployeesDetails();
       syncEmployeesReportTabUi();
-      const summaryRows = Array.isArray(state.payrollReport?.summary) ? state.payrollReport.summary : [];
-      const detailRows = Array.isArray(state.payrollReport?.detail_rows) ? state.payrollReport.detail_rows : [];
       renderEmployeeProfileMeta();
-      if (els.employeesReportMeta) {
-        els.employeesReportMeta.textContent = 'СОТРУДНИКОВ ' + summaryRows.length + ' · СТРОК ' + detailRows.length;
-      }
     }
 
     async function loadEmployeesReference() {
@@ -8463,10 +8414,6 @@ BOARD_WEB_APP_HTML = "".join(
         state.employeeCreateMode = false;
         state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
         state.employeesQuery = '';
-        if (els.employeesSearchInput) els.employeesSearchInput.value = '';
-        if (data?.employee && !data.employee.is_active) {
-          state.employeesVisibilityFilter = 'all';
-        }
         await loadPayrollReport();
         renderEmployeesWorkspace();
         refreshRepairOrderEmployeeSelects();
@@ -8519,22 +8466,6 @@ BOARD_WEB_APP_HTML = "".join(
       renderEmployeesWorkspace();
     }
 
-    function handleEmployeesSearchInput(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement)) return;
-      state.employeesQuery = target.value || '';
-      renderEmployeesList();
-    }
-
-    function handleEmployeesVisibilityFilterClick(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const button = target.closest('[data-filter]');
-      if (!(button instanceof HTMLElement)) return;
-      state.employeesVisibilityFilter = normalizeEmployeesVisibilityFilter(button.dataset.filter);
-      renderEmployeesList();
-    }
-
     function handleEmployeesReportTabClick(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -8557,7 +8488,6 @@ BOARD_WEB_APP_HTML = "".join(
         || target === els.employeeBaseSalaryInput
         || target === els.employeeWorkPercentInput
         || target === els.employeeNoteInput
-        || target === els.employeeActiveInput
       ) {
         if (els.employeeNoteDetails && target === els.employeeNoteInput && String(els.employeeNoteInput.value || '').trim()) {
           els.employeeNoteDetails.open = true;
