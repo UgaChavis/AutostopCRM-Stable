@@ -6,15 +6,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from minimal_kanban.mcp.client import BoardApiTransportError
-from minimal_kanban.mcp.main import _reachable_board_api_url, _runtime_bind_host
-from minimal_kanban.settings_models import IntegrationSettings
+from minimal_kanban.mcp.client import BoardApiTransportError  # noqa: E402
+from minimal_kanban.mcp.main import _reachable_board_api_url, _runtime_bind_host  # noqa: E402
+from minimal_kanban.settings_models import IntegrationSettings  # noqa: E402
 
 
 class ReachableBoardApiUrlTests(unittest.TestCase):
@@ -31,7 +30,9 @@ class ReachableBoardApiUrlTests(unittest.TestCase):
         with patch("minimal_kanban.mcp.main.BoardApiClient") as client_cls:
             client_cls.return_value.health.return_value = {"ok": True}
             self.assertEqual(
-                _reachable_board_api_url("http://127.0.0.1:41731", bearer_token="token", logger=self.logger),
+                _reachable_board_api_url(
+                    "http://127.0.0.1:41731", bearer_token="token", logger=self.logger
+                ),
                 "http://127.0.0.1:41731",
             )
 
@@ -39,14 +40,18 @@ class ReachableBoardApiUrlTests(unittest.TestCase):
         with patch("minimal_kanban.mcp.main.BoardApiClient") as client_cls:
             client_cls.return_value.health.side_effect = BoardApiTransportError("offline")
             self.assertIsNone(
-                _reachable_board_api_url("http://127.0.0.1:41731", bearer_token="token", logger=self.logger)
+                _reachable_board_api_url(
+                    "http://127.0.0.1:41731", bearer_token="token", logger=self.logger
+                )
             )
 
     def test_propagates_non_transport_errors(self) -> None:
         with patch("minimal_kanban.mcp.main.BoardApiClient") as client_cls:
             client_cls.return_value.health.side_effect = ValueError("broken payload")
             with self.assertRaises(ValueError):
-                _reachable_board_api_url("http://127.0.0.1:41731", bearer_token="token", logger=self.logger)
+                _reachable_board_api_url(
+                    "http://127.0.0.1:41731", bearer_token="token", logger=self.logger
+                )
 
 
 class RuntimeBindHostTests(unittest.TestCase):
@@ -75,34 +80,25 @@ class McpMainRunTests(unittest.TestCase):
         def fake_signal(_signum, handler):
             handler(None, None)
 
-        with patch("minimal_kanban.mcp.main.configure_logging", return_value=logger), patch(
-            "minimal_kanban.mcp.main.close_logger"
-        ), patch(
-            "minimal_kanban.mcp.main.SettingsStore"
-        ), patch(
-            "minimal_kanban.mcp.main.SettingsService"
-        ) as settings_service_cls, patch(
-            "minimal_kanban.mcp.main._reachable_board_api_url", return_value=None
-        ), patch(
-            "minimal_kanban.mcp.main.get_board_api_url", return_value=None
-        ), patch(
-            "minimal_kanban.mcp.main.discover_board_api", return_value=None
-        ), patch(
-            "minimal_kanban.mcp.main.JsonStore"
-        ), patch(
-            "minimal_kanban.mcp.main.CardService", return_value=card_service
-        ), patch(
-            "minimal_kanban.mcp.main.OperatorAuthService"
-        ), patch(
-            "minimal_kanban.mcp.main.ApiServer", return_value=api_server
-        ), patch(
-            "minimal_kanban.mcp.main.BoardApiClient"
-        ), patch(
-            "minimal_kanban.mcp.main.create_mcp_server", return_value=Mock()
-        ), patch(
-            "minimal_kanban.mcp.main.McpServerRuntime", return_value=runtime
-        ), patch(
-            "minimal_kanban.mcp.main.signal.signal", side_effect=fake_signal
+        with (
+            patch("minimal_kanban.mcp.main.configure_logging", return_value=logger),
+            patch("minimal_kanban.mcp.main.close_logger"),
+            patch("minimal_kanban.mcp.main.SettingsStore"),
+            patch("minimal_kanban.mcp.main.SettingsService") as settings_service_cls,
+            patch("minimal_kanban.mcp.main._reachable_board_api_url", return_value=None),
+            patch("minimal_kanban.mcp.main.get_board_api_url", return_value=None),
+            patch("minimal_kanban.mcp.main.discover_board_api", return_value=None),
+            patch("minimal_kanban.mcp.main.JsonStore"),
+            patch("minimal_kanban.mcp.main.CardService", return_value=card_service),
+            patch("minimal_kanban.mcp.main.OperatorAuthService"),
+            patch("minimal_kanban.mcp.main.ApiServer", return_value=api_server),
+            patch(
+                "minimal_kanban.mcp.main.start_embedded_agent_runtime", return_value=Mock()
+            ) as agent_runtime,
+            patch("minimal_kanban.mcp.main.BoardApiClient"),
+            patch("minimal_kanban.mcp.main.create_mcp_server", return_value=Mock()),
+            patch("minimal_kanban.mcp.main.McpServerRuntime", return_value=runtime),
+            patch("minimal_kanban.mcp.main.signal.signal", side_effect=fake_signal),
         ):
             settings_service_cls.return_value.load.return_value = settings
 
@@ -113,6 +109,12 @@ class McpMainRunTests(unittest.TestCase):
         self.assertEqual(result, 0)
         card_service.ensure_demo_board.assert_called_once_with()
         api_server.start.assert_called_once_with()
+        agent_runtime.assert_called_once_with(
+            service=card_service,
+            logger=logger,
+            board_api_url="http://127.0.0.1:41731",
+        )
         runtime.start.assert_called_once_with()
         runtime.stop.assert_called_once_with()
+        agent_runtime.return_value.close.assert_called_once_with()
         api_server.stop.assert_called_once_with()

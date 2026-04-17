@@ -4,6 +4,7 @@ import os
 import signal
 import time
 
+from ..agent.bootstrap import start_embedded_agent_runtime
 from ..api.server import ApiServer
 from ..config import (
     get_api_bearer_token,
@@ -19,9 +20,9 @@ from ..config import (
 )
 from ..logging_setup import close_logger, configure_logging
 from ..operator_auth import OperatorAuthService
+from ..services.card_service import CardService
 from ..settings_service import SettingsService
 from ..settings_store import SettingsStore
-from ..services.card_service import CardService
 from ..storage.json_store import JsonStore
 from .client import BoardApiClient, BoardApiTransportError, discover_board_api
 from .runtime import McpServerRuntime
@@ -53,7 +54,11 @@ def _reachable_board_api_url(
     if not configured_api_base_url:
         return None
     try:
-        if BoardApiClient(configured_api_base_url, bearer_token=bearer_token, logger=logger).health().get("ok"):
+        if (
+            BoardApiClient(configured_api_base_url, bearer_token=bearer_token, logger=logger)
+            .health()
+            .get("ok")
+        ):
             return configured_api_base_url
     except BoardApiTransportError:
         return None
@@ -72,6 +77,7 @@ def _runtime_bind_host(configured_host: str | None, *, env_explicit: bool) -> st
 def run() -> int:
     logger = configure_logging()
     embedded_api_server: ApiServer | None = None
+    embedded_agent_control = None
     mcp_runtime: McpServerRuntime | None = None
     try:
         settings_store = SettingsStore(logger=logger)
@@ -81,11 +87,19 @@ def run() -> int:
         if os.environ.get("MINIMAL_KANBAN_API_BEARER_TOKEN") is not None:
             api_bearer_token = get_api_bearer_token()
         elif settings.local_api.local_api_auth_mode == "bearer":
-            api_bearer_token = settings.local_api.local_api_bearer_token or settings.auth.local_api_bearer_token or settings.auth.access_token or get_api_bearer_token()
+            api_bearer_token = (
+                settings.local_api.local_api_bearer_token
+                or settings.auth.local_api_bearer_token
+                or settings.auth.access_token
+                or get_api_bearer_token()
+            )
         else:
             api_bearer_token = None
 
-        if os.environ.get("MINIMAL_KANBAN_BOARD_API_URL") is not None or os.environ.get("MINIMAL_KANBAN_API_BASE_URL") is not None:
+        if (
+            os.environ.get("MINIMAL_KANBAN_BOARD_API_URL") is not None
+            or os.environ.get("MINIMAL_KANBAN_API_BASE_URL") is not None
+        ):
             configured_api_base_url = get_board_api_url()
         elif settings.general.use_local_api or settings.local_api.local_api_base_url_override:
             configured_api_base_url = settings.local_api.effective_local_api_url
@@ -106,7 +120,9 @@ def run() -> int:
                 logger.info("embedded_api_demo_seeded=true")
             operator_service = OperatorAuthService(store, service, logger=logger)
             resolved_api_host = _runtime_bind_host(
-                get_api_host() if os.environ.get("MINIMAL_KANBAN_API_HOST") is not None else settings.local_api.local_api_host,
+                get_api_host()
+                if os.environ.get("MINIMAL_KANBAN_API_HOST") is not None
+                else settings.local_api.local_api_host,
                 env_explicit=os.environ.get("MINIMAL_KANBAN_API_HOST") is not None,
             )
             embedded_api_server = ApiServer(
@@ -114,10 +130,17 @@ def run() -> int:
                 logger,
                 operator_service=operator_service,
                 host=resolved_api_host,
-                start_port=get_api_port() if os.environ.get("MINIMAL_KANBAN_API_PORT") is not None else settings.local_api.local_api_port,
+                start_port=get_api_port()
+                if os.environ.get("MINIMAL_KANBAN_API_PORT") is not None
+                else settings.local_api.local_api_port,
                 bearer_token=api_bearer_token,
             )
             embedded_api_server.start()
+            embedded_agent_control = start_embedded_agent_runtime(
+                service=service,
+                logger=logger,
+                board_api_url=embedded_api_server.base_url,
+            )
             api_base_url = embedded_api_server.base_url
             logger.info("embedded_api_started_for_mcp url=%s", api_base_url)
         else:
@@ -126,14 +149,24 @@ def run() -> int:
         if os.environ.get("MINIMAL_KANBAN_MCP_BEARER_TOKEN") is not None:
             mcp_bearer_token = get_mcp_bearer_token()
         elif settings.mcp.mcp_auth_mode == "bearer":
-            mcp_bearer_token = settings.mcp.mcp_bearer_token or settings.auth.mcp_bearer_token or settings.auth.access_token or get_mcp_bearer_token()
+            mcp_bearer_token = (
+                settings.mcp.mcp_bearer_token
+                or settings.auth.mcp_bearer_token
+                or settings.auth.access_token
+                or get_mcp_bearer_token()
+            )
         else:
             mcp_bearer_token = None
 
         if os.environ.get("MINIMAL_KANBAN_MCP_PUBLIC_BASE_URL") is not None:
             mcp_public_base_url = get_mcp_public_base_url()
         else:
-            mcp_public_base_url = settings.mcp.public_https_base_url or get_mcp_public_base_url() or settings.mcp.tunnel_url or None
+            mcp_public_base_url = (
+                settings.mcp.public_https_base_url
+                or get_mcp_public_base_url()
+                or settings.mcp.tunnel_url
+                or None
+            )
 
         if os.environ.get("MINIMAL_KANBAN_MCP_PUBLIC_ENDPOINT_URL") is not None:
             mcp_public_endpoint_url = get_mcp_public_endpoint_url()
@@ -141,11 +174,21 @@ def run() -> int:
             mcp_public_endpoint_url = settings.mcp.full_mcp_url_override or None
 
         resolved_mcp_host = _runtime_bind_host(
-            get_mcp_host() if os.environ.get("MINIMAL_KANBAN_MCP_HOST") is not None else settings.mcp.mcp_host,
+            get_mcp_host()
+            if os.environ.get("MINIMAL_KANBAN_MCP_HOST") is not None
+            else settings.mcp.mcp_host,
             env_explicit=os.environ.get("MINIMAL_KANBAN_MCP_HOST") is not None,
         )
-        resolved_mcp_port = get_mcp_port() if os.environ.get("MINIMAL_KANBAN_MCP_PORT") is not None else settings.mcp.mcp_port
-        resolved_mcp_path = get_mcp_path() if os.environ.get("MINIMAL_KANBAN_MCP_PATH") is not None else settings.mcp.mcp_path
+        resolved_mcp_port = (
+            get_mcp_port()
+            if os.environ.get("MINIMAL_KANBAN_MCP_PORT") is not None
+            else settings.mcp.mcp_port
+        )
+        resolved_mcp_path = (
+            get_mcp_path()
+            if os.environ.get("MINIMAL_KANBAN_MCP_PATH") is not None
+            else settings.mcp.mcp_path
+        )
         resolved_auth_mode = "bearer" if mcp_bearer_token else "none"
         logger.info(
             "mcp.main.config board_api_url=%s host=%s port=%s path=%s auth_mode=%s public_base_url=%s public_endpoint_url=%s",
@@ -159,8 +202,12 @@ def run() -> int:
         )
 
         board_api = BoardApiClient(api_base_url, bearer_token=api_bearer_token, logger=logger)
-        configured_allowed_hosts = tuple(settings.mcp.allowed_hosts) + _env_list("MINIMAL_KANBAN_MCP_ALLOWED_HOSTS")
-        configured_allowed_origins = tuple(settings.mcp.allowed_origins) + _env_list("MINIMAL_KANBAN_MCP_ALLOWED_ORIGINS")
+        configured_allowed_hosts = tuple(settings.mcp.allowed_hosts) + _env_list(
+            "MINIMAL_KANBAN_MCP_ALLOWED_HOSTS"
+        )
+        configured_allowed_origins = tuple(settings.mcp.allowed_origins) + _env_list(
+            "MINIMAL_KANBAN_MCP_ALLOWED_ORIGINS"
+        )
         server = create_mcp_server(
             board_api,
             logger,
@@ -197,6 +244,8 @@ def run() -> int:
     finally:
         if mcp_runtime is not None:
             mcp_runtime.stop()
+        if embedded_agent_control is not None:
+            embedded_agent_control.close()
         if embedded_api_server is not None:
             embedded_api_server.stop()
         close_logger(logger)

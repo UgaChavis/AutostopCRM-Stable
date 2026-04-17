@@ -147,8 +147,7 @@ def run() -> int:
     tunnel_controller = None
     try:
         update_splash("Загружаю модули...")
-        from .agent.control import AgentControlService
-        from .agent.storage import AgentStorage
+        from .agent.bootstrap import start_embedded_agent_runtime
         from .api.server import ApiServer
         from .config import get_api_bearer_token, get_api_host, get_api_port
         from .integration_runtime import McpRuntimeController
@@ -165,9 +164,6 @@ def run() -> int:
         logger = configure_logging()
         store = JsonStore(logger=logger)
         service = CardService(store, logger)
-        agent_storage = AgentStorage()
-        agent_control = AgentControlService(agent_storage)
-        service.attach_agent_control(agent_control)
         operator_service = OperatorAuthService(store, service, logger=logger)
         settings_store = SettingsStore(logger=logger)
         settings_service = SettingsService(settings_store, logger)
@@ -224,12 +220,11 @@ def run() -> int:
             QMessageBox.critical(None, STARTUP_ERROR_TITLE, STARTUP_ERROR_MESSAGE)
             return 1
 
-        agent_control.bind_board_service(service)
-        agent_started = agent_control.start_worker(logger=logger, board_api_url=api_server.base_url)
-        if agent_started:
-            logger.info("embedded_agent_worker_started board_api_url=%s", api_server.base_url)
-        else:
-            logger.info("embedded_agent_worker_not_started")
+        agent_control = start_embedded_agent_runtime(
+            service=service,
+            logger=logger,
+            board_api_url=api_server.base_url,
+        )
 
         def _handle_exception(exc_type, exc_value, exc_traceback) -> None:
             assert logger is not None

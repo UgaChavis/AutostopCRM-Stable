@@ -14,7 +14,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - the card modal's lower-right `cardAgentButton` now launches the full card enrichment flow and opens the agent surface for progress
 - `run_full_card_enrichment` is the active card-button entrypoint again, backed by `/api/run_full_card_enrichment`
 - the agent surface routes in `api/server.py` are active again; status/tasks/actions/scheduled-task routes are wired to `CardService`
-- `CardService` now attaches an agent controller in `app.py`, but still falls back to the old local-cleanup path when no controller is attached
+- `CardService` now attaches an agent controller through the shared embedded-agent bootstrap used by both `app.py` and `mcp.main`; the old local-cleanup path still remains only as fallback when no controller is attached
 
 ## Current Known Cautions
 
