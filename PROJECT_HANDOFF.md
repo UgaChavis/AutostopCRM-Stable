@@ -4,6 +4,8 @@ This is the primary developer handoff document for branch `autostopCRM`.
 
 Use it as the operational overview after reading `00_START_HERE_AUTOSTOP_CRM.md` and `MASTER-PLAN.md`.
 
+Supplement it with `docs/OPERATIONS_RUNBOOK.md` and `docs/CODEX_WORKFLOW.md` for the practical release path.
+
 It should answer four questions fast:
 
 1. What the product is right now.
@@ -105,7 +107,6 @@ Core rule:
 
 - `main.py`: desktop application entry
 - `main_mcp.py`: MCP-only entry
-- `main_agent.py`: retired compatibility stub
 
 ### Runtime assembly
 
@@ -141,7 +142,7 @@ Core rule:
 
 ### Retired agent layer
 
-- old server-agent modules still exist in the repository as legacy code
+- old server-agent modules now remain only as internal compatibility code
 - they are no longer part of active startup, deploy, or visible UI flows
 - current product behavior keeps only local card cleanup through `CardService`
 
@@ -250,7 +251,7 @@ Current known verification baseline:
 - last known full-suite baseline before the latest UI/employee work was green
 - latest targeted regressions for `tests.test_service`, `tests.test_api`, and `tests.test_web_assets` are green
 - latest targeted `tests.test_service`, `tests.test_api`, `tests.test_web_assets`, `tests.test_mcp`, and `tests.test_mcp_main` runs are green
-- import smoke for `main.py`, `main_mcp.py`, and `main_agent.py` is green
+- import smoke for `main.py` and `main_mcp.py` is green
 - latest full-suite validation on the current local stabilization pass: `344/344 OK`
 - latest focused validation on MCP/settings/UI startup chain: `61/61 OK`
 

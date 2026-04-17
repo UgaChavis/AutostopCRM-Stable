@@ -220,19 +220,11 @@ class WebAssetsTests(unittest.TestCase):
 
     def test_ai_ui_exposes_new_entry_surface_and_legacy_fallback(self) -> None:
         self.assertIn('id="cardAgentButton"', BOARD_WEB_APP_HTML)
-        self.assertIn('title="Прибраться в карточке"', BOARD_WEB_APP_HTML)
+        self.assertIn('title="Индикатор карточки"', BOARD_WEB_APP_HTML)
         self.assertIn("function renderCardCleanupIndicator()", BOARD_WEB_APP_HTML)
-        self.assertIn("async function runCardCleanup()", BOARD_WEB_APP_HTML)
-        self.assertIn("'/api/cleanup_card_content'", BOARD_WEB_APP_HTML)
-        self.assertIn(
-            "els.cardAgentButton?.addEventListener('click', runCardCleanup);", BOARD_WEB_APP_HTML
-        )
-        self.assertIn("state.cardCleanupState = 'running';", BOARD_WEB_APP_HTML)
-        self.assertIn("Карточка приведена в порядок.", BOARD_WEB_APP_HTML)
-        self.assertIn("Явных изменений для карточки не найдено.", BOARD_WEB_APP_HTML)
         self.assertIn("function legacyAgentRuntimeAvailable()", BOARD_WEB_APP_HTML)
         self.assertIn(
-            'Старый AI-режим отключён. Используй кнопку "Прибраться в карточке".',
+            'Старый AI-режим отключён. Используй кнопку "Индикатор карточки".',
             BOARD_WEB_APP_HTML,
         )
         self.assertNotIn('id="aiChatButton"', BOARD_WEB_APP_HTML)
@@ -246,6 +238,15 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("els.boardControlToggle?.addEventListener(", BOARD_WEB_APP_HTML)
         self.assertNotIn("els.boardControlIntervalInput?.addEventListener(", BOARD_WEB_APP_HTML)
         self.assertNotIn("els.boardControlCooldownInput?.addEventListener(", BOARD_WEB_APP_HTML)
+        self.assertNotIn("async function runCardCleanup()", BOARD_WEB_APP_HTML)
+        self.assertNotIn("'/api/cleanup_card_content'", BOARD_WEB_APP_HTML)
+        self.assertNotIn(
+            "els.cardAgentButton?.addEventListener('click', runCardCleanup);",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertNotIn("state.cardCleanupState = 'running';", BOARD_WEB_APP_HTML)
+        self.assertNotIn("Карточка приведена в порядок.", BOARD_WEB_APP_HTML)
+        self.assertNotIn("Явных изменений для карточки не найдено.", BOARD_WEB_APP_HTML)
 
     def test_employees_module_is_exposed_in_topbar_and_repair_order_rows(self) -> None:
         self.assertIn('id="employeesButton">СОТРУДНИКИ</button>', BOARD_WEB_APP_HTML)
@@ -278,20 +279,21 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("function handleEmployeesVisibilityFilterClick(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function confirmDiscardEmployeeChanges()", BOARD_WEB_APP_HTML)
         self.assertIn("function renderEmployeesSummary()", BOARD_WEB_APP_HTML)
+        self.assertIn('title="Дважды кликните, чтобы открыть детализацию."', BOARD_WEB_APP_HTML)
         self.assertIn("function openEmployeeSalaryModal(", BOARD_WEB_APP_HTML)
         self.assertIn("function loadEmployeeSalarySheet(", BOARD_WEB_APP_HTML)
         self.assertIn("function renderEmployeeSalaryModal()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleEmployeeSalaryActionConfirm()", BOARD_WEB_APP_HTML)
         self.assertIn("function renderEmployeeProfileMeta()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleEmployeesDetailClick(event)", BOARD_WEB_APP_HTML)
-        self.assertIn("function handleEmployeesReportTabClick(event)", BOARD_WEB_APP_HTML)
+        self.assertIn("function handleEmployeesSummaryTableDoubleClick(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function syncEmployeeSalaryModeUi()", BOARD_WEB_APP_HTML)
-        self.assertIn("function syncEmployeesReportTabUi()", BOARD_WEB_APP_HTML)
+        self.assertIn("function syncEmployeesReportPanelUi()", BOARD_WEB_APP_HTML)
         self.assertIn("function hydrateEmployeesUiRefs()", BOARD_WEB_APP_HTML)
         self.assertIn("function bindEmployeesUiEvents()", BOARD_WEB_APP_HTML)
         self.assertIn("function addEmployeeFromForm()", BOARD_WEB_APP_HTML)
         self.assertIn("employeeCreateMode: false", BOARD_WEB_APP_HTML)
-        self.assertIn("employeesReportTab: 'summary'", BOARD_WEB_APP_HTML)
+        self.assertIn("employeesReportDetailsOpen: false", BOARD_WEB_APP_HTML)
         self.assertIn("state.employeeCreateMode = true;", BOARD_WEB_APP_HTML)
         self.assertIn("create_mode: Boolean(state.employeeCreateMode)", BOARD_WEB_APP_HTML)
         self.assertIn(
@@ -315,8 +317,10 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn(".employees-list-meta,", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-card-head-main {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-card-actions {", BOARD_WEB_APP_HTML)
-        self.assertIn(".employees-report-tabs {", BOARD_WEB_APP_HTML)
-        self.assertIn(".employees-report-panel.is-active {", BOARD_WEB_APP_HTML)
+        self.assertIn(".employees-report-shell {", BOARD_WEB_APP_HTML)
+        self.assertIn('[data-details-open="true"]', BOARD_WEB_APP_HTML)
+        self.assertIn(".employees-report-panel--summary {", BOARD_WEB_APP_HTML)
+        self.assertIn(".employees-report-panel--details {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-kpi--accent {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-row__summary {", BOARD_WEB_APP_HTML)
         self.assertIn(".employees-row__summary-label {", BOARD_WEB_APP_HTML)
@@ -341,9 +345,11 @@ class WebAssetsTests(unittest.TestCase):
             'class="field employees-field--span-6 employees-field--compact employees-field--mode"',
             BOARD_WEB_APP_HTML,
         )
-        self.assertIn('class="employees-report-tabs" id="employeesReportTabs"', BOARD_WEB_APP_HTML)
         self.assertIn('id="employeesSummaryPanel"', BOARD_WEB_APP_HTML)
         self.assertIn('id="employeesDetailsPanel"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesReportShell"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesReportMeta"', BOARD_WEB_APP_HTML)
+        self.assertIn('id="employeesDetailsMeta"', BOARD_WEB_APP_HTML)
         self.assertIn('placeholder="0"', BOARD_WEB_APP_HTML)
         self.assertIn('data-employee-salary="', BOARD_WEB_APP_HTML)
         self.assertIn("К ВЫПЛАТЕ", BOARD_WEB_APP_HTML)
@@ -370,6 +376,11 @@ class WebAssetsTests(unittest.TestCase):
             BOARD_WEB_APP_HTML,
         )
         self.assertIn(
+            "els.employeesSummaryTable?.addEventListener('dblclick', handleEmployeesSummaryTableDoubleClick);",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn("state.employeesReportDetailsOpen = false;", BOARD_WEB_APP_HTML)
+        self.assertIn(
             "els.employeesCreateButton?.addEventListener('click', addEmployeeFromForm);",
             BOARD_WEB_APP_HTML,
         )
@@ -377,7 +388,7 @@ class WebAssetsTests(unittest.TestCase):
             "els.employeeDeleteButton?.addEventListener('click', deleteEmployee);",
             BOARD_WEB_APP_HTML,
         )
-        self.assertIn(
+        self.assertNotIn(
             "els.employeesReportTabs?.addEventListener('click', handleEmployeesReportTabClick);",
             BOARD_WEB_APP_HTML,
         )

@@ -11,6 +11,8 @@ This is the first file a new developer or agent should read in branch `autostopC
 - production MCP: `https://crm.autostopcrm.ru/mcp`
 - production server IP at last verification: `46.8.254.243`
 - production repo path: `/opt/autostopcrm`
+- operator runbook: `docs/OPERATIONS_RUNBOOK.md`
+- workflow guide: `docs/CODEX_WORKFLOW.md`
 
 ## What The Product Is
 
@@ -30,13 +32,15 @@ AutoStop CRM is an auto-workshop CRM built around:
 1. `00_START_HERE_AUTOSTOP_CRM.md`
 2. `MASTER-PLAN.md`
 3. `PROJECT_HANDOFF.md`
-4. `README.md`
-5. `AUTOSTOPCRM_FULL_INSTRUCTION.txt`
-6. `API_GUIDE.md`
-7. `MCP_GUIDE.md`
-8. `src/minimal_kanban/services/card_service.py`
-9. `src/minimal_kanban/mcp/server.py`
-10. `src/minimal_kanban/web_assets.py`
+4. `docs/OPERATIONS_RUNBOOK.md`
+5. `docs/CODEX_WORKFLOW.md`
+6. `README.md`
+7. `AUTOSTOPCRM_FULL_INSTRUCTION.txt`
+8. `API_GUIDE.md`
+9. `MCP_GUIDE.md`
+10. `src/minimal_kanban/services/card_service.py`
+11. `src/minimal_kanban/mcp/server.py`
+12. `src/minimal_kanban/web_assets.py`
 
 ## Main Runtime Layers
 
@@ -57,7 +61,6 @@ External ChatGPT / MCP client
 
 - `main.py`: desktop entry
 - `main_mcp.py`: MCP entry
-- `main_agent.py`: retired compatibility stub
 - `src/minimal_kanban/api/server.py`: API surface
 - `src/minimal_kanban/services/card_service.py`: business core
 - `src/minimal_kanban/services/column_service.py`: column ordering and column operations

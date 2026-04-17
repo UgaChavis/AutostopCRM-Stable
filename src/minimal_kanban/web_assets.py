@@ -4838,34 +4838,70 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .employees-report-shell {
       display: grid;
-      gap: 10px;
+      gap: 12px;
+      min-height: 0;
+      grid-template-rows: minmax(0, 1fr) minmax(64px, auto);
     }
-    .employees-report-tabs {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .employees-report-tabs .btn {
-      min-height: 30px;
-      padding: 6px 10px;
-      font-size: 10.5px;
-    }
-    .employees-report-tabs .btn.is-active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(182, 177, 116, 0.08);
+    .employees-report-shell[data-details-open="true"] {
+      grid-template-rows: minmax(0, 1.25fr) minmax(260px, 0.75fr);
     }
     .employees-report-panel {
-      display: none;
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+      padding: 10px 10px 12px;
+      border: 1px solid rgba(164, 173, 138, 0.14);
+      background: rgba(18, 24, 20, 0.18);
     }
-    .employees-report-panel.is-active {
-      display: block;
+    .employees-report-panel--summary {
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+    .employees-report-panel--details {
+      border-color: rgba(182, 177, 116, 0.2);
+      background: rgba(182, 177, 116, 0.04);
+    }
+    .employees-report-panel__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .employees-report-panel__title {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(231, 226, 193, 0.75);
+      font-family: var(--mono);
+    }
+    .employees-report-panel__meta {
+      font-size: 11px;
+      color: rgba(231, 226, 193, 0.68);
+    }
+    .employees-report-panel__meta strong {
+      color: var(--text);
+    }
+    .employees-report-panel.is-collapsed {
+      border-style: dashed;
+    }
+    .employees-report-shell[data-details-open="false"] .employees-report-panel--details {
+      padding-bottom: 8px;
+    }
+    .employees-report-shell[data-details-open="false"] .employees-report-panel--details .employees-table-wrap {
+      display: none;
     }
     .employees-table-wrap {
       overflow: auto;
-      max-height: 236px;
+      min-height: 0;
+      max-height: 100%;
       border: 1px solid var(--line);
       background: rgba(18, 24, 20, 0.6);
+    }
+    .employees-table-wrap--summary {
+      min-height: 250px;
+    }
+    .employees-table-wrap--details {
+      min-height: 200px;
     }
     .employees-table {
       width: 100%;
@@ -4895,6 +4931,12 @@ BOARD_WEB_APP_HTML = "".join(
     .employees-table tr[data-employee-id],
     .employees-table tr[data-card-id] {
       cursor: pointer;
+    }
+    .employees-table tr[data-employee-id][data-report-row] {
+      cursor: zoom-in;
+    }
+    .employees-table tr[data-employee-id][data-report-row]:hover td {
+      background: rgba(182, 177, 116, 0.08);
     }
     .employees-table tr[data-employee-id]:hover td,
     .employees-table tr[data-card-id]:hover td {
@@ -5492,7 +5534,7 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
         <div class="dialog__foot-group dialog__foot-group--main">
           <button class="btn" id="cardModalCloseButtonBottom" data-close="card" onclick="window.__closeCardModal && window.__closeCardModal(); return false;">ОТМЕНА</button>
-          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Прибраться в карточке" aria-label="Прибраться в карточке"></button>
+          <button class="btn btn--ghost card-agent-button" id="cardAgentButton" type="button" title="Индикатор карточки" aria-label="Индикатор карточки"></button>
           <button class="btn btn--accent" id="saveCardButton">СОХРАНИТЬ</button>
         </div>
       </div>
@@ -5773,7 +5815,7 @@ BOARD_WEB_APP_HTML = "".join(
       employees: [],
       activeEmployeeId: '',
       employeeCreateMode: false,
-      employeesReportTab: 'summary',
+      employeesReportDetailsOpen: false,
       employeeFormBaseline: null,
       payrollMonth: '',
       payrollReport: null,
@@ -6115,13 +6157,21 @@ BOARD_WEB_APP_HTML = "".join(
                   + '</div>'
                   + '<div class="subpanel">'
                     + '<div class="employees-panel-head"><div class="panel-title">ОТЧЁТ ПО СОТРУДНИКУ</div><input class="repair-orders-search" id="employeesMonthInput" type="month"></div>'
-                    + '<div class="employees-report-shell">'
-                      + '<div class="employees-report-tabs" id="employeesReportTabs">'
-                        + '<button class="btn is-active" type="button" data-employees-report-tab="summary">СВОДКА</button>'
-                        + '<button class="btn btn--ghost" type="button" data-employees-report-tab="details">СТРОКИ</button>'
+              + '<div class="employees-report-shell" id="employeesReportShell">'
+                + '<div class="employees-report-panel employees-report-panel--summary" id="employeesSummaryPanel">'
+                        + '<div class="employees-report-panel__head">'
+                          + '<div class="employees-report-panel__title">СВОДКА</div>'
+                          + '<div class="employees-report-panel__meta" id="employeesReportMeta">Дважды кликните строку, чтобы открыть детализацию.</div>'
+                        + '</div>'
+                        + '<div class="employees-table-wrap employees-table-wrap--summary"><table class="employees-table"><thead><tr><th>СОТРУДНИК</th><th>ДОЛЖНОСТЬ</th><th class="is-num">КОЛ-ВО</th><th class="is-num">НАЧИСЛЕНО %</th><th class="is-num">ОКЛАД</th><th class="is-num">ИТОГ</th></tr></thead><tbody id="employeesSummaryTable"></tbody></table></div>'
                       + '</div>'
-                      + '<div class="employees-report-panel is-active" id="employeesSummaryPanel"><div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>СОТРУДНИК</th><th>ДОЛЖНОСТЬ</th><th class="is-num">КОЛ-ВО</th><th class="is-num">НАЧИСЛЕНО %</th><th class="is-num">ОКЛАД</th><th class="is-num">ИТОГ</th></tr></thead><tbody id="employeesSummaryTable"></tbody></table></div></div>'
-                      + '<div class="employees-report-panel" id="employeesDetailsPanel"><div class="employees-table-wrap"><table class="employees-table"><thead><tr><th>ДАТА</th><th>НАРЯД</th><th>АВТО</th><th>РАБОТА</th><th class="is-num">СУММА</th><th class="is-num">НАЧИСЛЕНО</th></tr></thead><tbody id="employeesDetailTable"></tbody></table></div></div>'
+                      + '<div class="employees-report-panel employees-report-panel--details is-collapsed" id="employeesDetailsPanel">'
+                        + '<div class="employees-report-panel__head">'
+                          + '<div class="employees-report-panel__title">ДЕТАЛИЗАЦИЯ</div>'
+                          + '<div class="employees-report-panel__meta" id="employeesDetailsMeta">Откройте строку двойным кликом.</div>'
+                        + '</div>'
+                        + '<div class="employees-table-wrap employees-table-wrap--details"><table class="employees-table"><thead><tr><th>ДАТА</th><th>НАРЯД</th><th>АВТО</th><th>РАБОТА</th><th class="is-num">СУММА</th><th class="is-num">НАЧИСЛЕНО</th></tr></thead><tbody id="employeesDetailTable"></tbody></table></div>'
+                      + '</div>'
                     + '</div>'
                   + '</div>'
                 + '</div>'
@@ -6237,12 +6287,13 @@ BOARD_WEB_APP_HTML = "".join(
       employeeSalaryModal: document.getElementById('employeeSalaryModal'),
       employeesList: document.getElementById('employeesList'),
       employeesCardMode: document.getElementById('employeesCardMode'),
-      employeesReportTabs: document.getElementById('employeesReportTabs'),
       employeesSummaryPanel: document.getElementById('employeesSummaryPanel'),
       employeesDetailsPanel: document.getElementById('employeesDetailsPanel'),
+      employeesReportShell: document.getElementById('employeesReportShell'),
       employeesMonthInput: document.getElementById('employeesMonthInput'),
       employeesMeta: document.getElementById('employeesMeta'),
       employeesReportMeta: document.getElementById('employeesReportMeta'),
+      employeesDetailsMeta: document.getElementById('employeesDetailsMeta'),
       employeesSummaryStrip: document.getElementById('employeesSummaryStrip'),
       employeesSummaryTable: document.getElementById('employeesSummaryTable'),
       employeesDetailTable: document.getElementById('employeesDetailTable'),
@@ -6447,12 +6498,13 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeSalaryModal = document.getElementById('employeeSalaryModal');
       els.employeesList = document.getElementById('employeesList');
       els.employeesCardMode = document.getElementById('employeesCardMode');
-      els.employeesReportTabs = document.getElementById('employeesReportTabs');
       els.employeesSummaryPanel = document.getElementById('employeesSummaryPanel');
       els.employeesDetailsPanel = document.getElementById('employeesDetailsPanel');
+      els.employeesReportShell = document.getElementById('employeesReportShell');
       els.employeesMonthInput = document.getElementById('employeesMonthInput');
       els.employeesMeta = document.getElementById('employeesMeta');
       els.employeesReportMeta = document.getElementById('employeesReportMeta');
+      els.employeesDetailsMeta = document.getElementById('employeesDetailsMeta');
       els.employeesSummaryStrip = document.getElementById('employeesSummaryStrip');
       els.employeesSummaryTable = document.getElementById('employeesSummaryTable');
       els.employeesDetailTable = document.getElementById('employeesDetailTable');
@@ -7770,9 +7822,9 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeToggleButton?.addEventListener('click', toggleEmployee);
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
       els.employeesMonthInput?.addEventListener('change', handleEmployeesMonthChange);
-      els.employeesReportTabs?.addEventListener('click', handleEmployeesReportTabClick);
       els.employeesList?.addEventListener('click', handleEmployeesListClick);
       els.employeesSummaryTable?.addEventListener('click', handleEmployeesListClick);
+      els.employeesSummaryTable?.addEventListener('dblclick', handleEmployeesSummaryTableDoubleClick);
       els.employeesDetailTable?.addEventListener('click', handleEmployeesDetailClick);
       els.employeesModal?.addEventListener('input', handleEmployeesModalFormInput);
       els.employeesModal?.addEventListener('change', handleEmployeesModalFormInput);
@@ -8346,22 +8398,18 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeesMeta.textContent = parts.join(' · ');
     }
 
-    function normalizeEmployeesReportTab(value) {
-      return String(value || '').trim() === 'details' ? 'details' : 'summary';
-    }
-
-    function syncEmployeesReportTabUi() {
-      const activeTab = normalizeEmployeesReportTab(state.employeesReportTab);
-      if (els.employeesReportTabs) {
-        els.employeesReportTabs.querySelectorAll('[data-employees-report-tab]').forEach((button) => {
-          if (!(button instanceof HTMLElement)) return;
-          const isActive = String(button.dataset.employeesReportTab || '') === activeTab;
-          button.classList.toggle('is-active', isActive);
-          button.classList.toggle('btn--ghost', !isActive);
-        });
+    function syncEmployeesReportPanelUi() {
+      const detailsOpen = Boolean(state.employeesReportDetailsOpen);
+      if (els.employeesReportShell) {
+        els.employeesReportShell.dataset.detailsOpen = detailsOpen ? 'true' : 'false';
       }
-      els.employeesSummaryPanel?.classList.toggle('is-active', activeTab === 'summary');
-      els.employeesDetailsPanel?.classList.toggle('is-active', activeTab === 'details');
+      els.employeesDetailsPanel?.classList.toggle('is-collapsed', !detailsOpen);
+      if (els.employeesSummaryPanel) {
+        els.employeesSummaryPanel.dataset.reportState = detailsOpen ? 'focused' : 'ready';
+      }
+      if (els.employeesDetailsPanel) {
+        els.employeesDetailsPanel.dataset.reportState = detailsOpen ? 'open' : 'collapsed';
+      }
     }
 
     function syncEmployeeSalaryModeUi() {
@@ -8456,7 +8504,7 @@ BOARD_WEB_APP_HTML = "".join(
       }
       els.employeesSummaryTable.innerHTML = rows.map((row) => {
         const isActive = String(row.employee_id || '') === String(state.activeEmployeeId || '');
-        return '<tr data-employee-id="' + escapeHtml(row.employee_id) + '"' + (isActive ? ' class="is-active"' : '') + '>' +
+        return '<tr data-employee-id="' + escapeHtml(row.employee_id) + '" data-report-row="1" title="Дважды кликните, чтобы открыть детализацию."' + (isActive ? ' class="is-active"' : '') + '>' +
           '<td>' + escapeHtml(row.employee_name || '-') + '</td>' +
           '<td>' + escapeHtml(row.position || '-') + '</td>' +
           '<td class="is-num">' + escapeHtml(row.works_count || 0) + '</td>' +
@@ -8487,11 +8535,22 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function renderEmployeesDetails() {
-      const selectedId = String(state.activeEmployeeId || '').trim();
+      const selectedId = state.employeesReportDetailsOpen ? String(state.activeEmployeeId || '').trim() : '';
+      const selectedEmployee = selectedId ? selectedEmployeeRecord() : null;
       const rows = Array.isArray(state.payrollReport?.detail_rows) ? state.payrollReport.detail_rows : [];
       const visibleRows = selectedId ? rows.filter((item) => String(item.employee_id || '').trim() === selectedId) : [];
+      if (els.employeesReportMeta) {
+        els.employeesReportMeta.textContent = state.employeesReportDetailsOpen && selectedEmployee
+          ? ('Детализация: ' + String(selectedEmployee.name || 'СОТРУДНИК').toUpperCase())
+          : 'Дважды кликните строку, чтобы открыть детализацию.';
+      }
+      if (els.employeesDetailsMeta) {
+        els.employeesDetailsMeta.textContent = state.employeesReportDetailsOpen && selectedEmployee
+          ? ('Выбран ' + String(selectedEmployee.name || 'сотрудник') + ' · ' + employeeSalaryModeLabel(selectedEmployee.salary_mode || 'salary_plus_percent'))
+          : 'Откройте строку двойным кликом.';
+      }
       if (!visibleRows.length) {
-        els.employeesDetailTable.innerHTML = '<tr><td colspan="6">' + (selectedId ? 'Строк начисления нет.' : 'Выберите сотрудника.') + '</td></tr>';
+        els.employeesDetailTable.innerHTML = '<tr><td colspan="6">' + (selectedId ? 'Строк начисления нет.' : 'Двойной клик по строке в сводке откроет детализацию.') + '</td></tr>';
         return;
       }
       els.employeesDetailTable.innerHTML = visibleRows.map((row) => {
@@ -8688,7 +8747,7 @@ BOARD_WEB_APP_HTML = "".join(
       renderEmployeesSummary();
       renderEmployeesSummaryStrip();
       renderEmployeesDetails();
-      syncEmployeesReportTabUi();
+      syncEmployeesReportPanelUi();
       renderEmployeeProfileMeta();
     }
 
@@ -8751,6 +8810,7 @@ BOARD_WEB_APP_HTML = "".join(
       ensureEmployeesUi();
       hydrateEmployeesUiRefs();
       bindEmployeesUiEvents();
+      state.employeesReportDetailsOpen = false;
       if (els.employeesMonthInput && !els.employeesMonthInput.value) {
         els.employeesMonthInput.value = state.payrollMonth || currentPayrollMonthValue();
       }
@@ -8888,13 +8948,18 @@ BOARD_WEB_APP_HTML = "".join(
       renderEmployeesWorkspace();
     }
 
-    function handleEmployeesReportTabClick(event) {
+    function handleEmployeesSummaryTableDoubleClick(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
-      const button = target.closest('[data-employees-report-tab]');
-      if (!(button instanceof HTMLElement)) return;
-      state.employeesReportTab = normalizeEmployeesReportTab(button.dataset.employeesReportTab);
-      syncEmployeesReportTabUi();
+      const row = target.closest('[data-employee-id][data-report-row]');
+      if (!(row instanceof HTMLElement)) return;
+      const nextEmployeeId = String(row.dataset.employeeId || '').trim();
+      if (!nextEmployeeId) return;
+      if (!confirmDiscardEmployeeChanges()) return;
+      state.employeeCreateMode = false;
+      state.activeEmployeeId = nextEmployeeId;
+      state.employeesReportDetailsOpen = true;
+      renderEmployeesWorkspace();
     }
 
     function handleEmployeesModalFormInput(event) {
@@ -9486,7 +9551,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function reportLegacyAgentRuntimeRetired() {
-      setStatus('Старый AI-режим отключён. Используй кнопку "Прибраться в карточке".', true);
+      setStatus('Старый AI-режим отключён. Используй кнопку "Индикатор карточки".', true);
     }
 
     function openAiChatEntry() {
@@ -13233,53 +13298,20 @@ BOARD_WEB_APP_HTML = "".join(
       const uiState = currentState === 'running'
         ? 'busy'
         : (currentState === 'error' ? 'error' : (state.activeCard?.id ? 'online' : 'idle'));
-      let title = 'Прибраться в карточке';
+      let title = 'Индикатор карточки';
       if (currentState === 'running') {
-        title = 'Прибраться в карточке · выполняется';
+        title = 'Индикатор карточки · выполняется';
       } else if (currentState === 'error') {
         title = state.cardCleanupError
-          ? 'Прибраться в карточке · ошибка: ' + String(state.cardCleanupError || '').trim()
-          : 'Прибраться в карточке · ошибка';
+          ? 'Индикатор карточки · ошибка: ' + String(state.cardCleanupError || '').trim()
+          : 'Индикатор карточки · ошибка';
       } else if (state.activeCard?.id) {
-        title = 'Прибраться в карточке · готово';
+        title = 'Индикатор карточки · готово';
       }
       els.cardAgentButton.dataset.state = uiState;
       els.cardAgentButton.title = title;
       els.cardAgentButton.setAttribute('aria-label', title);
       els.cardAgentButton.disabled = currentState === 'running' || !state.activeCard?.id;
-    }
-
-    async function runCardCleanup() {
-      if (!requireOperatorSession()) return;
-      const cardId = String(state.activeCard?.id || '').trim();
-      if (!cardId) {
-        return setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ УБОРКИ.', true);
-      }
-      state.cardCleanupState = 'running';
-      state.cardCleanupError = '';
-      renderCardCleanupIndicator();
-      try {
-        const data = await api('/api/cleanup_card_content', {
-          method: 'POST',
-          body: { card_id: cardId },
-        });
-        if (data?.card) {
-          state.activeCard = data.card;
-          if (els.cardModal?.classList.contains('is-open')) {
-            applyCardModalState(data.card);
-          }
-        }
-        state.cardCleanupState = 'idle';
-        renderCardCleanupIndicator();
-        const changed = Boolean(data?.meta?.changed);
-        setStatus(changed ? 'Карточка приведена в порядок.' : 'Явных изменений для карточки не найдено.', false);
-        await refreshSnapshot(false);
-      } catch (error) {
-        state.cardCleanupState = 'error';
-        state.cardCleanupError = String(error?.message || 'Не удалось прибраться в карточке.');
-        renderCardCleanupIndicator();
-        setStatus(state.cardCleanupError, true);
-      }
     }
 
     function applyCardModalState(card) {
@@ -16449,7 +16481,6 @@ function renderCompactArchiveRows(cards) {
     els.tagInput.addEventListener('keydown', handleTagInputKeydown);
     configureVehicleAutofillUi();
     els.cardDescription.addEventListener('input', syncCardDescriptionHeight);
-    els.cardAgentButton?.addEventListener('click', runCardCleanup);
     els.vehicleAutofillButton.addEventListener('click', autofillVehicleProfile);
     els.repairOrderAddWorkRowButton.addEventListener('click', (event) => addRepairOrderRowFromButton('works', event));
     els.repairOrderAddMaterialRowButton.addEventListener('click', (event) => addRepairOrderRowFromButton('materials', event));

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-import re
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -98,22 +98,6 @@ CURATED_DOCUMENTS: tuple[CuratedDocumentDefinition, ...] = (
         use_case="API surface and request/response usage.",
         keywords=("api", "route", "server", "request", "response", "tool"),
     ),
-    CuratedDocumentDefinition(
-        document_id="autofill_orchestration",
-        title="GPT_AGENT_11_AGENT_AUTOFILL_ORCHESTRATION",
-        relative_path="GPT_AGENT_11_AGENT_AUTOFILL_ORCHESTRATION.md",
-        description="Legacy autofill orchestration and compatibility rules.",
-        use_case="Autofill pipeline compatibility and bounded behavior.",
-        keywords=("autofill", "orchestration", "runner", "policy", "patch", "verify"),
-    ),
-    CuratedDocumentDefinition(
-        document_id="scenario_map",
-        title="AI_REMODEL_SCENARIO_MAP_1_1",
-        relative_path="AI_REMODEL_SCENARIO_MAP_1_1.md",
-        description="Каноническая карта новых AI-сценариев.",
-        use_case="Scenario registry and interaction semantics.",
-        keywords=("ai_chat", "full_card_enrichment", "board_control", "scenario", "mode", "surface"),
-    ),
 )
 
 
@@ -148,23 +132,36 @@ def build_ai_chat_knowledge_packet(
     compact_context = context if isinstance(context, dict) else {}
     documents_requested = _should_use_documents(normalized_prompt, compact_context)
     internet_requested = _should_use_internet(normalized_prompt, compact_context)
-    selected_documents = _select_curated_documents(normalized_prompt, compact_context, limit=document_limit) if documents_requested else []
-    internet_packet = _lookup_controlled_internet(
-        prompt=normalized_prompt,
-        context=compact_context,
-        lookup_service=lookup_service,
-        limit=internet_limit,
-    ) if internet_requested else _empty_internet_packet(normalized_prompt, compact_context)
+    selected_documents = (
+        _select_curated_documents(normalized_prompt, compact_context, limit=document_limit)
+        if documents_requested
+        else []
+    )
+    internet_packet = (
+        _lookup_controlled_internet(
+            prompt=normalized_prompt,
+            context=compact_context,
+            lookup_service=lookup_service,
+            limit=internet_limit,
+        )
+        if internet_requested
+        else _empty_internet_packet(normalized_prompt, compact_context)
+    )
     source_labels = ["CRM"]
     if selected_documents:
-      source_labels.append("documents")
+        source_labels.append("documents")
     if internet_packet["used"]:
-      source_labels.append("internet")
+        source_labels.append("internet")
     crm_summary = _build_crm_summary(compact_context)
     return {
         "kind": "ai_chat_knowledge",
         "prompt": normalized_prompt,
-        "prompt_profile_kind": str((prompt_profile or {}).get("kind") or (prompt_profile or {}).get("prompt_profile_kind") or "ai_chat").strip() or "ai_chat",
+        "prompt_profile_kind": str(
+            (prompt_profile or {}).get("kind")
+            or (prompt_profile or {}).get("prompt_profile_kind")
+            or "ai_chat"
+        ).strip()
+        or "ai_chat",
         "source_labels": source_labels,
         "crm": crm_summary,
         "documents": {
@@ -185,21 +182,41 @@ def build_ai_chat_knowledge_packet(
 
 
 def _build_crm_summary(context: dict[str, Any]) -> dict[str, Any]:
-    card_context = context.get("card_context") if isinstance(context.get("card_context"), dict) else {}
-    repair_order_context = context.get("repair_order_context") if isinstance(context.get("repair_order_context"), dict) else {}
+    card_context = (
+        context.get("card_context") if isinstance(context.get("card_context"), dict) else {}
+    )
+    repair_order_context = (
+        context.get("repair_order_context")
+        if isinstance(context.get("repair_order_context"), dict)
+        else {}
+    )
     wall_digest = context.get("wall_digest") if isinstance(context.get("wall_digest"), dict) else {}
-    attachments = context.get("attachments_intake") if isinstance(context.get("attachments_intake"), dict) else {}
+    attachments = (
+        context.get("attachments_intake")
+        if isinstance(context.get("attachments_intake"), dict)
+        else {}
+    )
     return {
         "kind": str(context.get("kind") or "compact_context").strip() or "compact_context",
         "surface": str(context.get("surface") or "ai_chat").strip() or "ai_chat",
         "source_kind": str(context.get("source_kind") or "workspace").strip() or "workspace",
         "card_id": str(context.get("card_id") or card_context.get("card_id") or "").strip(),
-        "repair_order_id": str(context.get("repair_order_id") or repair_order_context.get("repair_order_id") or "").strip(),
-        "card_label": str(context.get("card_label") or card_context.get("summary_label") or "").strip(),
-        "repair_order_label": str(context.get("repair_order_label") or repair_order_context.get("summary_label") or "").strip(),
+        "repair_order_id": str(
+            context.get("repair_order_id") or repair_order_context.get("repair_order_id") or ""
+        ).strip(),
+        "card_label": str(
+            context.get("card_label") or card_context.get("summary_label") or ""
+        ).strip(),
+        "repair_order_label": str(
+            context.get("repair_order_label") or repair_order_context.get("summary_label") or ""
+        ).strip(),
         "context_label": str(context.get("context_label") or "").strip(),
-        "wall_label": str(wall_digest.get("label") or wall_digest.get("summary_label") or "").strip(),
-        "attachments_label": str(attachments.get("label") or attachments.get("summary_label") or "").strip(),
+        "wall_label": str(
+            wall_digest.get("label") or wall_digest.get("summary_label") or ""
+        ).strip(),
+        "attachments_label": str(
+            attachments.get("label") or attachments.get("summary_label") or ""
+        ).strip(),
     }
 
 
@@ -215,16 +232,30 @@ def _context_text(context: dict[str, Any]) -> str:
         str(context.get("context_label") or ""),
         str(context.get("repair_order_label") or ""),
     ]
-    card_context = context.get("card_context") if isinstance(context.get("card_context"), dict) else {}
-    repair_order_context = context.get("repair_order_context") if isinstance(context.get("repair_order_context"), dict) else {}
+    card_context = (
+        context.get("card_context") if isinstance(context.get("card_context"), dict) else {}
+    )
+    repair_order_context = (
+        context.get("repair_order_context")
+        if isinstance(context.get("repair_order_context"), dict)
+        else {}
+    )
     wall_digest = context.get("wall_digest") if isinstance(context.get("wall_digest"), dict) else {}
     parts.extend(
         [
             str(card_context.get("summary_label") or ""),
             str(card_context.get("title") or ""),
-            str(card_context.get("ai_relevant_facts", {}).get("client") if isinstance(card_context.get("ai_relevant_facts"), dict) else ""),
+            str(
+                card_context.get("ai_relevant_facts", {}).get("client")
+                if isinstance(card_context.get("ai_relevant_facts"), dict)
+                else ""
+            ),
             str(repair_order_context.get("summary_label") or ""),
-            str(repair_order_context.get("ai_relevant_facts", {}).get("machine") if isinstance(repair_order_context.get("ai_relevant_facts"), dict) else ""),
+            str(
+                repair_order_context.get("ai_relevant_facts", {}).get("machine")
+                if isinstance(repair_order_context.get("ai_relevant_facts"), dict)
+                else ""
+            ),
             str(wall_digest.get("label") or wall_digest.get("summary_label") or ""),
             str(wall_digest.get("summary_text") or ""),
         ]
@@ -243,10 +274,10 @@ def _prompt_terms(prompt: str, context: dict[str, Any]) -> list[str]:
     deduped: list[str] = []
     seen: set[str] = set()
     for token in tokens:
-      if token in seen:
-        continue
-      seen.add(token)
-      deduped.append(token)
+        if token in seen:
+            continue
+        seen.add(token)
+        deduped.append(token)
     return deduped
 
 
@@ -259,10 +290,14 @@ def _should_use_internet(prompt: str, context: dict[str, Any]) -> bool:
     haystack = " ".join([prompt, _context_text(context)]).casefold()
     if any(keyword in haystack for keyword in _INTERNET_CONTEXT_KEYWORDS):
         return True
-    return bool(re.search(r"\bvin\b", haystack, re.IGNORECASE)) or bool(re.search(r"\bdtc\b", haystack, re.IGNORECASE))
+    return bool(re.search(r"\bvin\b", haystack, re.IGNORECASE)) or bool(
+        re.search(r"\bdtc\b", haystack, re.IGNORECASE)
+    )
 
 
-def _select_curated_documents(prompt: str, context: dict[str, Any], *, limit: int) -> list[dict[str, Any]]:
+def _select_curated_documents(
+    prompt: str, context: dict[str, Any], *, limit: int
+) -> list[dict[str, Any]]:
     terms = _prompt_terms(prompt, context)
     scored: list[tuple[int, CuratedDocumentDefinition, str]] = []
     for definition in CURATED_DOCUMENTS:
@@ -278,7 +313,7 @@ def _select_curated_documents(prompt: str, context: dict[str, Any], *, limit: in
             scored.append((1, definition, _build_document_excerpt(text, terms)))
     scored.sort(key=lambda item: (item[0], len(item[2])), reverse=True)
     selected: list[dict[str, Any]] = []
-    for score, definition, excerpt in scored[:max(1, limit)]:
+    for score, definition, excerpt in scored[: max(1, limit)]:
         selected.append(
             {
                 **definition_to_payload(definition, excerpt=excerpt),
@@ -335,7 +370,7 @@ def _build_document_excerpt(text: str, terms: list[str], *, max_chars: int = 120
     collected: list[str] = []
     seen: set[str] = set()
     for index in matched_indexes[:3]:
-        for candidate in lines[max(0, index - 1):min(len(lines), index + 2)]:
+        for candidate in lines[max(0, index - 1) : min(len(lines), index + 2)]:
             normalized = candidate.strip()
             if not normalized or normalized in seen:
                 continue
@@ -348,14 +383,26 @@ def _build_document_excerpt(text: str, terms: list[str], *, max_chars: int = 120
 
 def _internet_query(prompt: str, context: dict[str, Any]) -> str:
     parts = [prompt]
-    card_context = context.get("card_context") if isinstance(context.get("card_context"), dict) else {}
-    repair_order_context = context.get("repair_order_context") if isinstance(context.get("repair_order_context"), dict) else {}
+    card_context = (
+        context.get("card_context") if isinstance(context.get("card_context"), dict) else {}
+    )
+    repair_order_context = (
+        context.get("repair_order_context")
+        if isinstance(context.get("repair_order_context"), dict)
+        else {}
+    )
     for value in (
         card_context.get("summary_label"),
-        card_context.get("ai_relevant_facts", {}).get("machine") if isinstance(card_context.get("ai_relevant_facts"), dict) else "",
+        card_context.get("ai_relevant_facts", {}).get("machine")
+        if isinstance(card_context.get("ai_relevant_facts"), dict)
+        else "",
         repair_order_context.get("summary_label"),
-        repair_order_context.get("ai_relevant_facts", {}).get("vehicle") if isinstance(repair_order_context.get("ai_relevant_facts"), dict) else "",
-        repair_order_context.get("ai_relevant_facts", {}).get("vin") if isinstance(repair_order_context.get("ai_relevant_facts"), dict) else "",
+        repair_order_context.get("ai_relevant_facts", {}).get("vehicle")
+        if isinstance(repair_order_context.get("ai_relevant_facts"), dict)
+        else "",
+        repair_order_context.get("ai_relevant_facts", {}).get("vin")
+        if isinstance(repair_order_context.get("ai_relevant_facts"), dict)
+        else "",
     ):
         text = str(value or "").strip()
         if text:
@@ -369,10 +416,26 @@ def _select_allowed_domains(prompt: str, context: dict[str, Any]) -> list[str] |
     if "vin" in haystack:
         domains = trusted_domains(kind="vin")
         return domains or None
-    if any(keyword in haystack for keyword in ("catalog", "part", "parts", "oem", "price", "цена", "каталог", "деталь", "запчаст")):
+    if any(
+        keyword in haystack
+        for keyword in (
+            "catalog",
+            "part",
+            "parts",
+            "oem",
+            "price",
+            "цена",
+            "каталог",
+            "деталь",
+            "запчаст",
+        )
+    ):
         domains = trusted_domains(kind="catalog") + trusted_domains(kind="price")
         return domains or None
-    if any(keyword in haystack for keyword in ("dtc", "ошибк", "fault", "symptom", "симптом", "диагност")):
+    if any(
+        keyword in haystack
+        for keyword in ("dtc", "ошибк", "fault", "symptom", "симптом", "диагност")
+    ):
         domains = trusted_domains(kind="dtc") + trusted_domains(kind="fault")
         return domains or None
     return None
@@ -401,7 +464,9 @@ def _lookup_controlled_internet(
     query = _internet_query(prompt, context)
     allowed_domains = _select_allowed_domains(prompt, context)
     try:
-        search_payload = service.search_web(query=query, limit=max(1, limit), allowed_domains=allowed_domains)
+        search_payload = service.search_web(
+            query=query, limit=max(1, limit), allowed_domains=allowed_domains
+        )
     except InternetToolError as exc:
         return {
             "available": True,
@@ -415,7 +480,7 @@ def _lookup_controlled_internet(
         }
     results = search_payload.get("results") if isinstance(search_payload, dict) else []
     normalized_results: list[dict[str, Any]] = []
-    for index, item in enumerate(results[:max(1, limit)] if isinstance(results, list) else []):
+    for index, item in enumerate(results[: max(1, limit)] if isinstance(results, list) else []):
         if not isinstance(item, dict):
             continue
         url = str(item.get("url") or "").strip()
@@ -426,7 +491,9 @@ def _lookup_controlled_internet(
         if index == 0 and url:
             try:
                 fetched = service.fetch_page_excerpt(url=url, max_chars=1200)
-                excerpt = _normalize_text(fetched.get("excerpt") if isinstance(fetched, dict) else "")
+                excerpt = _normalize_text(
+                    fetched.get("excerpt") if isinstance(fetched, dict) else ""
+                )
             except InternetToolError:
                 excerpt = ""
         normalized_results.append(

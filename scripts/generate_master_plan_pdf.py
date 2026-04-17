@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from reportlab.graphics.shapes import Drawing, Line, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -10,18 +11,21 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from reportlab.graphics.shapes import Drawing, Line, Rect, String
-from reportlab.graphics import renderPDF
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MASTER_PLAN = ROOT / "MASTER-PLAN.md"
 OUTPUT = ROOT / "MASTER-PLAN.pdf"
 
 MODULE_ROWS = [
-    ("1", "Platform Runtime", "v1.2", "stable", "main.py, main_mcp.py, main_agent.py, app.py"),
+    ("1", "Platform Runtime", "v1.2", "stable", "main.py, main_mcp.py, app.py"),
     ("2", "Board Core", "v1.5", "stable", "card_service.py, column_service.py"),
-    ("3", "Workshop Operations", "v1.4", "active", "vehicle_profile.py, repair_order.py, printing/service.py"),
+    (
+        "3",
+        "Workshop Operations",
+        "v1.4",
+        "active",
+        "vehicle_profile.py, repair_order.py, printing/service.py",
+    ),
     ("4", "API and Access Control", "v1.4", "stable", "api/server.py, operator_auth.py"),
     ("5", "MCP Layer", "v1.4", "hardening", "mcp/server.py, mcp/client.py, mcp/runtime.py"),
     ("6", "Server AI Contour", "v1.6", "active", "agent/control.py, runner.py, policy.py"),
@@ -141,11 +145,28 @@ def _architecture_diagram() -> Drawing:
     title_fill = colors.HexColor("#27402e")
 
     def box(x: int, y: int, w: int, h: int, title: str, subtitle: str) -> None:
-        drawing.add(Rect(x, y, w, h, rx=8, ry=8, fillColor=box_fill, strokeColor=box_edge, strokeWidth=1))
-        drawing.add(Rect(x, y + h - 20, w, 20, rx=8, ry=8, fillColor=title_fill, strokeColor=title_fill))
-        drawing.add(String(x + 8, y + h - 14, title, fontName=FONT_NAME, fontSize=10, fillColor=colors.white))
+        drawing.add(
+            Rect(x, y, w, h, rx=8, ry=8, fillColor=box_fill, strokeColor=box_edge, strokeWidth=1)
+        )
+        drawing.add(
+            Rect(x, y + h - 20, w, 20, rx=8, ry=8, fillColor=title_fill, strokeColor=title_fill)
+        )
+        drawing.add(
+            String(
+                x + 8, y + h - 14, title, fontName=FONT_NAME, fontSize=10, fillColor=colors.white
+            )
+        )
         for idx, part in enumerate(subtitle.split("\n")):
-            drawing.add(String(x + 8, y + h - 36 - idx * 12, part, fontName=FONT_NAME, fontSize=8.5, fillColor=colors.HexColor("#203226")))
+            drawing.add(
+                String(
+                    x + 8,
+                    y + h - 36 - idx * 12,
+                    part,
+                    fontName=FONT_NAME,
+                    fontSize=8.5,
+                    fillColor=colors.HexColor("#203226"),
+                )
+            )
 
     box(10, 88, 155, 64, "UI Surface", "Desktop UI\nBrowser UI")
     box(185, 88, 155, 64, "Service Core", "Local API\nCardService")
@@ -155,8 +176,12 @@ def _architecture_diagram() -> Drawing:
 
     def arrow(x1: int, y1: int, x2: int, y2: int) -> None:
         drawing.add(Line(x1, y1, x2, y2, strokeColor=colors.HexColor("#556657"), strokeWidth=1.2))
-        drawing.add(Line(x2, y2, x2 - 6, y2 + 3, strokeColor=colors.HexColor("#556657"), strokeWidth=1.2))
-        drawing.add(Line(x2, y2, x2 - 6, y2 - 3, strokeColor=colors.HexColor("#556657"), strokeWidth=1.2))
+        drawing.add(
+            Line(x2, y2, x2 - 6, y2 + 3, strokeColor=colors.HexColor("#556657"), strokeWidth=1.2)
+        )
+        drawing.add(
+            Line(x2, y2, x2 - 6, y2 - 3, strokeColor=colors.HexColor("#556657"), strokeWidth=1.2)
+        )
 
     arrow(165, 120, 185, 120)
     arrow(340, 120, 360, 120)
@@ -244,7 +269,12 @@ def _build_story():
                 ("LEADING", (0, 0), (-1, -1), 10),
                 ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#90a08b")),
                 ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f7f9f4")),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#f7f9f4"), colors.HexColor("#eef4e9")]),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [colors.HexColor("#f7f9f4"), colors.HexColor("#eef4e9")],
+                ),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 4),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 4),
@@ -271,7 +301,11 @@ def _build_story():
 
     story.append(Spacer(1, 4 * mm))
     story.append(Paragraph("4. Параллельные дорожки", styles["h1"]))
-    lane_table = Table([["Lane", "Зона", "Модули", "Основной фокус"], *LANE_ROWS], colWidths=[20 * mm, 38 * mm, 28 * mm, 86 * mm], repeatRows=1)
+    lane_table = Table(
+        [["Lane", "Зона", "Модули", "Основной фокус"], *LANE_ROWS],
+        colWidths=[20 * mm, 38 * mm, 28 * mm, 86 * mm],
+        repeatRows=1,
+    )
     lane_table.setStyle(
         TableStyle(
             [
@@ -280,7 +314,12 @@ def _build_story():
                 ("FONTNAME", (0, 0), (-1, -1), FONT_NAME),
                 ("FONTSIZE", (0, 0), (-1, -1), 8.2),
                 ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#90a08b")),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#f7f9f4"), colors.HexColor("#eef4e9")]),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [colors.HexColor("#f7f9f4"), colors.HexColor("#eef4e9")],
+                ),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
@@ -297,7 +336,12 @@ def _build_story():
         story.append(Paragraph(f"- {item}", styles["body"]))
 
     story.append(Spacer(1, 3 * mm))
-    story.append(Paragraph("Файлы-ориентиры: MASTER-PLAN.md, 00_START_HERE_AUTOSTOP_CRM.md, PROJECT_HANDOFF.md.", styles["subtitle"]))
+    story.append(
+        Paragraph(
+            "Файлы-ориентиры: MASTER-PLAN.md, 00_START_HERE_AUTOSTOP_CRM.md, PROJECT_HANDOFF.md.",
+            styles["subtitle"],
+        )
+    )
     return story
 
 

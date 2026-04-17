@@ -26,7 +26,6 @@ The repository still contains legacy technical names from the earlier `Minimal K
 
 - Desktop application: [main.py](main.py)
 - MCP server only: [main_mcp.py](main_mcp.py)
-- Retired compatibility stub: [main_agent.py](main_agent.py)
 - Containerized deployment: [docker-compose.yml](docker-compose.yml)
 
 ## Architecture
@@ -84,12 +83,6 @@ MCP layer:
 - [src/minimal_kanban/mcp/client.py](src/minimal_kanban/mcp/client.py): HTTP client to local API
 - [src/minimal_kanban/mcp/runtime.py](src/minimal_kanban/mcp/runtime.py): MCP server runtime
 - [src/minimal_kanban/mcp/oauth_provider.py](src/minimal_kanban/mcp/oauth_provider.py): embedded OAuth metadata and provider logic
-
-Retired agent layer:
-
-- old server-agent modules still exist in the repository as legacy code
-- they are no longer part of the active product runtime, startup path, or deploy topology
-- the visible product keeps only the local card cleanup action
 
 Printing and documents:
 
@@ -185,12 +178,6 @@ MCP server only:
 .\scripts\run_mcp_server.ps1
 ```
 
-Retired compatibility entry:
-
-```powershell
-.\.venv\Scripts\python.exe main_agent.py
-```
-
 ## Tests and Verification
 
 Main regression run:
@@ -251,25 +238,21 @@ Read first:
 - [MASTER-PLAN.md](MASTER-PLAN.md): central architecture plan with module tree, internal versions, and parallel development lanes
 - [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md): current developer handoff, architecture snapshot, and latest development state
 - [README.md](README.md): current project overview
+- [docs/README.md](docs/README.md): documentation index for the operator workflow, runbook, skill guide, and project memory
+- [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md): sync, deploy, and verification workflow
+- [docs/CODEX_WORKFLOW.md](docs/CODEX_WORKFLOW.md): step-by-step improvement plan and working rules
+- [docs/EMPLOYEES_MODULE.md](docs/EMPLOYEES_MODULE.md): module-specific context for payroll and employee workflows
 - [AUTOSTOPCRM_FULL_INSTRUCTION.txt](AUTOSTOPCRM_FULL_INSTRUCTION.txt): server and deployment operations
 - [API_GUIDE.md](API_GUIDE.md): local API contract
 - [MCP_GUIDE.md](MCP_GUIDE.md): MCP architecture and runtime behavior
 - [README_SETTINGS.md](README_SETTINGS.md): integration settings model
 
-Active agent and operations docs kept in the root:
+Cleanup notes:
 
-- `GPT_AGENT_04_SERVER_AGENT_API_AND_COMMANDS.txt`
-- `GPT_AGENT_09_MCP_COMMAND_CATALOG.md`
-- `GPT_AGENT_10_MCP_OPERATION_FLOWS.md`
-- `GPT_AGENT_11_AGENT_AUTOFILL_ORCHESTRATION.md`
+- obsolete AI remake notes and GPT-agent docs were removed
+- frozen historical test reports were removed
+- duplicated documentation bundles that only mirrored the root files were removed
 - `CHATGPT_CONNECTOR_SETUP.md` remains in the root because the runtime and tests reference that exact path
-
-Removed from the root during the April 2026 cleanup:
-
-- obsolete portable-install docs
-- frozen historical test reports
-- superseded MCP / GPT setup notes
-- duplicated documentation bundles that only mirrored the root files
 
 ## Current Branch Policy
 
