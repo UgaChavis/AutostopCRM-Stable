@@ -224,6 +224,13 @@ def run() -> int:
             QMessageBox.critical(None, STARTUP_ERROR_TITLE, STARTUP_ERROR_MESSAGE)
             return 1
 
+        agent_control.bind_board_service(service)
+        agent_started = agent_control.start_worker(logger=logger, board_api_url=api_server.base_url)
+        if agent_started:
+            logger.info("embedded_agent_worker_started board_api_url=%s", api_server.base_url)
+        else:
+            logger.info("embedded_agent_worker_not_started")
+
         def _handle_exception(exc_type, exc_value, exc_traceback) -> None:
             assert logger is not None
             logger.exception(
