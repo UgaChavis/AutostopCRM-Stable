@@ -192,8 +192,8 @@ BOARD_WEB_APP_HTML = "".join(
       cursor: default;
     }
     .gear-button {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       padding: 0;
       display: grid;
       place-items: center;
@@ -207,12 +207,12 @@ BOARD_WEB_APP_HTML = "".join(
         0 0 0 1px rgba(0,0,0,0.28);
     }
     .gear-button:hover { border-color: var(--accent); }
-    .gear-button svg {
-      width: 18px;
-      height: 18px;
-      stroke: currentColor;
-      stroke-width: 1.8;
-      fill: none;
+    .gear-button__logo {
+      width: 28px;
+      height: 28px;
+      display: block;
+      object-fit: contain;
+      image-rendering: -webkit-optimize-contrast;
     }
     .sticky-dock {
         position: fixed;
@@ -5092,9 +5092,7 @@ BOARD_WEB_APP_HTML = "".join(
     <header class="topbar">
       <div class="topbar__left">
         <button class="gear-button" id="boardSettingsButton" title="НАСТРОЙКИ ДОСКИ" aria-label="НАСТРОЙКИ ДОСКИ">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M10.5 3.75h3l.47 2.12c.58.16 1.14.39 1.66.68l1.9-1.2 2.12 2.12-1.2 1.9c.29.52.52 1.08.68 1.66l2.12.47v3l-2.12.47c-.16.58-.39 1.14-.68 1.66l1.2 1.9-2.12 2.12-1.9-1.2c-.52.29-1.08.52-1.66.68l-.47 2.12h-3l-.47-2.12a6.9 6.9 0 0 1-1.66-.68l-1.9 1.2-2.12-2.12 1.2-1.9a6.9 6.9 0 0 1-.68-1.66l-2.12-.47v-3l2.12-.47c.16-.58.39-1.14.68-1.66l-1.2-1.9 2.12-2.12 1.9 1.2c.52-.29 1.08-.52 1.66-.68l.47-2.12Zm1.5 5.25a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/>
-          </svg>
+          <img class="gear-button__logo" src="/favicon.png" alt="" aria-hidden="true" focusable="false">
         </button>
         <div class="brand">
           <div class="brand__title">AUTOSTOP / ПУЛЬТ</div>

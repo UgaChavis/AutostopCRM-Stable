@@ -51,6 +51,12 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn('<div class="brand__title">КАНБАН / ПУЛЬТ</div>', BOARD_WEB_APP_HTML)
 
     def test_board_settings_keep_slider_but_remove_wheel_zoom_binding(self) -> None:
+        self.assertIn('class="gear-button" id="boardSettingsButton"', BOARD_WEB_APP_HTML)
+        self.assertIn('class="gear-button__logo" src="/favicon.png"', BOARD_WEB_APP_HTML)
+        self.assertIn(".gear-button {", BOARD_WEB_APP_HTML)
+        self.assertIn("width: 48px;", BOARD_WEB_APP_HTML)
+        self.assertIn(".gear-button__logo {", BOARD_WEB_APP_HTML)
+        self.assertIn("width: 28px;", BOARD_WEB_APP_HTML)
         self.assertIn('id="boardScaleInput"', BOARD_WEB_APP_HTML)
         self.assertIn('class="scale-track"', BOARD_WEB_APP_HTML)
         self.assertNotIn("addEventListener('wheel'", BOARD_WEB_APP_HTML)
