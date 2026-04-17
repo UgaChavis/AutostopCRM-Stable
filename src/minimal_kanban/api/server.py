@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import PurePath
 import re
 import threading
 import unicodedata
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from functools import cache
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from logging import Logger
+from pathlib import Path, PurePath
 from urllib.parse import parse_qs, quote, urlsplit
 
 from ..config import (
@@ -22,6 +23,8 @@ from ..config import (
 from ..operator_auth import OperatorAuthService
 from ..services.card_service import CardService, ServiceError
 from ..web_assets import BOARD_WEB_APP_HTML
+
+STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 
 
 QUIET_SUCCESS_ROUTES = frozenset(
@@ -46,7 +49,7 @@ def _json_response(
         "error": error,
         "meta": {
             "request_id": request_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     }
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -69,7 +72,14 @@ def _ascii_download_name(file_name: str, *, fallback: str = "attachment") -> str
 
 def _content_disposition_header(file_name: str, *, disposition: str) -> str:
     fallback_name = _ascii_download_name(file_name)
-    return f'{disposition}; filename="{fallback_name}"; filename*=UTF-8\'\'{quote(file_name, safe="")}'
+    return (
+        f"{disposition}; filename=\"{fallback_name}\"; filename*=UTF-8''{quote(file_name, safe='')}"
+    )
+
+
+@cache
+def _static_asset_bytes(file_name: str) -> bytes:
+    return (STATIC_DIR / file_name).read_bytes()
 
 
 class ApiServer:
@@ -90,7 +100,9 @@ class ApiServer:
         self._server: ThreadingHTTPServer | None = None
         resolved_host = host if host is not None else get_api_host()
         resolved_start_port = start_port if start_port is not None else get_api_port()
-        resolved_fallback_limit = fallback_limit if fallback_limit is not None else get_api_port_fallback_limit()
+        resolved_fallback_limit = (
+            fallback_limit if fallback_limit is not None else get_api_port_fallback_limit()
+        )
         self.host = resolved_host
         self.port = resolved_start_port
         self._start_port = resolved_start_port
@@ -121,9 +133,16 @@ class ApiServer:
                 continue
         if self._server is None:
             raise RuntimeError("Не удалось запустить локальный API.")
-        self._thread = threading.Thread(target=self._server.serve_forever, name="minimal-kanban-api", daemon=True)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever, name="minimal-kanban-api", daemon=True
+        )
         self._thread.start()
-        self._logger.info("api_server_started bind_host=%s url=%s auth=%s", self.host, self.base_url, bool(self._bearer_token))
+        self._logger.info(
+            "api_server_started bind_host=%s url=%s auth=%s",
+            self.host,
+            self.base_url,
+            bool(self._bearer_token),
+        )
 
     def stop(self) -> None:
         if self._server is None:
@@ -308,6 +327,24 @@ class ApiServer:
                     self.send_response(HTTPStatus.OK)
                     self._send_headers("text/html; charset=utf-8", len(body))
                     return
+                if route == "/favicon.ico":
+                    body = _static_asset_bytes("favicon.ico")
+                    self.send_response(HTTPStatus.OK)
+                    self._send_headers(
+                        "image/x-icon",
+                        len(body),
+                        cache_control="public, max-age=86400, immutable",
+                    )
+                    return
+                if route == "/favicon.png":
+                    body = _static_asset_bytes("favicon.png")
+                    self.send_response(HTTPStatus.OK)
+                    self._send_headers(
+                        "image/png",
+                        len(body),
+                        cache_control="public, max-age=86400, immutable",
+                    )
+                    return
                 if route == "/api/health":
                     body = _json_response(
                         ok=True,
@@ -334,8 +371,22 @@ class ApiServer:
                     self._serve_board()
                     return
                 if route == "/favicon.ico":
-                    self.send_response(HTTPStatus.NO_CONTENT)
-                    self._send_headers("image/x-icon", 0)
+                    body = _static_asset_bytes("favicon.ico")
+                    self.send_response(HTTPStatus.OK)
+                    self._send_headers(
+                        "image/x-icon",
+                        len(body),
+                        cache_control="public, max-age=86400, immutable",
+                    )
+                    return
+                if route == "/favicon.png":
+                    body = _static_asset_bytes("favicon.png")
+                    self.send_response(HTTPStatus.OK)
+                    self._send_headers(
+                        "image/png",
+                        len(body),
+                        cache_control="public, max-age=86400, immutable",
+                    )
                     return
                 if route == "/api/health":
                     body = _json_response(
@@ -474,7 +525,9 @@ class ApiServer:
                     )
                     body = path.read_bytes()
                     self.send_response(HTTPStatus.OK)
-                    self.send_header("Content-Type", attachment.mime_type or "application/octet-stream")
+                    self.send_header(
+                        "Content-Type", attachment.mime_type or "application/octet-stream"
+                    )
                     self.send_header("Content-Length", str(len(body)))
                     self.send_header(
                         "Content-Disposition",
@@ -485,7 +538,9 @@ class ApiServer:
                     self.end_headers()
                     self.wfile.write(body)
                 except ServiceError as exc:
-                    self._send_error_response(request_id, exc.status_code, exc.code, exc.message, exc.details)
+                    self._send_error_response(
+                        request_id, exc.status_code, exc.code, exc.message, exc.details
+                    )
                 except FileNotFoundError:
                     self._send_error_response(
                         request_id,
@@ -496,7 +551,9 @@ class ApiServer:
 
             def _serve_repair_order_text(self, request_id: str, payload: dict) -> None:
                 try:
-                    path, file_name = service.get_repair_order_text_download(str(payload.get("card_id", "")))
+                    path, file_name = service.get_repair_order_text_download(
+                        str(payload.get("card_id", ""))
+                    )
                     body = path.read_bytes()
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -510,7 +567,9 @@ class ApiServer:
                     self.end_headers()
                     self.wfile.write(body)
                 except ServiceError as exc:
-                    self._send_error_response(request_id, exc.status_code, exc.code, exc.message, exc.details)
+                    self._send_error_response(
+                        request_id, exc.status_code, exc.code, exc.message, exc.details
+                    )
                 except FileNotFoundError:
                     self._send_error_response(
                         request_id,
@@ -525,7 +584,9 @@ class ApiServer:
                 auth_header = self.headers.get("Authorization", "")
                 if auth_header == f"Bearer {bearer_token}":
                     return True
-                query_payload = query if query is not None else self._query_payload(urlsplit(self.path).query)
+                query_payload = (
+                    query if query is not None else self._query_payload(urlsplit(self.path).query)
+                )
                 access_token = str(query_payload.get("access_token", "") or "").strip()
                 if access_token == bearer_token:
                     return True
@@ -546,13 +607,31 @@ class ApiServer:
                     body = _json_response(ok=True, data=result, error=None, request_id=request_id)
                     self.send_response(HTTPStatus.OK)
                     self._send_headers("application/json", len(body))
-                    if self._write_body(body, route=route, request_id=request_id, status_code=HTTPStatus.OK):
-                        logger.log(_success_log_level(route), "api_request route=%s request_id=%s status=ok", route, request_id)
+                    if self._write_body(
+                        body, route=route, request_id=request_id, status_code=HTTPStatus.OK
+                    ):
+                        logger.log(
+                            _success_log_level(route),
+                            "api_request route=%s request_id=%s status=ok",
+                            route,
+                            request_id,
+                        )
                 except ServiceError as exc:
-                    logger.warning("api_request route=%s request_id=%s status=error code=%s", route, request_id, exc.code)
-                    self._send_error_response(request_id, exc.status_code, exc.code, exc.message, exc.details)
+                    logger.warning(
+                        "api_request route=%s request_id=%s status=error code=%s",
+                        route,
+                        request_id,
+                        exc.code,
+                    )
+                    self._send_error_response(
+                        request_id, exc.status_code, exc.code, exc.message, exc.details
+                    )
                 except ValueError as exc:
-                    logger.warning("api_request route=%s request_id=%s status=error code=validation_error", route, request_id)
+                    logger.warning(
+                        "api_request route=%s request_id=%s status=error code=validation_error",
+                        route,
+                        request_id,
+                    )
                     self._send_error_response(
                         request_id,
                         HTTPStatus.BAD_REQUEST,
@@ -560,7 +639,9 @@ class ApiServer:
                         str(exc) or "Request payload is invalid.",
                     )
                 except Exception as exc:  # pragma: no cover
-                    logger.exception("api_request_failed route=%s request_id=%s error=%s", route, request_id, exc)
+                    logger.exception(
+                        "api_request_failed route=%s request_id=%s error=%s", route, request_id, exc
+                    )
                     self._send_error_response(
                         request_id,
                         HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -585,7 +666,9 @@ class ApiServer:
                 try:
                     self.send_response(status_code)
                     self._send_headers("application/json", len(body))
-                    self._write_body(body, route=self.path, request_id=request_id, status_code=status_code)
+                    self._write_body(
+                        body, route=self.path, request_id=request_id, status_code=status_code
+                    )
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                     logger.warning(
                         "api_client_disconnected route=%s request_id=%s status=%s",
@@ -603,19 +686,32 @@ class ApiServer:
                     {"path": self.path},
                 )
 
-            def _send_headers(self, content_type: str, content_length: int) -> None:
+            def _send_headers(
+                self,
+                content_type: str,
+                content_length: int,
+                *,
+                cache_control: str = "no-store",
+            ) -> None:
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(content_length))
-                self.send_header("Cache-Control", "no-store")
+                self.send_header("Cache-Control", cache_control)
                 self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Operator-Session")
+                self.send_header(
+                    "Access-Control-Allow-Headers",
+                    "Content-Type, Authorization, X-Operator-Session",
+                )
                 self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
                 self.end_headers()
 
-            def _operator_context_payload(self, route: str, payload: dict, request_id: str) -> dict | None:
+            def _operator_context_payload(
+                self, route: str, payload: dict, request_id: str
+            ) -> dict | None:
                 if operator_service is None:
                     return payload
-                session = operator_service.resolve_session(self.headers.get("X-Operator-Session", ""))
+                session = operator_service.resolve_session(
+                    self.headers.get("X-Operator-Session", "")
+                )
                 next_payload = dict(payload)
                 if session is not None:
                     next_payload["_operator_session"] = session
@@ -682,7 +778,9 @@ class ApiServer:
                     or str(self.headers.get("X-Real-IP", "") or "").strip()
                 )
 
-            def _write_body(self, body: bytes, *, route: str, request_id: str, status_code: int) -> bool:
+            def _write_body(
+                self, body: bytes, *, route: str, request_id: str, status_code: int
+            ) -> bool:
                 try:
                     self.wfile.write(body)
                     return True

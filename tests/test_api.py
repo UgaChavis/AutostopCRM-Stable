@@ -1,4 +1,5 @@
-﻿from __future__ import annotations
+# ruff: noqa: I001, E402
+from __future__ import annotations
 
 import base64
 import json
@@ -147,7 +148,12 @@ class ApiServerTests(unittest.TestCase):
     def test_get_repair_order_creates_it_lazily_on_first_open(self) -> None:
         status, created = self.request(
             "/api/create_card",
-            {"vehicle": "KIA RIO", "title": "Ленивый заказ-наряд", "description": "Первый вход", "deadline": {"hours": 2}},
+            {
+                "vehicle": "KIA RIO",
+                "title": "Ленивый заказ-наряд",
+                "description": "Первый вход",
+                "deadline": {"hours": 2},
+            },
         )
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
@@ -169,7 +175,9 @@ class ApiServerTests(unittest.TestCase):
         status, listed_after = self.request("/api/list_repair_orders", method="GET")
         self.assertEqual(status, 200)
         self.assertEqual(listed_after["data"]["meta"]["total"], 1)
-        self.assertTrue(any(item["card_id"] == card_id for item in listed_after["data"]["repair_orders"]))
+        self.assertTrue(
+            any(item["card_id"] == card_id for item in listed_after["data"]["repair_orders"])
+        )
 
     def test_cleanup_card_content_route_runs_local_cleanup(self) -> None:
         status, created = self.request(
@@ -207,6 +215,25 @@ class ApiServerTests(unittest.TestCase):
             response = connection.getresponse()
             self.assertEqual(response.status, 200)
             self.assertEqual(response.read(), b"")
+            connection.close()
+
+            connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+            connection.request("HEAD", "/favicon.ico")
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertGreater(int(response.getheader("Content-Length", "0")), 0)
+            self.assertEqual(response.getheader("Content-Type"), "image/x-icon")
+            self.assertEqual(response.read(), b"")
+
+            connection.close()
+
+            connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+            connection.request("HEAD", "/favicon.png")
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertGreater(int(response.getheader("Content-Length", "0")), 0)
+            self.assertEqual(response.getheader("Content-Type"), "image/png")
+            self.assertEqual(response.read(), b"")
         finally:
             connection.close()
 
@@ -242,7 +269,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(profile["data"]["user"]["username"], "ADMIN")
         self.assertTrue(profile["data"]["user"]["is_admin"])
         self.assertTrue(profile["data"]["security"]["using_default_admin_credentials"])
-        self.assertIn("MINIMAL_KANBAN_DEFAULT_ADMIN_PASSWORD", profile["data"]["security"]["warning"])
+        self.assertIn(
+            "MINIMAL_KANBAN_DEFAULT_ADMIN_PASSWORD", profile["data"]["security"]["warning"]
+        )
 
         status, saved = self.request(
             "/api/save_operator_user",
@@ -310,7 +339,12 @@ class ApiServerTests(unittest.TestCase):
 
         status, blocked_transfer = self.request(
             "/api/create_cashbox_transfer",
-            {"from_cashbox_id": "CB1", "to_cashbox_id": "CB2", "amount": "100", "actor_name": "AUDIT"},
+            {
+                "from_cashbox_id": "CB1",
+                "to_cashbox_id": "CB2",
+                "amount": "100",
+                "actor_name": "AUDIT",
+            },
             headers=proxy_headers,
         )
         self.assertEqual(status, 401)
@@ -378,7 +412,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(blocked["error"]["details"]["auth_type"], "operator_session")
 
     def test_admin_user_report_uses_last_15_days_window(self) -> None:
-        status, logged_in = self.request("/api/login_operator", {"username": "admin", "password": "admin"})
+        status, logged_in = self.request(
+            "/api/login_operator", {"username": "admin", "password": "admin"}
+        )
         self.assertEqual(status, 200)
         token = logged_in["data"]["session"]["token"]
         headers = {"X-Operator-Session": token}
@@ -450,7 +486,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(worker_row["stats"]["card_moves"], 1)
         self.assertEqual(worker_row["stats"]["cards_archived"], 0)
 
-        status, report = self.request("/api/get_operator_user_report?username=worker", method="GET", headers=headers)
+        status, report = self.request(
+            "/api/get_operator_user_report?username=worker", method="GET", headers=headers
+        )
         self.assertEqual(status, 200)
         self.assertEqual(report["data"]["meta"]["window_days"], 15)
         text = report["data"]["text"]
@@ -461,7 +499,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertNotIn("Старое открытие.", text)
 
     def test_snapshot_marks_card_as_updated_for_viewer_after_other_operator_edit(self) -> None:
-        status, admin_login = self.request("/api/login_operator", {"username": "admin", "password": "admin"})
+        status, admin_login = self.request(
+            "/api/login_operator", {"username": "admin", "password": "admin"}
+        )
         self.assertEqual(status, 200)
         admin_token = admin_login["data"]["session"]["token"]
         admin_headers = {"X-Operator-Session": admin_token}
@@ -473,7 +513,9 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
-        status, worker_login = self.request("/api/login_operator", {"username": "worker", "password": "1234"})
+        status, worker_login = self.request(
+            "/api/login_operator", {"username": "worker", "password": "1234"}
+        )
         self.assertEqual(status, 200)
         worker_headers = {"X-Operator-Session": worker_login["data"]["session"]["token"]}
 
@@ -496,13 +538,17 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertFalse(updated["data"]["card"]["has_unseen_update"])
 
-        status, snapshot = self.request("/api/get_board_snapshot", method="GET", headers=admin_headers)
+        status, snapshot = self.request(
+            "/api/get_board_snapshot", method="GET", headers=admin_headers
+        )
         self.assertEqual(status, 200)
         admin_card = next(card for card in snapshot["data"]["cards"] if card["id"] == card_id)
         self.assertTrue(admin_card["has_unseen_update"])
         self.assertFalse(admin_card["is_unread"])
 
-        status, marked = self.request("/api/mark_card_seen", {"card_id": card_id}, headers=admin_headers)
+        status, marked = self.request(
+            "/api/mark_card_seen", {"card_id": card_id}, headers=admin_headers
+        )
         self.assertEqual(status, 200)
         self.assertFalse(marked["data"]["card"]["has_unseen_update"])
 
@@ -538,7 +584,9 @@ class ApiServerTests(unittest.TestCase):
 
         self.assertEqual(logged_in["user"]["username"], "ADMIN")
         migrated_state = self.operator_service._read_normalized_state()
-        migrated_admin = next(user for user in migrated_state["users"] if user["username"] == "ADMIN")
+        migrated_admin = next(
+            user for user in migrated_state["users"] if user["username"] == "ADMIN"
+        )
         self.assertNotEqual(migrated_admin["password_hash"], admin_user["password_hash"])
 
     def test_create_column_move_card_and_update_deadline(self) -> None:
@@ -553,7 +601,11 @@ class ApiServerTests(unittest.TestCase):
 
         status, created_card = self.request(
             "/api/create_card",
-            {"title": "Карточка в новом столбце", "column": column_id, "deadline": {"days": 0, "hours": 6}},
+            {
+                "title": "Карточка в новом столбце",
+                "column": column_id,
+                "deadline": {"days": 0, "hours": 6},
+            },
         )
         self.assertEqual(status, 200)
         card_id = created_card["data"]["card"]["id"]
@@ -566,12 +618,16 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertLessEqual(updated["data"]["card"]["remaining_seconds"], 60)
 
-        status, yellow = self.request("/api/set_card_indicator", {"card_id": card_id, "indicator": "yellow"})
+        status, yellow = self.request(
+            "/api/set_card_indicator", {"card_id": card_id, "indicator": "yellow"}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(yellow["data"]["card"]["indicator"], "yellow")
         self.assertEqual(yellow["data"]["card"]["status"], "warning")
 
-        status, red = self.request("/api/set_card_indicator", {"card_id": card_id, "indicator": "red"})
+        status, red = self.request(
+            "/api/set_card_indicator", {"card_id": card_id, "indicator": "red"}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(red["data"]["card"]["status"], "expired")
 
@@ -580,11 +636,17 @@ class ApiServerTests(unittest.TestCase):
         self.assertTrue(any(card["id"] == card_id for card in overdue["data"]["cards"]))
 
     def test_move_card_route_can_reorder_within_column(self) -> None:
-        status, first = self.request("/api/create_card", {"title": "First", "column": "inbox", "deadline": {"hours": 2}})
+        status, first = self.request(
+            "/api/create_card", {"title": "First", "column": "inbox", "deadline": {"hours": 2}}
+        )
         self.assertEqual(status, 200)
-        status, second = self.request("/api/create_card", {"title": "Second", "column": "inbox", "deadline": {"hours": 2}})
+        status, second = self.request(
+            "/api/create_card", {"title": "Second", "column": "inbox", "deadline": {"hours": 2}}
+        )
         self.assertEqual(status, 200)
-        status, third = self.request("/api/create_card", {"title": "Third", "column": "inbox", "deadline": {"hours": 2}})
+        status, third = self.request(
+            "/api/create_card", {"title": "Third", "column": "inbox", "deadline": {"hours": 2}}
+        )
         self.assertEqual(status, 200)
 
         status, moved = self.request(
@@ -601,7 +663,11 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(moved["data"]["affected_column_ids"], ["inbox"])
         self.assertEqual(
             [card["id"] for card in moved["data"]["affected_cards"][:3]],
-            [first["data"]["card"]["id"], third["data"]["card"]["id"], second["data"]["card"]["id"]],
+            [
+                first["data"]["card"]["id"],
+                third["data"]["card"]["id"],
+                second["data"]["card"]["id"],
+            ],
         )
         self.assertTrue(all("repair_order" not in card for card in moved["data"]["affected_cards"]))
         self.assertTrue(moved["data"]["meta"]["changed"])
@@ -614,11 +680,17 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(
             [card["id"] for card in inbox_cards[:3]],
-            [first["data"]["card"]["id"], third["data"]["card"]["id"], second["data"]["card"]["id"]],
+            [
+                first["data"]["card"]["id"],
+                third["data"]["card"]["id"],
+                second["data"]["card"]["id"],
+            ],
         )
 
     def test_cashbox_routes_create_list_transaction_get_and_delete(self) -> None:
-        status, created = self.request("/api/create_cashbox", {"name": "Касса 1", "actor_name": "ADMIN"})
+        status, created = self.request(
+            "/api/create_cashbox", {"name": "Касса 1", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(created["ok"])
         cashbox = created["data"]["cashbox"]
@@ -628,7 +700,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(listed["data"]["meta"]["total"], 1)
         self.assertEqual(listed["data"]["cashboxes"][0]["id"], cashbox["id"])
 
-        status, another_created = self.request("/api/create_cashbox", {"name": "Касса 2", "actor_name": "ADMIN"})
+        status, another_created = self.request(
+            "/api/create_cashbox", {"name": "Касса 2", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         another_cashbox = another_created["data"]["cashbox"]
 
@@ -642,7 +716,10 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         self.assertTrue(reordered["data"]["meta"]["changed"])
-        self.assertEqual([item["id"] for item in reordered["data"]["cashboxes"][:2]], [another_cashbox["id"], cashbox["id"]])
+        self.assertEqual(
+            [item["id"] for item in reordered["data"]["cashboxes"][:2]],
+            [another_cashbox["id"], cashbox["id"]],
+        )
 
         status, transaction = self.request(
             "/api/create_cash_transaction",
@@ -687,20 +764,32 @@ class ApiServerTests(unittest.TestCase):
             method="GET",
         )
         self.assertEqual(status, 200)
-        self.assertEqual(destination_details["data"]["cashbox"]["statistics"]["transactions_total"], 1)
-        self.assertEqual(destination_details["data"]["cashbox"]["statistics"]["balance_minor"], 50000)
-        self.assertIn("Перемещение из Касса 1", destination_details["data"]["transactions"][0]["note"])
+        self.assertEqual(
+            destination_details["data"]["cashbox"]["statistics"]["transactions_total"], 1
+        )
+        self.assertEqual(
+            destination_details["data"]["cashbox"]["statistics"]["balance_minor"], 50000
+        )
+        self.assertIn(
+            "Перемещение из Касса 1", destination_details["data"]["transactions"][0]["note"]
+        )
 
-        status, deleted = self.request("/api/delete_cashbox", {"cashbox_id": cashbox["id"], "actor_name": "ADMIN"})
+        status, deleted = self.request(
+            "/api/delete_cashbox", {"cashbox_id": cashbox["id"], "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 400)
         self.assertFalse(deleted["ok"])
         self.assertIn("есть движения", deleted["error"]["message"])
 
-        status, empty_created = self.request("/api/create_cashbox", {"name": "Касса 3", "actor_name": "ADMIN"})
+        status, empty_created = self.request(
+            "/api/create_cashbox", {"name": "Касса 3", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         empty_cashbox = empty_created["data"]["cashbox"]
 
-        status, deleted = self.request("/api/delete_cashbox", {"cashbox_id": empty_cashbox["id"], "actor_name": "ADMIN"})
+        status, deleted = self.request(
+            "/api/delete_cashbox", {"cashbox_id": empty_cashbox["id"], "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(deleted["data"]["meta"]["deleted"])
 
@@ -711,7 +800,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertGreaterEqual(journal["data"]["meta"]["returned"], 1)
 
     def test_cancel_last_cash_transaction_route_removes_latest_manual_movement(self) -> None:
-        status, created = self.request("/api/create_cashbox", {"name": "Касса API", "actor_name": "ADMIN"})
+        status, created = self.request(
+            "/api/create_cashbox", {"name": "Касса API", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         cashbox = created["data"]["cashbox"]
         status, first = self.request(
@@ -747,12 +838,18 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         self.assertTrue(cancelled["data"]["meta"]["cancelled"])
-        self.assertEqual(cancelled["data"]["cancelled_transaction"]["id"], last["data"]["transaction"]["id"])
+        self.assertEqual(
+            cancelled["data"]["cancelled_transaction"]["id"], last["data"]["transaction"]["id"]
+        )
 
-        status, details = self.request(f"/api/get_cashbox?cashbox_id={cashbox['id']}&transaction_limit=10", method="GET")
+        status, details = self.request(
+            f"/api/get_cashbox?cashbox_id={cashbox['id']}&transaction_limit=10", method="GET"
+        )
         self.assertEqual(status, 200)
         self.assertEqual(details["data"]["cashbox"]["statistics"]["transactions_total"], 1)
-        self.assertEqual(details["data"]["transactions"][0]["id"], first["data"]["transaction"]["id"])
+        self.assertEqual(
+            details["data"]["transactions"][0]["id"], first["data"]["transaction"]["id"]
+        )
 
     def test_employee_salary_ledger_and_cash_routes_work_together(self) -> None:
         status, employee_saved = self.request(
@@ -768,7 +865,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         employee = employee_saved["data"]["employee"]
 
-        status, cashbox_created = self.request("/api/create_cashbox", {"name": "Наличный", "actor_name": "ADMIN"})
+        status, cashbox_created = self.request(
+            "/api/create_cashbox", {"name": "Наличный", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         cashbox = cashbox_created["data"]["cashbox"]
 
@@ -830,7 +929,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(paid["data"]["card"]["repair_order"]["payments"][0]["amount"], "8000")
 
-        status, closed = self.request("/api/set_repair_order_status", {"card_id": card_id, "status": "closed"})
+        status, closed = self.request(
+            "/api/set_repair_order_status", {"card_id": card_id, "status": "closed"}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(closed["data"]["repair_order"]["works"][0]["salary_amount"], "2000")
 
@@ -876,12 +977,20 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(ledger_after["data"]["balance_total"], "-1000")
         self.assertEqual(ledger_after["data"]["payout_total"], "2500")
         self.assertEqual(ledger_after["data"]["advance_total"], "500")
-        self.assertTrue(any(row["kind"] == "salary_payout" for row in ledger_after["data"]["journal_rows"]))
-        self.assertTrue(any(row["kind"] == "salary_advance" for row in ledger_after["data"]["journal_rows"]))
+        self.assertTrue(
+            any(row["kind"] == "salary_payout" for row in ledger_after["data"]["journal_rows"])
+        )
+        self.assertTrue(
+            any(row["kind"] == "salary_advance" for row in ledger_after["data"]["journal_rows"])
+        )
 
-        status, cashbox_details = self.request(f"/api/get_cashbox?cashbox_id={cashbox['id']}&transaction_limit=10", method="GET")
+        status, cashbox_details = self.request(
+            f"/api/get_cashbox?cashbox_id={cashbox['id']}&transaction_limit=10", method="GET"
+        )
         self.assertEqual(status, 200)
-        self.assertGreaterEqual(cashbox_details["data"]["cashbox"]["statistics"]["transactions_total"], 2)
+        self.assertGreaterEqual(
+            cashbox_details["data"]["cashbox"]["statistics"]["transactions_total"], 2
+        )
 
     def test_snapshot_compact_query_returns_board_friendly_cards(self) -> None:
         status, created = self.request(
@@ -891,7 +1000,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
 
-        status, snapshot = self.request("/api/get_board_snapshot?archive_limit=30&compact=1", method="GET")
+        status, snapshot = self.request(
+            "/api/get_board_snapshot?archive_limit=30&compact=1", method="GET"
+        )
         self.assertEqual(status, 200)
         self.assertTrue(snapshot["data"]["meta"]["compact_cards"])
         compact_card = next(card for card in snapshot["data"]["cards"] if card["id"] == card_id)
@@ -903,14 +1014,21 @@ class ApiServerTests(unittest.TestCase):
     def test_get_cards_compact_query_omits_heavy_fields(self) -> None:
         status, created = self.request(
             "/api/create_card",
-            {"vehicle": "BMW", "title": "Compact API cards", "description": "VIN test", "deadline": {"hours": 2}},
+            {
+                "vehicle": "BMW",
+                "title": "Compact API cards",
+                "description": "VIN test",
+                "deadline": {"hours": 2},
+            },
         )
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
 
         status, cards_payload = self.request("/api/get_cards?compact=1", method="GET")
         self.assertEqual(status, 200)
-        compact_card = next(card for card in cards_payload["data"]["cards"] if card["id"] == card_id)
+        compact_card = next(
+            card for card in cards_payload["data"]["cards"] if card["id"] == card_id
+        )
         self.assertNotIn("repair_order", compact_card)
         self.assertNotIn("vehicle_profile", compact_card)
         self.assertNotIn("attachments", compact_card)
@@ -919,15 +1037,23 @@ class ApiServerTests(unittest.TestCase):
     def test_snapshot_can_skip_archive_payload_for_board_refresh(self) -> None:
         status, created = self.request(
             "/api/create_card",
-            {"vehicle": "MITSUBISHI L200", "title": "Archive API snapshot", "deadline": {"hours": 2}},
+            {
+                "vehicle": "MITSUBISHI L200",
+                "title": "Archive API snapshot",
+                "deadline": {"hours": 2},
+            },
         )
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
-        status, archived = self.request("/api/archive_card", {"card_id": card_id, "actor_name": "ADMIN"})
+        status, archived = self.request(
+            "/api/archive_card", {"card_id": card_id, "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(archived["data"]["card"]["archived"])
 
-        status, snapshot = self.request("/api/get_board_snapshot?compact=1&include_archive=0", method="GET")
+        status, snapshot = self.request(
+            "/api/get_board_snapshot?compact=1&include_archive=0", method="GET"
+        )
         self.assertEqual(status, 200)
         self.assertEqual(snapshot["data"]["archive"], [])
         self.assertEqual(snapshot["data"]["meta"]["archived_cards_total"], 1)
@@ -948,7 +1074,9 @@ class ApiServerTests(unittest.TestCase):
                     "client": "Иван Иванов",
                     "phone": "+7 900 123-45-67",
                     "comment": "Проверить и выдать текстовый файл",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1000", "total": "1000"}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1000", "total": "1000"}
+                    ],
                 },
             },
         )
@@ -976,12 +1104,19 @@ class ApiServerTests(unittest.TestCase):
             self.assertIn("JSON:", body)
 
     def test_update_card_route_derives_repair_order_taxes_from_selected_cashbox(self) -> None:
-        status, cashless_cashbox = self.request("/api/create_cashbox", {"name": "Безналичный", "actor_name": "ADMIN"})
+        status, cashless_cashbox = self.request(
+            "/api/create_cashbox", {"name": "Безналичный", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
-        status, maria_cashbox = self.request("/api/create_cashbox", {"name": "Карта Мария", "actor_name": "ADMIN"})
+        status, maria_cashbox = self.request(
+            "/api/create_cashbox", {"name": "Карта Мария", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
 
-        status, created = self.request("/api/create_card", {"vehicle": "AUDI A4", "title": "API оплата", "deadline": {"hours": 2}})
+        status, created = self.request(
+            "/api/create_card",
+            {"vehicle": "AUDI A4", "title": "API оплата", "deadline": {"hours": 2}},
+        )
         self.assertEqual(status, 200)
         cashless_card_id = created["data"]["card"]["id"]
 
@@ -1011,7 +1146,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(cashless_order["grand_total"], "1150")
         self.assertEqual(cashless_order["due_total"], "650")
 
-        status, cash_cashbox = self.request("/api/create_cashbox", {"name": "Наличный", "actor_name": "ADMIN"})
+        status, cash_cashbox = self.request(
+            "/api/create_cashbox", {"name": "Наличный", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         status, mixed_paid = self.request(
             "/api/update_card",
@@ -1047,7 +1184,10 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(mixed_order["paid_total"], "1000")
         self.assertEqual(mixed_order["due_total"], "150")
 
-        status, created = self.request("/api/create_card", {"vehicle": "BMW X5", "title": "API карта", "deadline": {"hours": 2}})
+        status, created = self.request(
+            "/api/create_card",
+            {"vehicle": "BMW X5", "title": "API карта", "deadline": {"hours": 2}},
+        )
         self.assertEqual(status, 200)
         maria_card_id = created["data"]["card"]["id"]
 
@@ -1158,7 +1298,12 @@ class ApiServerTests(unittest.TestCase):
     def test_archive_card_route_rejects_open_repair_order(self) -> None:
         status, created = self.request(
             "/api/create_card",
-            {"vehicle": "KIA RIO", "title": "Open order", "description": "Проверить подвеску", "deadline": {"hours": 2}},
+            {
+                "vehicle": "KIA RIO",
+                "title": "Open order",
+                "description": "Проверить подвеску",
+                "deadline": {"hours": 2},
+            },
         )
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
@@ -1218,22 +1363,37 @@ class ApiServerTests(unittest.TestCase):
                     "status": "open",
                     "client": "Клиент",
                     "vehicle": "Mitsubishi L200",
-                    "payments": [{"amount": "5000", "paid_at": "05.04.2026 10:00", "payment_method": "cash"}],
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "5000", "executor_id": employee_id}],
+                    "payments": [
+                        {"amount": "5000", "paid_at": "05.04.2026 10:00", "payment_method": "cash"}
+                    ],
+                    "works": [
+                        {
+                            "name": "Диагностика",
+                            "quantity": "1",
+                            "price": "5000",
+                            "executor_id": employee_id,
+                        }
+                    ],
                 },
             },
         )
         self.assertEqual(status, 200)
 
-        status, closed = self.request("/api/set_repair_order_status", {"card_id": card_id, "status": "closed"})
+        status, closed = self.request(
+            "/api/set_repair_order_status", {"card_id": card_id, "status": "closed"}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(closed["data"]["repair_order"]["works"][0]["salary_amount"], "1500")
 
         status, report = self.request("/api/get_payroll_report", method="GET")
         self.assertEqual(status, 200)
-        self.assertTrue(any(item["employee_id"] == employee_id for item in report["data"]["summary"]))
+        self.assertTrue(
+            any(item["employee_id"] == employee_id for item in report["data"]["summary"])
+        )
 
-        status, reopened = self.request("/api/set_repair_order_status", {"card_id": card_id, "status": "open"})
+        status, reopened = self.request(
+            "/api/set_repair_order_status", {"card_id": card_id, "status": "open"}
+        )
         self.assertEqual(status, 200)
         reopened_row = reopened["data"]["repair_order"]["works"][0]
         self.assertEqual(reopened_row["salary_amount"], "")
@@ -1244,7 +1404,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(first["data"]["created"])
 
-        status, second = self.request("/api/save_employee", {"name": "Пётр", "position": "Приёмщик"})
+        status, second = self.request(
+            "/api/save_employee", {"name": "Пётр", "position": "Приёмщик"}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(second["data"]["created"])
         self.assertNotEqual(first["data"]["employee"]["id"], second["data"]["employee"]["id"])
@@ -1253,14 +1415,18 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(len(listed["data"]["employees"]), 2)
 
-        status, deleted = self.request("/api/delete_employee", {"employee_id": second["data"]["employee"]["id"]})
+        status, deleted = self.request(
+            "/api/delete_employee", {"employee_id": second["data"]["employee"]["id"]}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(deleted["data"]["deleted"])
 
         status, listed_after = self.request("/api/list_employees", method="GET")
         self.assertEqual(status, 200)
         self.assertEqual(len(listed_after["data"]["employees"]), 1)
-        self.assertEqual(listed_after["data"]["employees"][0]["id"], first["data"]["employee"]["id"])
+        self.assertEqual(
+            listed_after["data"]["employees"][0]["id"], first["data"]["employee"]["id"]
+        )
 
     def test_employee_routes_toggle_active_state(self) -> None:
         status, saved = self.request("/api/save_employee", {"name": "Иван", "position": "Мастер"})
@@ -1295,7 +1461,9 @@ class ApiServerTests(unittest.TestCase):
                 status, listed = self.request("/api/list_employees", method="GET")
                 self.assertEqual(status, 200)
                 self.assertEqual(len(listed["data"]["employees"]), index + 1)
-                self.assertEqual(len({item["id"] for item in listed["data"]["employees"]}), index + 1)
+                self.assertEqual(
+                    len({item["id"] for item in listed["data"]["employees"]}), index + 1
+                )
 
         status, listed = self.request("/api/list_employees", method="GET")
         self.assertEqual(status, 200)
@@ -1327,7 +1495,9 @@ class ApiServerTests(unittest.TestCase):
         status, listed = self.request("/api/list_employees", method="GET")
         self.assertEqual(status, 200)
         self.assertEqual(len(listed["data"]["employees"]), 2)
-        self.assertCountEqual([item["name"] for item in listed["data"]["employees"]], ["Иван", "Пётр"])
+        self.assertCountEqual(
+            [item["name"] for item in listed["data"]["employees"]], ["Иван", "Пётр"]
+        )
 
     def test_save_employee_requires_name(self) -> None:
         status, response = self.request(
@@ -1351,7 +1521,9 @@ class ApiServerTests(unittest.TestCase):
         status, sibling_column = self.request("/api/create_column", {"label": "SIBLING LABEL"})
         self.assertEqual(status, 200)
 
-        status, renamed = self.request("/api/rename_column", {"column_id": column_id, "label": "NEW LABEL"})
+        status, renamed = self.request(
+            "/api/rename_column", {"column_id": column_id, "label": "NEW LABEL"}
+        )
         self.assertEqual(status, 200)
         self.assertTrue(renamed["ok"])
         self.assertEqual(renamed["data"]["column"]["id"], column_id)
@@ -1375,13 +1547,20 @@ class ApiServerTests(unittest.TestCase):
 
         status, moved = self.request(
             "/api/move_column",
-            {"column_id": third["data"]["column"]["id"], "before_column_id": first["data"]["column"]["id"]},
+            {
+                "column_id": third["data"]["column"]["id"],
+                "before_column_id": first["data"]["column"]["id"],
+            },
         )
         self.assertEqual(status, 200)
         ordered_ids = [item["id"] for item in moved["data"]["columns"]]
         self.assertEqual(
             ordered_ids[-3:],
-            [third["data"]["column"]["id"], first["data"]["column"]["id"], second["data"]["column"]["id"]],
+            [
+                third["data"]["column"]["id"],
+                first["data"]["column"]["id"],
+                second["data"]["column"]["id"],
+            ],
         )
         self.assertTrue(moved["data"]["meta"]["changed"])
 
@@ -1390,11 +1569,19 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         target_column = created_column["data"]["column"]["id"]
 
-        status, first = self.request("/api/create_card", {"title": "Bulk one", "column": "inbox", "deadline": {"hours": 2}})
+        status, first = self.request(
+            "/api/create_card", {"title": "Bulk one", "column": "inbox", "deadline": {"hours": 2}}
+        )
         self.assertEqual(status, 200)
-        status, second = self.request("/api/create_card", {"title": "Bulk two", "column": "in_progress", "deadline": {"hours": 2}})
+        status, second = self.request(
+            "/api/create_card",
+            {"title": "Bulk two", "column": "in_progress", "deadline": {"hours": 2}},
+        )
         self.assertEqual(status, 200)
-        status, archived = self.request("/api/create_card", {"title": "Bulk archived", "column": "done", "deadline": {"hours": 2}})
+        status, archived = self.request(
+            "/api/create_card",
+            {"title": "Bulk archived", "column": "done", "deadline": {"hours": 2}},
+        )
         self.assertEqual(status, 200)
         archived_id = archived["data"]["card"]["id"]
         status, _ = self.request("/api/archive_card", {"card_id": archived_id})
@@ -1403,7 +1590,12 @@ class ApiServerTests(unittest.TestCase):
         status, moved = self.request(
             "/api/bulk_move_cards",
             {
-                "card_ids": [first["data"]["card"]["id"], second["data"]["card"]["id"], archived_id, "missing-card"],
+                "card_ids": [
+                    first["data"]["card"]["id"],
+                    second["data"]["card"]["id"],
+                    archived_id,
+                    "missing-card",
+                ],
                 "column": target_column,
                 "actor_name": "MCP TEST",
             },
@@ -1414,9 +1606,13 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(moved["data"]["meta"]["errors"], 2)
         self.assertTrue(any(item["code"] == "archived_card" for item in moved["data"]["errors"]))
         self.assertTrue(any(item["code"] == "not_found" for item in moved["data"]["errors"]))
-        self.assertTrue(all(card["column"] == target_column for card in moved["data"]["moved_cards"]))
+        self.assertTrue(
+            all(card["column"] == target_column for card in moved["data"]["moved_cards"])
+        )
 
-        status, first_after = self.request(f"/api/get_card?card_id={first['data']['card']['id']}", method="GET")
+        status, first_after = self.request(
+            f"/api/get_card?card_id={first['data']['card']['id']}", method="GET"
+        )
         self.assertEqual(status, 200)
         self.assertEqual(first_after["data"]["card"]["column"], target_column)
 
@@ -1439,7 +1635,9 @@ class ApiServerTests(unittest.TestCase):
         card_id = created["data"]["card"]["id"]
         self.assertEqual(created["data"]["card"]["vehicle"], "Suzuki Swift 2014")
         self.assertEqual(created["data"]["card"]["vehicle_profile"]["vin"], "JSAZC72S001234567")
-        self.assertEqual(created["data"]["card"]["vehicle_profile_compact"]["vin"], "JSAZC72S001234567")
+        self.assertEqual(
+            created["data"]["card"]["vehicle_profile_compact"]["vin"], "JSAZC72S001234567"
+        )
 
         status, updated = self.request(
             "/api/update_card",
@@ -1455,7 +1653,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(updated["data"]["card"]["vehicle_profile"]["engine_code"], "K12C")
         self.assertEqual(updated["data"]["card"]["vehicle_profile"]["gearbox_model"], "A6GF1")
-        self.assertEqual(updated["data"]["card"]["vehicle_profile_compact"]["gearbox_model"], "A6GF1")
+        self.assertEqual(
+            updated["data"]["card"]["vehicle_profile_compact"]["gearbox_model"], "A6GF1"
+        )
 
     def test_cards_can_be_marked_seen_via_api(self) -> None:
         status, created = self.request(
@@ -1480,7 +1680,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(marked["data"]["card"]["updated_at"], updated_at)
 
     def test_update_card_accepts_repair_order_payload(self) -> None:
-        status, cashbox_created = self.request("/api/create_cashbox", {"name": "Безналичный", "actor_name": "ADMIN"})
+        status, cashbox_created = self.request(
+            "/api/create_cashbox", {"name": "Безналичный", "actor_name": "ADMIN"}
+        )
         self.assertEqual(status, 200)
         cashbox = cashbox_created["data"]["cashbox"]
         status, created = self.request(
@@ -1513,14 +1715,19 @@ class ApiServerTests(unittest.TestCase):
                         }
                     ],
                     "client_information": "Краткая история ремонта для клиента",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1500", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1500", "total": ""}
+                    ],
                 },
             },
         )
         self.assertEqual(status, 200)
         self.assertEqual(updated["data"]["card"]["repair_order"]["number"], "1")
         self.assertEqual(updated["data"]["card"]["repair_order"]["client"], "Иван Иванов")
-        self.assertEqual(updated["data"]["card"]["repair_order"]["client_information"], "Краткая история ремонта для клиента")
+        self.assertEqual(
+            updated["data"]["card"]["repair_order"]["client_information"],
+            "Краткая история ремонта для клиента",
+        )
         self.assertEqual(updated["data"]["card"]["repair_order"]["works"][0]["name"], "Диагностика")
         self.assertEqual(updated["data"]["card"]["repair_order"]["works"][0]["total"], "1500")
         self.assertEqual(updated["data"]["card"]["repair_order"]["payment_method"], "cashless")
@@ -1529,11 +1736,19 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(updated["data"]["card"]["repair_order"]["prepayment_display"], "500")
         self.assertEqual(updated["data"]["card"]["repair_order"]["paid_total"], "500")
         self.assertEqual(updated["data"]["card"]["repair_order"]["payment_status"], "unpaid")
-        self.assertEqual(updated["data"]["card"]["repair_order"]["payment_status_label"], "Не оплачен")
+        self.assertEqual(
+            updated["data"]["card"]["repair_order"]["payment_status_label"], "Не оплачен"
+        )
         self.assertEqual(len(updated["data"]["card"]["repair_order"]["payments"]), 1)
-        self.assertEqual(updated["data"]["card"]["repair_order"]["payments"][0]["actor_name"], "ADMIN")
-        self.assertEqual(updated["data"]["card"]["repair_order"]["payments"][0]["cashbox_name"], cashbox["name"])
-        self.assertTrue(updated["data"]["card"]["repair_order"]["payments"][0]["cash_transaction_id"])
+        self.assertEqual(
+            updated["data"]["card"]["repair_order"]["payments"][0]["actor_name"], "ADMIN"
+        )
+        self.assertEqual(
+            updated["data"]["card"]["repair_order"]["payments"][0]["cashbox_name"], cashbox["name"]
+        )
+        self.assertTrue(
+            updated["data"]["card"]["repair_order"]["payments"][0]["cash_transaction_id"]
+        )
         self.assertEqual(updated["data"]["card"]["repair_order"]["works_total"], "1500")
         self.assertEqual(updated["data"]["card"]["repair_order"]["materials_total"], "0")
         self.assertEqual(updated["data"]["card"]["repair_order"]["subtotal_total"], "1500")
@@ -1568,7 +1783,9 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         self.assertEqual(patched["data"]["repair_order"]["client"], "Иван Иванов")
-        self.assertEqual(patched["data"]["repair_order"]["comment"], "Согласовать дальнейшую диагностику")
+        self.assertEqual(
+            patched["data"]["repair_order"]["comment"], "Согласовать дальнейшую диагностику"
+        )
 
         status, materials = self.request(
             "/api/update_repair_order",
@@ -1576,13 +1793,21 @@ class ApiServerTests(unittest.TestCase):
                 "card_id": card_id,
                 "repair_order": {
                     "materials": [
-                        {"name": "Радиатор", "catalog_number": "1300A123", "quantity": "1", "price": "12000", "total": ""}
+                        {
+                            "name": "Радиатор",
+                            "catalog_number": "1300A123",
+                            "quantity": "1",
+                            "price": "12000",
+                            "total": "",
+                        }
                     ]
                 },
             },
         )
         self.assertEqual(status, 200)
-        self.assertEqual(materials["data"]["repair_order"]["materials"][0]["catalog_number"], "1300A123")
+        self.assertEqual(
+            materials["data"]["repair_order"]["materials"][0]["catalog_number"], "1300A123"
+        )
 
         status, works = self.request(
             "/api/replace_repair_order_works",
@@ -1597,7 +1822,9 @@ class ApiServerTests(unittest.TestCase):
         status, order = self.request("/api/get_repair_order", {"card_id": card_id})
         self.assertEqual(status, 200)
         self.assertEqual(order["data"]["repair_order"]["license_plate"], "В003НК124")
-        self.assertEqual(order["data"]["repair_order"]["materials"][0]["catalog_number"], "1300A123")
+        self.assertEqual(
+            order["data"]["repair_order"]["materials"][0]["catalog_number"], "1300A123"
+        )
 
         status, context = self.request(
             "/api/get_card_context",
@@ -1636,14 +1863,18 @@ class ApiServerTests(unittest.TestCase):
                     "phone": "+7 900 123-45-67",
                     "vehicle": "Toyota Camry XV70",
                     "vin": "JTNB11HK103456789",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "2500", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "2500", "total": ""}
+                    ],
                     "materials": [{"name": "ATF", "quantity": "6", "price": "950", "total": ""}],
                 },
             },
         )
         self.assertEqual(status, 200)
 
-        status, workspace = self.request("/api/get_repair_order_print_workspace", {"card_id": card_id})
+        status, workspace = self.request(
+            "/api/get_repair_order_print_workspace", {"card_id": card_id}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(workspace["data"]["documents"][0]["id"], "repair_order")
         self.assertIn("repair_order", workspace["data"]["templates"])
@@ -1665,7 +1896,7 @@ class ApiServerTests(unittest.TestCase):
             {
                 "document_type": "repair_order",
                 "name": "API template",
-                "content": "<div class=\"document-page\"><h1>{{client.name_display}}</h1></div>",
+                "content": '<div class="document-page"><h1>{{client.name_display}}</h1></div>',
             },
         )
         self.assertEqual(status, 200)
@@ -1679,7 +1910,10 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(any(item["is_default"] for item in defaulted["data"]["templates"]))
 
-        with patch("minimal_kanban.printing.service.render_html_to_pdf_bytes", return_value=b"%PDF-1.4 route-test"):
+        with patch(
+            "minimal_kanban.printing.service.render_html_to_pdf_bytes",
+            return_value=b"%PDF-1.4 route-test",
+        ):
             status, exported = self.request(
                 "/api/export_repair_order_print_pdf",
                 {
@@ -1688,7 +1922,9 @@ class ApiServerTests(unittest.TestCase):
                 },
             )
         self.assertEqual(status, 200)
-        self.assertTrue(base64.b64decode(exported["data"]["content_base64"]).startswith(b"%PDF-1.4"))
+        self.assertTrue(
+            base64.b64decode(exported["data"]["content_base64"]).startswith(b"%PDF-1.4")
+        )
         self.assertEqual(exported["data"]["meta"]["documents"][0]["id"], "repair_order")
 
         with patch("minimal_kanban.printing.service.print_html") as print_backend:
@@ -1731,8 +1967,17 @@ class ApiServerTests(unittest.TestCase):
                     "reason": "Suspension noise",
                     "comment": "Client asked for chassis inspection",
                     "note": "Stabilizer link play found",
-                    "works": [{"name": "Suspension diagnosis", "quantity": "1", "price": "1800", "total": ""}],
-                    "materials": [{"name": "Stabilizer link", "quantity": "2", "price": "900", "total": ""}],
+                    "works": [
+                        {
+                            "name": "Suspension diagnosis",
+                            "quantity": "1",
+                            "price": "1800",
+                            "total": "",
+                        }
+                    ],
+                    "materials": [
+                        {"name": "Stabilizer link", "quantity": "2", "price": "900", "total": ""}
+                    ],
                 },
             },
         )
@@ -1811,12 +2056,19 @@ class ApiServerTests(unittest.TestCase):
                 "master_comment": "Prepare estimate",
                 "confidence_notes": ["Part of the data came from the card description"],
             }
-            status, autofilled = self.request("/api/autofill_inspection_sheet_form", {"card_id": card_id})
+            status, autofilled = self.request(
+                "/api/autofill_inspection_sheet_form", {"card_id": card_id}
+            )
         self.assertEqual(status, 200)
         self.assertEqual(autofilled["data"]["form"]["master_comment"], "Prepare estimate")
         self.assertEqual(autofilled["data"]["autofill"]["model"], "gpt-5.4-mini")
-        self.assertEqual(autofilled["data"]["form"]["planned_material_rows"][1]["name"], "Stabilizer bushing")
-        self.assertIn("Part of the data came from the card description", autofilled["data"]["autofill"]["confidence_notes"][0])
+        self.assertEqual(
+            autofilled["data"]["form"]["planned_material_rows"][1]["name"], "Stabilizer bushing"
+        )
+        self.assertIn(
+            "Part of the data came from the card description",
+            autofilled["data"]["autofill"]["confidence_notes"][0],
+        )
 
     def test_repair_order_print_pdf_export_works_from_http_thread(self) -> None:
         status, created = self.request(
@@ -1839,8 +2091,12 @@ class ApiServerTests(unittest.TestCase):
                     "phone": "+7 900 123-45-67",
                     "vehicle": "Lexus IS F",
                     "vin": "USE205004751",
-                    "works": [{"name": "Замена масла", "quantity": "1", "price": "2500", "total": ""}],
-                    "materials": [{"name": "Масло 5W-30", "quantity": "6", "price": "950", "total": ""}],
+                    "works": [
+                        {"name": "Замена масла", "quantity": "1", "price": "2500", "total": ""}
+                    ],
+                    "materials": [
+                        {"name": "Масло 5W-30", "quantity": "6", "price": "950", "total": ""}
+                    ],
                 },
             },
         )
@@ -1879,7 +2135,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(saved["data"]["settings"]["copies"], 2)
         self.assertEqual(saved["data"]["settings"]["paper_size"], "A5")
         self.assertEqual(saved["data"]["settings"]["orientation"], "landscape")
-        self.assertEqual(saved["data"]["settings"]["service_profile"]["company_name"], "AutoStop CRM")
+        self.assertEqual(
+            saved["data"]["settings"]["service_profile"]["company_name"], "AutoStop CRM"
+        )
 
         status, created = self.request(
             "/api/create_card",
@@ -1892,12 +2150,16 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
 
-        status, workspace = self.request("/api/get_repair_order_print_workspace", {"card_id": card_id})
+        status, workspace = self.request(
+            "/api/get_repair_order_print_workspace", {"card_id": card_id}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(workspace["data"]["settings"]["copies"], 2)
         self.assertEqual(workspace["data"]["settings"]["paper_size"], "A5")
         self.assertEqual(workspace["data"]["settings"]["orientation"], "landscape")
-        self.assertEqual(workspace["data"]["settings"]["service_profile"]["company_name"], "AutoStop CRM")
+        self.assertEqual(
+            workspace["data"]["settings"]["service_profile"]["company_name"], "AutoStop CRM"
+        )
 
     def test_autofill_repair_order_route_uses_card_and_vehicle_profile(self) -> None:
         status, created = self.request(
@@ -1946,8 +2208,17 @@ class ApiServerTests(unittest.TestCase):
                 {
                     "card_id": history_id,
                     "repair_order": {
-                        "works": [{"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}],
-                        "materials": [{"name": "ATF", "quantity": "6", "price": "950", "total": ""}],
+                        "works": [
+                            {
+                                "name": "Диагностика DSG",
+                                "quantity": "1",
+                                "price": "2500",
+                                "total": "",
+                            }
+                        ],
+                        "materials": [
+                            {"name": "ATF", "quantity": "6", "price": "950", "total": ""}
+                        ],
                     },
                 },
             )
@@ -1993,8 +2264,12 @@ class ApiServerTests(unittest.TestCase):
                 "repair_order": {
                     "client": "Иван Иванов",
                     "phone": "+7 900 123-45-67",
-                    "payments": [{"amount": "1500", "paid_at": "06.04.2026 10:00", "payment_method": "cash"}],
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1500", "total": ""}],
+                    "payments": [
+                        {"amount": "1500", "paid_at": "06.04.2026 10:00", "payment_method": "cash"}
+                    ],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1500", "total": ""}
+                    ],
                 },
             },
         )
@@ -2006,19 +2281,25 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(active["data"]["meta"]["status"], "open")
         self.assertTrue(any(item["card_id"] == card_id for item in active["data"]["repair_orders"]))
 
-        status, closed = self.request("/api/set_repair_order_status", {"card_id": card_id, "status": "closed"})
+        status, closed = self.request(
+            "/api/set_repair_order_status", {"card_id": card_id, "status": "closed"}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(closed["data"]["repair_order"]["status"], "closed")
         self.assertTrue(closed["data"]["repair_order"]["closed_at"])
 
         status, active_after = self.request("/api/list_repair_orders", method="GET")
         self.assertEqual(status, 200)
-        self.assertFalse(any(item["card_id"] == card_id for item in active_after["data"]["repair_orders"]))
+        self.assertFalse(
+            any(item["card_id"] == card_id for item in active_after["data"]["repair_orders"])
+        )
 
         status, archived = self.request("/api/list_repair_orders", {"status": "closed"})
         self.assertEqual(status, 200)
         self.assertEqual(archived["data"]["meta"]["status"], "closed")
-        self.assertTrue(any(item["card_id"] == card_id for item in archived["data"]["repair_orders"]))
+        self.assertTrue(
+            any(item["card_id"] == card_id for item in archived["data"]["repair_orders"])
+        )
 
     def test_repair_order_status_route_rejects_unpaid_close(self) -> None:
         status, created = self.request(
@@ -2038,14 +2319,18 @@ class ApiServerTests(unittest.TestCase):
                 "card_id": card_id,
                 "repair_order": {
                     "client": "Иван Иванов",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1500", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1500", "total": ""}
+                    ],
                 },
             },
         )
         self.assertEqual(status, 200)
         self.assertEqual(patched["data"]["repair_order"]["payment_status"], "unpaid")
 
-        status, response = self.request("/api/set_repair_order_status", {"card_id": card_id, "status": "closed"})
+        status, response = self.request(
+            "/api/set_repair_order_status", {"card_id": card_id, "status": "closed"}
+        )
         self.assertEqual(status, 409)
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "repair_order_payment_required")
@@ -2086,7 +2371,9 @@ class ApiServerTests(unittest.TestCase):
                         {"label": "Срочно", "color": "yellow"},
                         {"label": "DSG", "color": "green"},
                     ],
-                    "works": [{"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}
+                    ],
                 },
             },
         )
@@ -2107,7 +2394,9 @@ class ApiServerTests(unittest.TestCase):
                     "client": "Петр Петров",
                     "phone": "+7 901 000-11-22",
                     "comment": "Стандартное ТО",
-                    "works": [{"name": "Замена масла", "quantity": "1", "price": "1500", "total": ""}],
+                    "works": [
+                        {"name": "Замена масла", "quantity": "1", "price": "1500", "total": ""}
+                    ],
                 },
             },
         )
@@ -2136,7 +2425,9 @@ class ApiServerTests(unittest.TestCase):
         )
 
     def test_autofill_vehicle_data_route_returns_card_draft_and_profile(self) -> None:
-        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None):
+        with patch.object(
+            self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None
+        ):
             status, autofilled = self.request(
                 "/api/autofill_vehicle_data",
                 {
@@ -2155,7 +2446,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("vehicle", autofilled["data"]["card_draft"])
 
     def test_autofill_vehicle_data_route_uses_card_fields_without_raw_text(self) -> None:
-        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None):
+        with patch.object(
+            self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None
+        ):
             status, autofilled = self.request(
                 "/api/autofill_vehicle_data",
                 {
@@ -2200,19 +2493,27 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(response["error"]["code"], "validation_error")
 
-        status, response = self.request("/api/create_card", {"title": "x", "deadline": {"days": 0, "hours": 0}})
+        status, response = self.request(
+            "/api/create_card", {"title": "x", "deadline": {"days": 0, "hours": 0}}
+        )
         self.assertEqual(status, 400)
         self.assertEqual(response["error"]["code"], "validation_error")
 
-        status, response = self.request("/api/create_card", {"title": "x", "deadline": {"days": 0, "hours": 24}})
+        status, response = self.request(
+            "/api/create_card", {"title": "x", "deadline": {"days": 0, "hours": 24}}
+        )
         self.assertEqual(status, 400)
         self.assertEqual(response["error"]["code"], "validation_error")
 
-        status, created = self.request("/api/create_card", {"title": "Карточка", "deadline": {"hours": 1}})
+        status, created = self.request(
+            "/api/create_card", {"title": "Карточка", "deadline": {"hours": 1}}
+        )
         self.assertEqual(status, 200)
         card_id = created["data"]["card"]["id"]
 
-        status, response = self.request("/api/set_card_indicator", {"card_id": card_id, "indicator": "blue"})
+        status, response = self.request(
+            "/api/set_card_indicator", {"card_id": card_id, "indicator": "blue"}
+        )
         self.assertEqual(status, 400)
         self.assertEqual(response["error"]["code"], "validation_error")
 
@@ -2280,7 +2581,9 @@ class ApiServerTests(unittest.TestCase):
         self.assertGreaterEqual(archive_list["data"]["meta"]["total"], 1)
         self.assertGreaterEqual(archive_list["data"]["meta"]["returned"], 1)
 
-        status, restored = self.request("/api/restore_card", {"card_id": card_id, "column": column_id})
+        status, restored = self.request(
+            "/api/restore_card", {"card_id": card_id, "column": column_id}
+        )
         self.assertEqual(status, 200)
         self.assertFalse(restored["data"]["card"]["archived"])
 
@@ -2293,12 +2596,15 @@ class ApiServerTests(unittest.TestCase):
         self.assertFalse(searched["data"]["meta"]["has_more"])
         self.assertEqual(searched["data"]["cards"][0]["id"], card_id)
 
-        status, searched_by_short_id = self.request("/api/search_cards", {"query": card_short_id, "limit": 5})
+        status, searched_by_short_id = self.request(
+            "/api/search_cards", {"query": card_short_id, "limit": 5}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(searched_by_short_id["data"]["cards"][0]["id"], card_id)
 
-
-        status, wall = self.request("/api/get_gpt_wall", {"include_archived": True, "event_limit": 50})
+        status, wall = self.request(
+            "/api/get_gpt_wall", {"include_archived": True, "event_limit": 50}
+        )
         self.assertEqual(status, 200)
         self.assertIn(card_short_id, wall["data"]["text"])
         self.assertIn("sections", wall["data"])
@@ -2310,9 +2616,16 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("vehicle_profile_compact", wall_card)
         self.assertTrue(any(event["card_id"] == card_id for event in wall["data"]["events"]))
         self.assertIn(card_short_id, wall["data"]["sections"]["board_content"]["text"])
-        self.assertTrue(any(event["card_id"] == card_id for event in wall["data"]["sections"]["event_log"]["events"]))
+        self.assertTrue(
+            any(
+                event["card_id"] == card_id
+                for event in wall["data"]["sections"]["event_log"]["events"]
+            )
+        )
 
-        status, board_settings = self.request("/api/update_board_settings", {"board_scale": 1.25, "actor_name": "ИНСПЕКТОР"})
+        status, board_settings = self.request(
+            "/api/update_board_settings", {"board_scale": 1.25, "actor_name": "ИНСПЕКТОР"}
+        )
         self.assertEqual(status, 200)
         self.assertEqual(board_settings["data"]["settings"]["board_scale"], 1.25)
 
@@ -2351,14 +2664,23 @@ class ApiServerAuthTests(unittest.TestCase):
         self.server.stop()
         self.temp_dir.cleanup()
 
-    def request(self, path: str, payload: dict | None = None, *, method: str = "POST", token: str | None = None):
+    def request(
+        self,
+        path: str,
+        payload: dict | None = None,
+        *,
+        method: str = "POST",
+        token: str | None = None,
+    ):
         data = None
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        request = urllib.request.Request(f"{self.base_url}{path}", data=data, headers=headers, method=method)
+        request = urllib.request.Request(
+            f"{self.base_url}{path}", data=data, headers=headers, method=method
+        )
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
                 return response.status, json.loads(response.read().decode("utf-8"))
@@ -2408,7 +2730,9 @@ class ApiServerAuthTests(unittest.TestCase):
         self.assertEqual(status, 200)
         attachment_id = attachment["data"]["attachment"]["id"]
 
-        status, snapshot = self.request("/api/get_board_snapshot?archive_limit=10&access_token=secret-token", method="GET")
+        status, snapshot = self.request(
+            "/api/get_board_snapshot?archive_limit=10&access_token=secret-token", method="GET"
+        )
         self.assertEqual(status, 200)
         self.assertTrue(any(card["id"] == card_id for card in snapshot["data"]["cards"]))
 
@@ -2431,8 +2755,16 @@ class ApiServerAuthTests(unittest.TestCase):
         samples = [
             ("фото клиента.png", "image/png", PNG_1X1_BYTES),
             ("фото клиента.jpg", "image/jpeg", JPEG_1X1_BYTES),
-            ("отчёт клиента.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", minimal_docx_bytes()),
-            ("смета клиента.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", minimal_xlsx_bytes()),
+            (
+                "отчёт клиента.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                minimal_docx_bytes(),
+            ),
+            (
+                "смета клиента.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                minimal_xlsx_bytes(),
+            ),
             ("заметки клиента.txt", "text/plain", minimal_text_bytes()),
             ("договор.final.pdf", "application/pdf", minimal_pdf_bytes()),
         ]
@@ -2499,7 +2831,9 @@ class ApiServerAuthTests(unittest.TestCase):
                 self.assertEqual(response["error"]["code"], "validation_error")
 
     def test_board_context_route_describes_single_board_scope(self) -> None:
-        status, created_column = self.request("/api/create_column", {"label": "КЛИЕНТСКИЙ ЗАЛ"}, token="secret-token")
+        status, created_column = self.request(
+            "/api/create_column", {"label": "КЛИЕНТСКИЙ ЗАЛ"}, token="secret-token"
+        )
         self.assertEqual(status, 200)
         column_id = created_column["data"]["column"]["id"]
 
@@ -2516,7 +2850,9 @@ class ApiServerAuthTests(unittest.TestCase):
         self.assertEqual(context["data"]["context"]["board_name"], "Current AutoStop CRM Board")
         self.assertEqual(context["data"]["context"]["board_scope"], "single_local_board_instance")
         self.assertIn("Do not use it for Trello, YouGile", context["data"]["context"]["scope_rule"])
-        self.assertTrue(any(column["id"] == column_id for column in context["data"]["context"]["columns"]))
+        self.assertTrue(
+            any(column["id"] == column_id for column in context["data"]["context"]["columns"])
+        )
         self.assertIn("[BOARD CONTEXT]", context["data"]["text"])
 
 
