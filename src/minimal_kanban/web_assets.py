@@ -5854,24 +5854,9 @@ BOARD_WEB_APP_HTML = "".join(
       repairOrderPayments: [],
       repairOrderTagColor: 'green',
       agentUiBound: false,
-      aiSurfaceUiBound: false,
-      aiChatWindowUiBound: false,
       agentContext: { kind: 'board' },
-      aiSurfaceContext: { kind: 'chat' },
-      aiSurfaceSelectedScenario: 'ai_chat',
       aiCompactContext: { kind: 'compact_context' },
       aiCompactContextCache: { signature: '', packet: null },
-      aiChatWindowContext: { kind: 'chat' },
-      aiChatWindowHistory: [],
-      aiChatWindowHistoryContext: null,
-      aiChatWindowMessageSeq: 0,
-      aiChatWindowSettingsOpen: false,
-      aiChatWindowPromptProfile: {
-        system_instruction: 'Чат отвечает как отдельный рабочий AI surface AutoStop CRM.',
-        response_profile: 'Кратко, структурно, с читаемыми блоками и без лишнего шума.',
-        user_tune: '',
-      },
-      aiChatWindowKnowledge: null,
       agentRefreshTimer: null,
       agentAutofillCountdownTimer: null,
       agentAutofillPromptOpen: false,
@@ -5886,8 +5871,6 @@ BOARD_WEB_APP_HTML = "".join(
       agentTaskStatus: '',
       agentSyncedTaskId: '',
       agentStatusPayload: null,
-      aiSurfaceStatusPayload: null,
-      aiChatWindowStatusPayload: null,
       agentLatestTasks: [],
       agentLatestActions: [],
       cardCleanupState: 'idle',
@@ -6257,8 +6240,6 @@ BOARD_WEB_APP_HTML = "".join(
       boardSettingsButton: document.getElementById('boardSettingsButton'),
       topbarStatusHost: document.getElementById('topbarStatusHost'),
       stickyDockButton: document.getElementById('stickyDockButton'),
-      agentDockButton: document.getElementById('agentDockButton'),
-      aiChatButton: document.getElementById('aiChatButton'),
       operatorButton: document.getElementById('operatorButton'),
       archiveButton: document.getElementById('archiveButton'),
       repairOrdersButton: document.getElementById('repairOrdersButton'),
@@ -6275,10 +6256,6 @@ BOARD_WEB_APP_HTML = "".join(
       boardScaleInput: document.getElementById('boardScaleInput'),
       boardScaleValue: document.getElementById('boardScaleValue'),
       boardScaleReset: document.getElementById('boardScaleReset'),
-      boardControlSettingsRow: document.getElementById('boardControlSettingsRow'),
-      boardControlToggle: document.getElementById('boardControlToggle'),
-      boardControlIntervalInput: document.getElementById('boardControlIntervalInput'),
-      boardControlCooldownInput: document.getElementById('boardControlCooldownInput'),
       stickyModal: document.getElementById('stickyModal'),
       stickyModalTitle: document.getElementById('stickyModalTitle'),
       stickyText: document.getElementById('stickyText'),
@@ -8252,8 +8229,6 @@ BOARD_WEB_APP_HTML = "".join(
         },
         employeeSalary: () => closeEmployeeSalaryModal(),
         agent: () => closeAgentModal(),
-        'ai-surface': () => closeAiSurface(),
-        'ai-chat': () => closeAiChatWindow(),
         'agent-tasks': () => closeAgentTasksModal(),
         wall: () => els.gptWallModal.classList.remove('is-open'),
         settings: () => els.boardSettingsModal.classList.remove('is-open'),
@@ -9142,23 +9117,11 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function activeAiTaskContext() {
-      if (els.aiSurfaceModal?.classList.contains('is-open') && state.aiSurfaceContext && typeof state.aiSurfaceContext === 'object') {
-        return state.aiSurfaceContext;
-      }
       if (els.agentModal?.classList.contains('is-open') && state.agentContext && typeof state.agentContext === 'object') {
         return state.agentContext;
       }
-      if (els.aiChatWindow?.classList.contains('is-open') && state.aiChatWindowContext && typeof state.aiChatWindowContext === 'object') {
-        return state.aiChatWindowContext;
-      }
-      if (state.aiSurfaceContext && typeof state.aiSurfaceContext === 'object') {
-        return state.aiSurfaceContext;
-      }
       if (state.agentContext && typeof state.agentContext === 'object') {
         return state.agentContext;
-      }
-      if (state.aiChatWindowContext && typeof state.aiChatWindowContext === 'object') {
-        return state.aiChatWindowContext;
       }
       return { kind: 'board' };
     }
@@ -9445,79 +9408,15 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function renderAiChatWindow(statusPayload) {
-      const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
-      const aiRemodel = payload.ai_remodel && typeof payload.ai_remodel === 'object' ? payload.ai_remodel : {};
-      const effectiveMode = aiRemodel.effective_mode && typeof aiRemodel.effective_mode === 'object' ? aiRemodel.effective_mode : {};
-      const modeConfig = effectiveMode.mode_config && typeof effectiveMode.mode_config === 'object' ? effectiveMode.mode_config : {};
-      const scenarioStateMap = modeConfig.scenario_state && typeof modeConfig.scenario_state === 'object' ? modeConfig.scenario_state : {};
-      const entryExposureMap = effectiveMode.entry_exposure && typeof effectiveMode.entry_exposure === 'object' ? effectiveMode.entry_exposure : {};
-      const scenarioState = scenarioStateMap.ai_chat && typeof scenarioStateMap.ai_chat === 'object' ? scenarioStateMap.ai_chat : {};
-      const entryExposure = entryExposureMap.future_ai_chat_window && typeof entryExposureMap.future_ai_chat_window === 'object'
-        ? entryExposureMap.future_ai_chat_window
-        : null;
-      const exposureState = String(
-        entryExposure?.exposure_state
-        || scenarioState.rollout_state
-        || 'hidden'
-      ).trim().toLowerCase();
-      const tone = aiSurfaceExposureTone(exposureState);
-      const label = aiSurfaceExposureLabel(exposureState);
-      state.aiChatWindowStatusPayload = payload;
-      refreshAiCompactContextPacket();
-      if (els.aiChatWindowTitle) {
-        els.aiChatWindowTitle.textContent = 'AI / ЧАТ';
-      }
-      if (els.aiChatWindowSubtitle) {
-        els.aiChatWindowSubtitle.textContent = 'Отдельный рабочий AI surface для будущего чата. Layout уже готов для длинных ответов, истории и настроек.';
-      }
-      if (els.aiChatWindowStatusLabel) {
-        els.aiChatWindowStatusLabel.textContent = label;
-        els.aiChatWindowStatusLabel.dataset.state = tone;
-      }
-      renderAiChatWindowContext();
-      renderAiChatWindowSettings();
-      if (els.aiChatWindowMessages) {
-        els.aiChatWindowMessages.dataset.state = exposureState;
-      }
-      if (els.aiChatWindowInput) {
-        els.aiChatWindowInput.placeholder = exposureState === 'hidden'
-          ? 'AI-чат пока скрыт в текущем rollout'
-          : 'Напиши сообщение для AI-чата...';
-      }
-      if (els.aiChatWindowSendButton) {
-        els.aiChatWindowSendButton.disabled = false;
-      }
-      state.aiChatWindowHistoryContext = aiChatHistoryContextSnapshot();
-      renderAiChatWindowHistory();
+      void statusPayload;
     }
 
     function openAiChatWindow() {
-      if (!requireOperatorSession()) return;
-      hydrateAiChatWindowUiRefs();
-      bindAiChatWindowUiEvents();
-      closeAiSurface();
-      closeAgentModal();
-      refreshAiCompactContextPacket();
-      state.aiChatWindowContext = buildAiChatWindowContext();
-      state.aiSurfaceContext = state.aiChatWindowContext;
-      state.aiSurfaceSelectedScenario = 'ai_chat';
-      state.aiChatWindowSettingsOpen = false;
-      state.aiChatWindowHistoryContext = aiChatHistoryContextSnapshot();
-      ensureAiChatWindowHistory();
-      renderAiChatWindow(state.aiSurfaceStatusPayload || state.agentStatusPayload || {});
-      els.aiChatWindow?.classList.add('is-open');
-      focusAiChatWindowInput();
-      refreshAgentModalState();
+      return reportLegacyAgentRuntimeRetired();
     }
 
     function closeAiChatWindow() {
-      els.aiChatWindow?.classList.remove('is-open');
-      if (!els.agentModal?.classList.contains('is-open') && !els.aiSurfaceModal?.classList.contains('is-open')) {
-        if (state.agentRefreshTimer) {
-          window.clearTimeout(state.agentRefreshTimer);
-          state.agentRefreshTimer = null;
-        }
-      }
+      return;
     }
 
     function formatAgentContextLabel(context) {
@@ -9555,24 +9454,11 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function handleAiSurfaceScenarioClick(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const button = target.closest('[data-scenario]');
-      if (!(button instanceof HTMLElement)) return;
-      const scenarioId = String(button.dataset.scenario || '').trim().toLowerCase();
-      if (!AI_SURFACE_SCENARIO_IDS.includes(scenarioId)) return;
-      state.aiSurfaceSelectedScenario = scenarioId;
-      renderAiEntrySurface(state.aiSurfaceStatusPayload || {});
+      void event;
     }
 
     function handleAiSurfaceLegacyClick() {
-      if (!aiSurfaceLegacyFallbackVisible(state.aiSurfaceStatusPayload || {}, state.aiSurfaceSelectedScenario)) return;
-      closeAiSurface();
       reportLegacyAgentRuntimeRetired();
-    }
-
-    function legacyAgentRuntimeAvailable() {
-      return false;
     }
 
     function reportLegacyAgentRuntimeRetired() {
@@ -9580,245 +9466,34 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function openAiChatEntry() {
-      openAiChatWindow();
+      return reportLegacyAgentRuntimeRetired();
     }
 
     async function runFullCardEnrichment() {
-      if (!requireOperatorSession()) return;
-      if (!legacyAgentRuntimeAvailable()) return reportLegacyAgentRuntimeRetired();
-      const payload = buildFullCardEnrichmentRequestPayload();
-      if (!String(payload.card_id || '').trim()) {
-        return setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ AI-ОБОГАЩЕНИЯ.', true);
-      }
-      hydrateAiSurfaceUiRefs();
-      bindAiSurfaceUiEvents();
-      closeAiChatWindow();
-      closeAgentModal();
-      state.aiSurfaceContext = buildAiSurfaceContext('card');
-      state.aiSurfaceSelectedScenario = 'full_card_enrichment';
-      els.aiSurfaceModal?.classList.add('is-open');
-      renderAiEntrySurface(state.aiSurfaceStatusPayload || state.agentStatusPayload || {});
-      const activeTask = currentCardEnrichmentTask(state.agentLatestTasks);
-      if (activeTask) {
-        state.agentTaskId = String(activeTask.id || '').trim();
-        setStatus('AI-обогащение уже выполняется.', true);
-        await refreshAgentModalState();
-        return;
-      }
-      try {
-        const data = await api('/api/run_full_card_enrichment', {
-          method: 'POST',
-          body: payload,
-        });
-        if (data?.card) {
-          state.activeCard = data.card;
-          if (els.cardModal?.classList.contains('is-open')) applyCardModalState(data.card);
-        }
-        const taskId = String(data?.meta?.task_id || '').trim();
-        if (taskId) {
-          state.agentTaskId = taskId;
-          state.agentLatestTasks = [
-            {
-              id: taskId,
-              source: 'ui_full_card_enrichment',
-              status: data?.meta?.already_running ? 'running' : 'pending',
-              metadata: {
-                purpose: 'card_autofill',
-                scenario_id: 'full_card_enrichment',
-                trigger: 'manual_enrichment',
-                context: { kind: 'card', card_id: String(payload.card_id || '').trim() },
-              },
-            },
-            ...((Array.isArray(state.agentLatestTasks) ? state.agentLatestTasks : []).filter((item) => String(item?.id || '').trim() !== taskId)),
-          ];
-        }
-        renderAiEntrySurface(state.aiSurfaceStatusPayload || state.agentStatusPayload || {});
-        setStatus(
-          data?.meta?.already_running
-            ? 'AI-обогащение уже выполняется.'
-            : (data?.meta?.launched ? 'AI-обогащение запущено.' : 'AI-обогащение не запущено.'),
-          Boolean(data?.meta?.already_running || !data?.meta?.server_available),
-        );
-        await refreshAgentModalState();
-      } catch (error) {
-        renderAiEntrySurface(state.aiSurfaceStatusPayload || state.agentStatusPayload || {});
-        setStatus(error.message, true);
-      }
+      void state;
+      return reportLegacyAgentRuntimeRetired();
     }
 
     function handleAiSurfaceModalOverlayClick(event) {
-      return;
+      void event;
     }
 
     function bindAiSurfaceUiEvents() {
-      if (state.aiSurfaceUiBound) return;
-      hydrateAiSurfaceUiRefs();
-      els.aiSurfaceScenarioGrid?.addEventListener('click', handleAiSurfaceScenarioClick);
-      els.aiSurfaceLegacyButton?.addEventListener('click', handleAiSurfaceLegacyClick);
-      els.aiSurfaceModal?.addEventListener('click', handleAiSurfaceModalOverlayClick);
-      state.aiSurfaceUiBound = true;
+      return;
     }
 
     function renderAiEntrySurface(statusPayload) {
-      const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : {};
-      const aiRemodel = payload.ai_remodel && typeof payload.ai_remodel === 'object' ? payload.ai_remodel : {};
-      const effectiveMode = aiRemodel.effective_mode && typeof aiRemodel.effective_mode === 'object' ? aiRemodel.effective_mode : {};
-      const modeConfig = effectiveMode.mode_config && typeof effectiveMode.mode_config === 'object' ? effectiveMode.mode_config : {};
-      const scenarioRegistry = aiRemodel.scenario_registry && typeof aiRemodel.scenario_registry === 'object' ? aiRemodel.scenario_registry : {};
-      const scenarioStateMap = modeConfig.scenario_state && typeof modeConfig.scenario_state === 'object' ? modeConfig.scenario_state : {};
-      const entryExposureMap = effectiveMode.entry_exposure && typeof effectiveMode.entry_exposure === 'object' ? effectiveMode.entry_exposure : {};
-      const selectedScenario = AI_SURFACE_SCENARIO_IDS.includes(state.aiSurfaceSelectedScenario)
-        ? state.aiSurfaceSelectedScenario
-        : 'ai_chat';
-      const selectedEntryId = aiSurfaceScenarioEntryId(selectedScenario);
-      const selectedScenarioRegistry = scenarioRegistry[selectedScenario] && typeof scenarioRegistry[selectedScenario] === 'object'
-        ? scenarioRegistry[selectedScenario]
-        : {};
-      const selectedModeState = scenarioStateMap[selectedScenario] && typeof scenarioStateMap[selectedScenario] === 'object'
-        ? scenarioStateMap[selectedScenario]
-        : {};
-      const selectedExposure = selectedEntryId && entryExposureMap[selectedEntryId] && typeof entryExposureMap[selectedEntryId] === 'object'
-        ? entryExposureMap[selectedEntryId]
-        : null;
-      const selectedExposureState = String(
-        selectedExposure?.exposure_state
-        || selectedModeState.rollout_state
-        || selectedScenarioRegistry.rollout_state
-        || 'hidden'
-      ).trim().toLowerCase();
-      const selectedExposureLabel = aiSurfaceExposureLabel(selectedExposureState);
-      const selectedExposureTone = aiSurfaceExposureTone(selectedExposureState);
-      const legacyEnabled = Boolean(aiRemodel.legacy_ux_enabled ?? effectiveMode.legacy_ux_enabled ?? true);
-      state.aiSurfaceStatusPayload = payload;
-      if (els.aiSurfaceContextLabel) {
-        els.aiSurfaceContextLabel.textContent = formatAiSurfaceContextLabel(state.aiSurfaceContext);
-      }
-      if (els.aiSurfaceStatusLabel) {
-        els.aiSurfaceStatusLabel.textContent = selectedExposureLabel;
-        els.aiSurfaceStatusLabel.dataset.state = selectedExposureTone;
-      }
-      if (els.aiSurfaceSummary) {
-        const primaryPath = String(effectiveMode.primary_interactive_path || 'legacy_agent_modal_manual_tasks').trim();
-        const available = Array.isArray(effectiveMode.available_scenarios) ? effectiveMode.available_scenarios : [];
-        const legacyFallbackVisible = aiSurfaceLegacyFallbackVisible(payload, selectedExposureState);
-        els.aiSurfaceSummary.textContent = [
-          aiSurfacePrimaryPathSummary(primaryPath),
-          legacyFallbackVisible
-            ? 'Старое меню доступно только как резервный путь.'
-            : 'Старое меню скрыто по умолчанию.',
-          aiSurfaceAvailableScenarioSummary(available),
-        ].join(' ');
-      }
-      applyAiSurfaceEntryState(els.aiChatButton, entryExposureMap.future_ai_chat_window, { label: 'AI чат', keepVisibleWhenHidden: true });
-      applyAiSurfaceEntryState(els.cardAgentButton, entryExposureMap.future_card_enrichment_trigger, { label: 'AI карточки', keepVisibleWhenHidden: true });
-      applyAiSurfaceEntryState(els.agentDockButton, entryExposureMap.future_board_control_toggle, { label: 'AI вход', keepVisibleWhenHidden: false });
-      renderFullCardEnrichmentEntryState(payload);
-      if (els.aiSurfaceLegacyButton) {
-        els.aiSurfaceLegacyButton.hidden = !aiSurfaceLegacyFallbackVisible(payload, selectedExposureState);
-        els.aiSurfaceLegacyButton.dataset.state = els.aiSurfaceLegacyButton.hidden ? 'hidden' : 'legacy';
-      }
-      if (els.aiSurfaceScenarioGrid) {
-        els.aiSurfaceScenarioGrid.innerHTML = AI_SURFACE_SCENARIO_IDS.map((scenarioId) => {
-          const scenario = scenarioRegistry[scenarioId] && typeof scenarioRegistry[scenarioId] === 'object'
-            ? scenarioRegistry[scenarioId]
-            : {};
-          const scenarioModeState = scenarioStateMap[scenarioId] && typeof scenarioStateMap[scenarioId] === 'object'
-            ? scenarioStateMap[scenarioId]
-            : {};
-          const entryId = aiSurfaceScenarioEntryId(scenarioId);
-          const entryExposure = entryId && entryExposureMap[entryId] && typeof entryExposureMap[entryId] === 'object'
-            ? entryExposureMap[entryId]
-            : null;
-          const exposureState = String(
-            entryExposure?.exposure_state
-            || scenarioModeState.rollout_state
-            || scenario.rollout_state
-            || 'hidden'
-          ).trim().toLowerCase();
-          const stateTone = aiSurfaceExposureTone(exposureState);
-          const stateLabel = aiSurfaceExposureLabel(exposureState);
-          const isSelected = scenarioId === selectedScenario;
-          const title = aiSurfaceScenarioTitle(scenarioId, scenario);
-          const description = aiSurfaceScenarioDescription(scenarioId);
-          const meta = aiSurfaceScenarioUserMeta(scenarioId) || aiSurfaceScenarioMeta(scenario);
-          return ''
-            + '<button class="ai-entry-tile' + (isSelected ? ' is-selected' : '') + '" type="button" data-scenario="' + escapeHtml(scenarioId) + '" data-state="' + escapeHtml(stateTone) + '">'
-              + '<span class="ai-entry-tile__title">' + escapeHtml(title) + '</span>'
-              + '<span class="ai-entry-tile__description">' + escapeHtml(description) + '</span>'
-              + '<span class="ai-entry-tile__meta">' + escapeHtml(meta || aiSurfaceScenarioMeta(scenario)) + '</span>'
-              + '<span class="ai-entry-tile__state">' + escapeHtml(stateLabel) + '</span>'
-            + '</button>';
-        }).join('');
-      }
-      if (els.aiSurfaceResult) {
-        const scenario = selectedScenarioRegistry;
-        const scenarioMode = selectedModeState;
-        const entryId = selectedEntryId;
-        const entryExposure = entryId && entryExposureMap[entryId] && typeof entryExposureMap[entryId] === 'object'
-          ? entryExposureMap[entryId]
-          : null;
-        const sourceList = Array.isArray(scenario.context_sources) ? scenario.context_sources.map((item) => String(item || '').trim()).filter(Boolean).join(' · ') : '';
-        const boundaryList = Array.isArray(scenario.boundaries) ? scenario.boundaries.map((item) => String(item || '').trim()).filter(Boolean).join(' · ') : '';
-        const nonGoalList = Array.isArray(scenario.non_goals) ? scenario.non_goals.map((item) => String(item || '').trim()).filter(Boolean).join(' · ') : '';
-        const entrySurfaces = Array.isArray(scenario.allowed_entry_surfaces) ? scenario.allowed_entry_surfaces.map((item) => String(item || '').trim()).filter(Boolean).join(' · ') : '';
-        if (selectedScenario === 'full_card_enrichment') {
-          const enrichmentResult = renderFullCardEnrichmentResult(payload, scenario, selectedExposureLabel);
-          els.aiSurfaceResult.dataset.state = enrichmentResult.state;
-          if (enrichmentResult.tone) els.aiSurfaceResult.dataset.tone = enrichmentResult.tone;
-          else delete els.aiSurfaceResult.dataset.tone;
-          els.aiSurfaceResult.innerHTML = enrichmentResult.html;
-          return;
-        }
-        const detailParts = [];
-        if (selectedScenario === 'ai_chat') {
-          detailParts.push('<strong>Чат с AI</strong>');
-          detailParts.push('Открывает отдельное окно для ручной работы с вопросами и CRM-контекстом.');
-          detailParts.push('Статус: ' + escapeHtml(selectedExposureLabel) + '.');
-          detailParts.push('Использует: ' + escapeHtml(sourceList || 'CRM-контекст.'));
-          detailParts.push('Это новый основной ручной путь, а не старое меню агента.');
-        } else if (selectedScenario === 'board_control') {
-          detailParts.push('<strong>Фоновый контроль доски</strong>');
-          detailParts.push('Этот режим работает тихо в фоне и не предназначен для ручного запуска оператором.');
-          detailParts.push('Статус: ' + escapeHtml(selectedExposureLabel) + '.');
-          detailParts.push('Использует: ' + escapeHtml(sourceList || 'delta-board context.'));
-          detailParts.push('Границы: ' + escapeHtml(boundaryList || 'только безопасные изменения.'));
-        } else {
-          detailParts.push('<strong>' + escapeHtml(aiSurfaceScenarioTitle(selectedScenario, scenario)) + '</strong>');
-          detailParts.push('Статус: ' + escapeHtml(selectedExposureLabel) + '.');
-          detailParts.push('Контекст: ' + escapeHtml(sourceList || 'нет'));
-          detailParts.push('Границы: ' + escapeHtml(boundaryList || 'нет'));
-          detailParts.push('Не делает: ' + escapeHtml(nonGoalList || 'нет'));
-        }
-        els.aiSurfaceResult.innerHTML = '<div class="agent-result__fallback">' + detailParts.join('<br>') + '</div>';
-      }
+      void statusPayload;
+      renderCardCleanupIndicator();
     }
 
     function openAiSurface(kind = 'chat') {
-      if (!requireOperatorSession()) return;
-      hydrateAiSurfaceUiRefs();
-      bindAiSurfaceUiEvents();
-      closeAiChatWindow();
-      closeAgentModal();
-      state.aiSurfaceContext = buildAiSurfaceContext(kind);
-      const normalizedKind = String(kind || '').trim().toLowerCase();
-      state.aiSurfaceSelectedScenario = normalizedKind === 'card'
-        ? 'full_card_enrichment'
-        : (normalizedKind === 'board' ? 'board_control' : 'ai_chat');
-      if (els.aiSurfaceModal) {
-        els.aiSurfaceModal.classList.add('is-open');
-      }
-      renderAiEntrySurface(state.aiSurfaceStatusPayload || state.agentStatusPayload || {});
-      refreshAgentModalState();
+      void kind;
+      return reportLegacyAgentRuntimeRetired();
     }
 
     function closeAiSurface() {
-      els.aiSurfaceModal?.classList.remove('is-open');
-      if (!els.agentModal?.classList.contains('is-open')) {
-        if (state.agentRefreshTimer) {
-          window.clearTimeout(state.agentRefreshTimer);
-          state.agentRefreshTimer = null;
-        }
-      }
+      return;
     }
 
     function summarizeAgentText(value, maxLength = 140) {
@@ -10429,7 +10104,6 @@ BOARD_WEB_APP_HTML = "".join(
 
     function openAgentTasksModal() {
       if (!requireOperatorSession()) return;
-      if (!legacyAgentRuntimeAvailable()) return reportLegacyAgentRuntimeRetired();
       ensureAgentTasksUi();
       bindAgentTasksUiEvents();
       hydrateAgentTasksUiRefs();
@@ -10830,7 +10504,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function isAnyAgentSurfaceOpen() {
-      return Boolean(els.agentModal?.classList.contains('is-open') || els.aiSurfaceModal?.classList.contains('is-open') || els.aiChatWindow?.classList.contains('is-open'));
+      return Boolean(els.agentModal?.classList.contains('is-open'));
     }
 
     function scheduleAgentRefresh(delay = 3000) {
@@ -10859,9 +10533,6 @@ BOARD_WEB_APP_HTML = "".join(
           if (els.cardModal?.classList.contains('is-open')) applyCardModalState(cardData.card);
         }
         renderAgentStatus(statusData);
-        renderAiEntrySurface(statusData);
-        renderAiChatWindow(statusData);
-        syncBoardControlSettingsForm();
         renderAgentRuns(statusData?.recent_runs || []);
         const task = selectAgentTask(state.agentLatestTasks);
         if (task) {
@@ -10883,7 +10554,6 @@ BOARD_WEB_APP_HTML = "".join(
           : ((hasRunningAutofill || activeAutofill) ? 1800 : 3500));
       } catch (error) {
         renderAgentStatus({ agent: { enabled: false }, status: { running: false, last_error: error.message }, queue: { pending_total: 0 } });
-        syncBoardControlSettingsForm();
         if (els.agentResultPanel) {
           els.agentResultPanel.dataset.state = 'error';
           els.agentResultPanel.dataset.tone = 'error';
@@ -10895,7 +10565,6 @@ BOARD_WEB_APP_HTML = "".join(
 
     function openAgentModal(kind = 'board') {
       if (!requireOperatorSession()) return;
-      if (!legacyAgentRuntimeAvailable()) return reportLegacyAgentRuntimeRetired();
       ensureAgentUi();
       bindAgentUiEvents();
       state.agentContext = buildAgentContext(kind);

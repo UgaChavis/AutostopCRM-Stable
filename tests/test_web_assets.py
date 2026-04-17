@@ -222,7 +222,6 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('id="cardAgentButton"', BOARD_WEB_APP_HTML)
         self.assertIn('title="Индикатор карточки"', BOARD_WEB_APP_HTML)
         self.assertIn("function renderCardCleanupIndicator()", BOARD_WEB_APP_HTML)
-        self.assertIn("function legacyAgentRuntimeAvailable()", BOARD_WEB_APP_HTML)
         self.assertIn(
             'Старый AI-режим отключён. Используй кнопку "Индикатор карточки".',
             BOARD_WEB_APP_HTML,
@@ -240,6 +239,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("els.boardControlCooldownInput?.addEventListener(", BOARD_WEB_APP_HTML)
         self.assertNotIn("async function runCardCleanup()", BOARD_WEB_APP_HTML)
         self.assertNotIn("'/api/cleanup_card_content'", BOARD_WEB_APP_HTML)
+        self.assertNotIn("'/api/run_full_card_enrichment'", BOARD_WEB_APP_HTML)
         self.assertNotIn(
             "els.cardAgentButton?.addEventListener('click', runCardCleanup);",
             BOARD_WEB_APP_HTML,
@@ -1455,7 +1455,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn(".cashbox-composer__actions {", BOARD_WEB_APP_HTML)
         self.assertIn(".cashbox-transfer-grid {", BOARD_WEB_APP_HTML)
         self.assertIn(".cashbox-transfer-target {", BOARD_WEB_APP_HTML)
-        self.assertIn(".cashbox-row[draggable=\"true\"] {", BOARD_WEB_APP_HTML)
+        self.assertIn('.cashbox-row[draggable="true"] {', BOARD_WEB_APP_HTML)
         self.assertIn(".cashbox-row.is-drop-target {", BOARD_WEB_APP_HTML)
         self.assertIn(
             'class="btn btn--accent" id="cashboxCreateButton">+ ДОБАВИТЬ', BOARD_WEB_APP_HTML
@@ -1475,7 +1475,9 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("async function downloadCashJournal()", BOARD_WEB_APP_HTML)
         self.assertIn("function filteredCashboxTransactions()", BOARD_WEB_APP_HTML)
         self.assertIn("async function createCashbox()", BOARD_WEB_APP_HTML)
-        self.assertIn("async function reorderCashboxes(cashboxId, beforeCashboxId = '')", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "async function reorderCashboxes(cashboxId, beforeCashboxId = '')", BOARD_WEB_APP_HTML
+        )
         self.assertIn("async function createCashboxTransfer()", BOARD_WEB_APP_HTML)
         self.assertIn("async function createCashboxTransaction(direction)", BOARD_WEB_APP_HTML)
         self.assertIn("async function cancelLastCashboxTransaction()", BOARD_WEB_APP_HTML)
@@ -1519,10 +1521,22 @@ class WebAssetsTests(unittest.TestCase):
             "els.cashboxTransferConfirmButton.addEventListener('click', submitCashboxTransfer);",
             BOARD_WEB_APP_HTML,
         )
-        self.assertIn("els.cashboxesList.addEventListener('dragstart', handleCashboxesListDragStart);", BOARD_WEB_APP_HTML)
-        self.assertIn("els.cashboxesList.addEventListener('dragover', handleCashboxesListDragOver);", BOARD_WEB_APP_HTML)
-        self.assertIn("els.cashboxesList.addEventListener('drop', handleCashboxesListDrop);", BOARD_WEB_APP_HTML)
-        self.assertIn("els.cashboxesList.addEventListener('dragend', handleCashboxesListDragEnd);", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "els.cashboxesList.addEventListener('dragstart', handleCashboxesListDragStart);",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn(
+            "els.cashboxesList.addEventListener('dragover', handleCashboxesListDragOver);",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn(
+            "els.cashboxesList.addEventListener('drop', handleCashboxesListDrop);",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn(
+            "els.cashboxesList.addEventListener('dragend', handleCashboxesListDragEnd);",
+            BOARD_WEB_APP_HTML,
+        )
         self.assertIn('data-close="cashboxes"', BOARD_WEB_APP_HTML)
         self.assertIn('data-close="cashbox-journal"', BOARD_WEB_APP_HTML)
         self.assertIn('data-close="cashbox-transfer"', BOARD_WEB_APP_HTML)

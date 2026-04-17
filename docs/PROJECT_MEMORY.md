@@ -11,6 +11,8 @@ Use this file for durable notes that should not be rediscovered every session.
 - production verification is not optional after meaningful deployment work
 - live UI smoke checks catch issues that unit tests can miss
 - server sync is a separate step from local green tests
+- the card modal's lower-right `cardAgentButton` is now only a status indicator for local card cleanup
+- the old AI surface code in `web_assets.py` still exists as inert compatibility scaffolding, but it is not the visible card-button flow
 
 ## Current Known Cautions
 
