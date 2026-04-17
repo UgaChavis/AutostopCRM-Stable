@@ -26,7 +26,7 @@ Current product scope:
 - operator authentication and admin user management
 - cashboxes, cash transactions, employees, and payroll reports
 - MCP server for ChatGPT / OpenAI tool access
-- local deterministic card cleanup from the card indicator
+- lower-right card indicator that launches the bounded agent-driven card enrichment flow
 
 Legacy names still exist and are expected:
 
@@ -162,20 +162,20 @@ Core rule:
 
 Current visible AI behavior:
 
-- only the card indicator remains
-- click -> `/api/cleanup_card_content`
-- local deterministic cleanup in `CardService.cleanup_card_content(...)`
-- patch-only write
-- verify after write
-- refresh card in UI
+- the card indicator now launches `run_full_card_enrichment`
+- click -> `/api/run_full_card_enrichment`
+- CRM enqueues the task into the shared agent control storage
+- the separate agent process is expected to consume the task and write back the patch
+- the agent surface remains available for task visibility and progress
+- local deterministic cleanup still exists as a fallback route, but it is no longer the visible card-button path
 
 Hard guarantees of the current flow:
 
-- no server worker
-- no queue / scheduler
-- no separate AI chat surface
-- no popup or menu on indicator click
-- no internet lookup in the user cleanup path
+- no embedded worker is started by default in CRM startup
+- the queue is shared with the separate agent runtime
+- the agent modal is the visible progress surface
+- the lower-right indicator no longer behaves like the retired local-only cleanup action
+- internet lookup happens in the separate agent process, not in the CRM UI thread
 
 ## 6. Most Recent Development State
 

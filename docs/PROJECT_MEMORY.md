@@ -11,8 +11,10 @@ Use this file for durable notes that should not be rediscovered every session.
 - production verification is not optional after meaningful deployment work
 - live UI smoke checks catch issues that unit tests can miss
 - server sync is a separate step from local green tests
-- the card modal's lower-right `cardAgentButton` is now only a status indicator for local card cleanup
-- the old AI surface code in `web_assets.py` still exists as inert compatibility scaffolding, but it is not the visible card-button flow
+- the card modal's lower-right `cardAgentButton` now launches the full card enrichment flow and opens the agent surface for progress
+- `run_full_card_enrichment` is the active card-button entrypoint again, backed by `/api/run_full_card_enrichment`
+- the agent surface routes in `api/server.py` are active again; status/tasks/actions/scheduled-task routes are wired to `CardService`
+- `CardService` now attaches an agent controller in `app.py`, but still falls back to the old local-cleanup path when no controller is attached
 
 ## Current Known Cautions
 

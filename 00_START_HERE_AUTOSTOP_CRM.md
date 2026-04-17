@@ -69,15 +69,15 @@ External ChatGPT / MCP client
 
 ## Current Cleanup Status
 
-The active in-product AI behavior is now only the local card cleanup action:
+The active in-product AI behavior is now the card enrichment trigger on the lower-right indicator:
 
 - click the card indicator
-- run local cleanup through `CardService.cleanup_card_content`
-- patch only obvious local fields
-- verify after write
-- refresh the card
+- enqueue `run_full_card_enrichment` through `CardService`
+- open the agent surface so the operator can watch the task
+- patch card data through the agent control / shared task storage flow
+- refresh the card when the task completes
 
-There is no active server AI worker in startup or deploy.
+There is still no embedded worker started by default in CRM startup; the separate agent process is expected to consume the shared task queue.
 
 ## Recent Practical Changes
 
@@ -112,7 +112,7 @@ Obsolete root-level release docs and duplicated doc bundles were removed during 
 ## Current Risks
 
 - production still uses the default admin account and needs a separate credential rotation pass
-- `web_assets.py` still contains inert legacy agent/chat code paths that are no longer wired into the visible UI
+- the CRM now depends on the external/shared agent runtime being started if you want the enrichment flow to complete end-to-end
 
 ## Rule For Future Updates
 

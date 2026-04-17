@@ -9333,6 +9333,7 @@ BOARD_WEB_APP_HTML = "".join(
       els.cardAgentButton.dataset.state = uiState;
       els.cardAgentButton.title = title;
       els.cardAgentButton.setAttribute('aria-label', title);
+      els.cardAgentButton.disabled = uiState === 'busy' || !currentAgentContextCard()?.id;
     }
 
     function renderFullCardEnrichmentResult(statusPayload, scenario, selectedExposureLabel) {
@@ -9471,8 +9472,57 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     async function runFullCardEnrichment() {
-      void state;
-      return reportLegacyAgentRuntimeRetired();
+      if (!requireOperatorSession()) return;
+      const card = currentAgentContextCard();
+      const cardId = String(card?.id || '').trim();
+      if (!cardId) {
+        setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ AI-ОБОГАЩЕНИЯ.', true);
+        return;
+      }
+      try {
+        if (els.cardAgentButton instanceof HTMLElement) {
+          state.cardCleanupState = 'running';
+          state.cardCleanupError = '';
+          renderCardCleanupIndicator();
+        }
+        const data = await api('/api/run_full_card_enrichment', {
+          method: 'POST',
+          body: {
+            card_id: cardId,
+            actor_name: state.actor,
+            prompt: String(els.agentAutofillPromptInput?.value || card?.ai_autofill_prompt || '').trim(),
+            context_packet: buildAiFullCardEnrichmentContextPacket(),
+          },
+        });
+        if (data?.card) {
+          state.activeCard = data.card;
+          if (els.cardModal?.classList.contains('is-open')) applyCardModalState(data.card);
+        }
+        const taskId = String(data?.meta?.task_id || '').trim();
+        if (data?.meta?.launched) {
+          setStatus('AI-ОБОГАЩЕНИЕ КАРТОЧКИ ЗАПУЩЕНО.', false);
+        } else if (data?.meta?.already_running) {
+          setStatus('AI-ОБОГАЩЕНИЕ УЖЕ ВЫПОЛНЯЕТСЯ.', false);
+        } else if (data?.meta?.server_available === false) {
+          setStatus('AI-АГЕНТ ПОКА НЕДОСТУПЕН.', true);
+        } else {
+          setStatus('AI-ОБОГАЩЕНИЕ ОТПРАВЛЕНО.', false);
+        }
+        state.cardCleanupState = data?.meta?.launched || data?.meta?.already_running ? 'running' : 'idle';
+        state.cardCleanupError = '';
+        renderCardCleanupIndicator();
+        openAgentModal('card');
+        if (taskId) {
+          state.agentTaskId = taskId;
+          state.agentTaskStatus = 'pending';
+        }
+        await refreshAgentModalState();
+      } catch (error) {
+        state.cardCleanupState = 'error';
+        state.cardCleanupError = error.message;
+        renderCardCleanupIndicator();
+        setStatus(error.message, true);
+      }
     }
 
     function handleAiSurfaceModalOverlayClick(event) {
@@ -9489,7 +9539,15 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function openAiSurface(kind = 'chat') {
-      void kind;
+      const normalizedKind = String(kind || '').trim().toLowerCase();
+      if (normalizedKind === 'card') {
+        openAgentModal('card');
+        return;
+      }
+      if (normalizedKind === 'board') {
+        openAgentModal('board');
+        return;
+      }
       return reportLegacyAgentRuntimeRetired();
     }
 
@@ -9661,6 +9719,7 @@ BOARD_WEB_APP_HTML = "".join(
         els.agentRunButton.textContent = busy ? 'ВЫПОЛНЯЕТСЯ' : 'ВЫПОЛНИТЬ';
       }
       renderAgentAutofillControls(payload);
+      renderFullCardEnrichmentEntryState(payload);
     }
 
     function renderAgentAutofillControls(statusPayload) {
@@ -16256,6 +16315,7 @@ function renderCompactArchiveRows(cards) {
     els.boardSettingsButton.addEventListener('click', openBoardSettings);
     els.archiveButton.addEventListener('click', openArchiveModal);
     els.repairOrdersButton.addEventListener('click', openRepairOrdersModal);
+    els.cardAgentButton.addEventListener('click', runFullCardEnrichment);
     els.cashboxesButton.addEventListener('click', openCashboxesModal);
     els.employeesButton.addEventListener('click', openEmployeesModal);
     els.repairOrdersOpenTab.addEventListener('click', () => setRepairOrdersFilter('open'));

@@ -249,12 +249,13 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("els.boardControlCooldownInput?.addEventListener(", BOARD_WEB_APP_HTML)
         self.assertNotIn("async function runCardCleanup()", BOARD_WEB_APP_HTML)
         self.assertNotIn("'/api/cleanup_card_content'", BOARD_WEB_APP_HTML)
-        self.assertNotIn("'/api/run_full_card_enrichment'", BOARD_WEB_APP_HTML)
-        self.assertNotIn(
-            "els.cardAgentButton?.addEventListener('click', runCardCleanup);",
+        self.assertIn("async function runFullCardEnrichment()", BOARD_WEB_APP_HTML)
+        self.assertIn("'/api/run_full_card_enrichment'", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "els.cardAgentButton.addEventListener('click', runFullCardEnrichment);",
             BOARD_WEB_APP_HTML,
         )
-        self.assertNotIn("state.cardCleanupState = 'running';", BOARD_WEB_APP_HTML)
+        self.assertIn("state.cardCleanupState = 'running';", BOARD_WEB_APP_HTML)
         self.assertNotIn("Карточка приведена в порядок.", BOARD_WEB_APP_HTML)
         self.assertNotIn("Явных изменений для карточки не найдено.", BOARD_WEB_APP_HTML)
 

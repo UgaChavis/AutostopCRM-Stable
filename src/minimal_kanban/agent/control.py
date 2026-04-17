@@ -19,7 +19,6 @@ from .config import (
 from .remodel import get_ai_feature_flags, get_ai_remodel_status_payload
 from .storage import AgentStorage
 
-
 DEFAULT_BOARD_CONTROL_SETTINGS = {
     "enabled": False,
     "interval_minutes": 20,
@@ -67,7 +66,9 @@ class AgentControlService:
         if self._scheduler_thread is not None and self._scheduler_thread.is_alive():
             return
         self._scheduler_stop.clear()
-        self._scheduler_thread = threading.Thread(target=self._scheduler_loop, name="minimal-kanban-agent-scheduler", daemon=True)
+        self._scheduler_thread = threading.Thread(
+            target=self._scheduler_loop, name="minimal-kanban-agent-scheduler", daemon=True
+        )
         self._scheduler_thread.start()
 
     def close(self) -> None:
@@ -89,7 +90,9 @@ class AgentControlService:
         if not get_agent_enabled() or not get_agent_openai_api_key():
             return False
         self._worker_stop.clear()
-        resolved_board_api_url = str(board_api_url or get_agent_board_api_url() or "").strip().rstrip("/")
+        resolved_board_api_url = (
+            str(board_api_url or get_agent_board_api_url() or "").strip().rstrip("/")
+        )
         self._worker_thread = threading.Thread(
             target=self._worker_loop,
             args=(logger, resolved_board_api_url),
@@ -102,7 +105,9 @@ class AgentControlService:
     def has_active_task_for_card(self, card_id: str, *, purpose: str | None = None) -> bool:
         return self._storage.has_active_task_for_card(card_id, purpose=purpose)
 
-    def latest_task_for_card(self, card_id: str, *, purpose: str | None = None) -> dict[str, Any] | None:
+    def latest_task_for_card(
+        self, card_id: str, *, purpose: str | None = None
+    ) -> dict[str, Any] | None:
         normalized_card_id = str(card_id or "").strip()
         normalized_purpose = str(purpose or "").strip().lower()
         if not normalized_card_id:
@@ -113,7 +118,10 @@ class AgentControlService:
             metadata_card_id = str(context.get("card_id") or metadata.get("card_id") or "").strip()
             if metadata_card_id != normalized_card_id:
                 continue
-            if normalized_purpose and str(metadata.get("purpose", "") or "").strip().lower() != normalized_purpose:
+            if (
+                normalized_purpose
+                and str(metadata.get("purpose", "") or "").strip().lower() != normalized_purpose
+            ):
                 continue
             return task
         return None
@@ -131,12 +139,15 @@ class AgentControlService:
         heartbeat_fresh = False
         if heartbeat_at is not None:
             heartbeat_age_seconds = max(0.0, (utc_now() - heartbeat_at).total_seconds())
-            heartbeat_fresh = heartbeat_age_seconds <= max(30.0, float(get_agent_poll_interval_seconds()) * 10.0)
+            heartbeat_fresh = heartbeat_age_seconds <= max(
+                30.0, float(get_agent_poll_interval_seconds()) * 10.0
+            )
         worker_running = bool(self._worker_thread and self._worker_thread.is_alive())
-        available = get_agent_enabled() and (configured or heartbeat_fresh)
-        ready = get_agent_enabled() and (worker_running or heartbeat_fresh)
+        enabled = bool(get_agent_enabled() or configured or heartbeat_fresh or worker_running)
+        available = bool(worker_running or heartbeat_fresh)
+        ready = available
         availability_reason = self._agent_availability_reason(
-            enabled=get_agent_enabled(),
+            enabled=enabled,
             configured=configured,
             worker_running=worker_running,
             heartbeat_fresh=heartbeat_fresh,
@@ -144,7 +155,7 @@ class AgentControlService:
         return {
             "agent": {
                 "name": get_agent_name(),
-                "enabled": get_agent_enabled(),
+                "enabled": enabled,
                 "available": available,
                 "ready": ready,
                 "availability_reason": availability_reason,
@@ -174,7 +185,11 @@ class AgentControlService:
                 "active_total": active_total,
                 "paused_total": max(0, len(schedules) - active_total),
             },
-            "recent_runs": self._storage.list_runs(limit=self._normalize_limit(payload.get("run_limit"), default=10, minimum=1, maximum=50)),
+            "recent_runs": self._storage.list_runs(
+                limit=self._normalize_limit(
+                    payload.get("run_limit"), default=10, minimum=1, maximum=50
+                )
+            ),
         }
 
     def agent_enqueue_task(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -183,7 +198,11 @@ class AgentControlService:
         if not task_text:
             raise ValueError("task_text is required")
         metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
-        session = payload.get("_operator_session") if isinstance(payload.get("_operator_session"), dict) else {}
+        session = (
+            payload.get("_operator_session")
+            if isinstance(payload.get("_operator_session"), dict)
+            else {}
+        )
         if session:
             metadata = dict(metadata)
             metadata.setdefault("requested_by", str(session.get("username", "") or "").strip())
@@ -214,7 +233,11 @@ class AgentControlService:
         payload = payload or {}
         limit = self._normalize_limit(payload.get("limit"), default=50, minimum=1, maximum=200)
         statuses_raw = str(payload.get("status", "") or "").strip()
-        statuses = {item.strip() for item in statuses_raw.split(",") if item.strip()} if statuses_raw else None
+        statuses = (
+            {item.strip() for item in statuses_raw.split(",") if item.strip()}
+            if statuses_raw
+            else None
+        )
         return {
             "tasks": self._storage.list_tasks(limit=limit, statuses=statuses),
             "meta": {"limit": limit, "statuses": sorted(statuses) if statuses else []},
@@ -227,7 +250,9 @@ class AgentControlService:
 
     def save_agent_scheduled_task(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
-        existing = self._storage.get_schedule(str(payload.get("task_id", "") or payload.get("id", "")).strip())
+        existing = self._storage.get_schedule(
+            str(payload.get("task_id", "") or payload.get("id", "")).strip()
+        )
         task = self._normalize_schedule_payload(payload, existing=existing)
         stored = self._storage.upsert_schedule(task)
         if stored.get("active"):
@@ -259,9 +284,19 @@ class AgentControlService:
         if scheduled is None:
             raise KeyError(f"Unknown schedule task: {task_id}")
         if self._storage.has_active_task_for_schedule(task_id):
-            return {"task": None, "scheduled_task": self._serialize_schedule(scheduled), "meta": {"already_running": True}}
+            return {
+                "task": None,
+                "scheduled_task": self._serialize_schedule(scheduled),
+                "meta": {"already_running": True},
+            }
         task = self._enqueue_scheduled_task(scheduled, source="ui_agent_task_run")
-        return {"task": task, "scheduled_task": self._serialize_schedule(self._storage.get_schedule(task_id) or scheduled), "meta": {"already_running": False}}
+        return {
+            "task": task,
+            "scheduled_task": self._serialize_schedule(
+                self._storage.get_schedule(task_id) or scheduled
+            ),
+            "meta": {"already_running": False},
+        }
 
     def handle_card_created(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
@@ -311,11 +346,15 @@ class AgentControlService:
             raise ValueError("card_id is required")
         if self._storage.has_active_task_for_card(card_id, purpose="card_autofill"):
             return None
-        task_text = str(payload.get("task_text", "") or "").strip() or self._build_card_autofill_prompt(payload)
+        task_text = str(
+            payload.get("task_text", "") or ""
+        ).strip() or self._build_card_autofill_prompt(payload)
         metadata = {
-            "requested_by": str(payload.get("requested_by", "") or "autofill").strip() or "autofill",
+            "requested_by": str(payload.get("requested_by", "") or "autofill").strip()
+            or "autofill",
             "purpose": "card_autofill",
-            "scenario_id": str(payload.get("scenario_id", "") or "").strip().lower() or "full_card_enrichment",
+            "scenario_id": str(payload.get("scenario_id", "") or "").strip().lower()
+            or "full_card_enrichment",
             "trigger": str(trigger or "manual").strip() or "manual",
             "context": {
                 "kind": "card",
@@ -324,15 +363,23 @@ class AgentControlService:
             "scope": {
                 "type": "current_card",
                 "card_id": card_id,
-                "card_label": str(payload.get("card_heading", "") or payload.get("title", "") or "").strip(),
+                "card_label": str(
+                    payload.get("card_heading", "") or payload.get("title", "") or ""
+                ).strip(),
             },
             "card_autofill": {
                 "card_id": card_id,
-                "card_heading": str(payload.get("card_heading", "") or payload.get("title", "") or "").strip(),
+                "card_heading": str(
+                    payload.get("card_heading", "") or payload.get("title", "") or ""
+                ).strip(),
                 "vehicle": str(payload.get("vehicle", "") or "").strip(),
             },
         }
-        scenario_context = payload.get("context_packet") if isinstance(payload.get("context_packet"), dict) else None
+        scenario_context = (
+            payload.get("context_packet")
+            if isinstance(payload.get("context_packet"), dict)
+            else None
+        )
         if scenario_context:
             metadata["scenario_context"] = scenario_context
         return self._storage.enqueue_task(
@@ -355,13 +402,21 @@ class AgentControlService:
             raise ValueError("card_id is required")
         if self._storage.has_active_task_for_card(card_id, purpose="board_control"):
             return None
-        compact_context = payload.get("context_packet") if isinstance(payload.get("context_packet"), dict) else None
-        task_text = str(payload.get("task_text", "") or "").strip() or self._build_board_control_prompt(payload)
+        compact_context = (
+            payload.get("context_packet")
+            if isinstance(payload.get("context_packet"), dict)
+            else None
+        )
+        task_text = str(
+            payload.get("task_text", "") or ""
+        ).strip() or self._build_board_control_prompt(payload)
         metadata = {
-            "requested_by": str(payload.get("requested_by", "") or "board_control").strip() or "board_control",
+            "requested_by": str(payload.get("requested_by", "") or "board_control").strip()
+            or "board_control",
             "purpose": "board_control",
             "scenario_id": "board_control",
-            "trigger": str(trigger or "scheduled_board_control").strip() or "scheduled_board_control",
+            "trigger": str(trigger or "scheduled_board_control").strip()
+            or "scheduled_board_control",
             "context": {
                 "kind": "card",
                 "card_id": card_id,
@@ -369,12 +424,19 @@ class AgentControlService:
             "scope": {
                 "type": "current_card",
                 "card_id": card_id,
-                "card_label": str(payload.get("card_heading", "") or payload.get("title", "") or "").strip(),
+                "card_label": str(
+                    payload.get("card_heading", "") or payload.get("title", "") or ""
+                ).strip(),
             },
             "board_control": {
                 "card_id": card_id,
                 "trigger_reasons": list(payload.get("trigger_reasons") or []),
-                "allowed_actions": ["normalize_description", "fill_safe_vehicle_fields", "safe_vin_enrichment", "append_ai_trace"],
+                "allowed_actions": [
+                    "normalize_description",
+                    "fill_safe_vehicle_fields",
+                    "safe_vin_enrichment",
+                    "append_ai_trace",
+                ],
             },
         }
         if compact_context:
@@ -391,7 +453,8 @@ class AgentControlService:
         if (
             not force
             and self._last_scheduler_tick_monotonic
-            and now_monotonic - self._last_scheduler_tick_monotonic < self._scheduler_poll_throttle_seconds
+            and now_monotonic - self._last_scheduler_tick_monotonic
+            < self._scheduler_poll_throttle_seconds
         ):
             return {"launched": [], "failed": [], "throttled": True}
         self._last_scheduler_tick_monotonic = now_monotonic
@@ -403,7 +466,10 @@ class AgentControlService:
             for scheduled in self._storage.list_schedules():
                 if not bool(scheduled.get("active")):
                     continue
-                if str(scheduled.get("schedule_type", "once") or "once").strip().lower() == "on_create":
+                if (
+                    str(scheduled.get("schedule_type", "once") or "once").strip().lower()
+                    == "on_create"
+                ):
                     continue
                 next_run_at = str(scheduled.get("next_run_at", "") or "").strip()
                 if next_run_at and next_run_at > now_text:
@@ -425,20 +491,41 @@ class AgentControlService:
             if self._board_service is not None:
                 try:
                     payload = self._board_service.trigger_due_ai_followups()
-                    launched.extend([str(item) for item in payload.get("launched", []) if str(item or "").strip()])
+                    launched.extend(
+                        [
+                            str(item)
+                            for item in payload.get("launched", [])
+                            if str(item or "").strip()
+                        ]
+                    )
                     for item in payload.get("failed", []):
                         if isinstance(item, dict):
-                            failed.append({"task_id": str(item.get("card_id", "") or "").strip(), "error": str(item.get("error", "") or "").strip()})
+                            failed.append(
+                                {
+                                    "task_id": str(item.get("card_id", "") or "").strip(),
+                                    "error": str(item.get("error", "") or "").strip(),
+                                }
+                            )
                 except Exception as exc:
                     failed.append({"task_id": "card_autofill", "error": str(exc)})
                 try:
                     board_control_payload = self._trigger_board_control(force=force)
-                    launched.extend([str(item) for item in board_control_payload.get("launched", []) if str(item or "").strip()])
+                    launched.extend(
+                        [
+                            str(item)
+                            for item in board_control_payload.get("launched", [])
+                            if str(item or "").strip()
+                        ]
+                    )
                     for item in board_control_payload.get("failed", []):
                         if isinstance(item, dict):
                             failed.append(
                                 {
-                                    "task_id": str(item.get("card_id", "") or item.get("task_id", "") or "board_control").strip(),
+                                    "task_id": str(
+                                        item.get("card_id", "")
+                                        or item.get("task_id", "")
+                                        or "board_control"
+                                    ).strip(),
                                     "error": str(item.get("error", "") or "").strip(),
                                 }
                             )
@@ -466,7 +553,9 @@ class AgentControlService:
             try:
                 self.trigger_scheduled_tasks(force=True)
             except Exception as exc:
-                self._storage.update_status(last_heartbeat=utc_now_iso(), last_error=f"scheduler: {exc}")
+                self._storage.update_status(
+                    last_heartbeat=utc_now_iso(), last_error=f"scheduler: {exc}"
+                )
                 continue
 
     def _agent_availability_reason(
@@ -490,7 +579,7 @@ class AgentControlService:
     def _worker_loop(self, logger: Any, board_api_url: str) -> None:
         from ..mcp.client import BoardApiClient
         from .openai_client import OpenAIJsonAgentClient
-        from .runner import AgentRunner, DEFAULT_SYSTEM_PROMPT
+        from .runner import DEFAULT_SYSTEM_PROMPT, AgentRunner
 
         idle_sleep = max(0.2, float(get_agent_poll_interval_seconds()))
         if not self._storage.read_prompt_text().strip():
@@ -518,13 +607,21 @@ class AgentControlService:
                     self._worker_stop.wait(idle_sleep)
                     continue
                 if runner is None:
-                    resolved_board_api_url = str(board_api_url or get_agent_board_api_url() or "").strip().rstrip("/")
+                    resolved_board_api_url = (
+                        str(board_api_url or get_agent_board_api_url() or "").strip().rstrip("/")
+                    )
                     if not resolved_board_api_url:
-                        raise RuntimeError("Board API URL is not configured for embedded agent runtime.")
-                    board_api = BoardApiClient(resolved_board_api_url, logger=logger, default_source="agent")
+                        raise RuntimeError(
+                            "Board API URL is not configured for embedded agent runtime."
+                        )
+                    board_api = BoardApiClient(
+                        resolved_board_api_url, logger=logger, default_source="agent"
+                    )
                     health = board_api.health()
                     if not health.get("ok"):
-                        raise RuntimeError("Board API health check failed for embedded agent runtime.")
+                        raise RuntimeError(
+                            "Board API health check failed for embedded agent runtime."
+                        )
                     runner = AgentRunner(
                         storage=self._storage,
                         board_api=board_api,
@@ -587,18 +684,28 @@ class AgentControlService:
 
     def _board_control_runtime(self, status: dict[str, Any] | None = None) -> dict[str, Any]:
         resolved_status = status or self._storage.read_status()
-        runtime = resolved_status.get("board_control") if isinstance(resolved_status.get("board_control"), dict) else {}
+        runtime = (
+            resolved_status.get("board_control")
+            if isinstance(resolved_status.get("board_control"), dict)
+            else {}
+        )
         normalized = dict(DEFAULT_BOARD_CONTROL_STATUS)
         normalized.update(runtime)
-        normalized["recent_traces"] = list(normalized.get("recent_traces") or [])[:BOARD_CONTROL_TRACE_LIMIT]
+        normalized["recent_traces"] = list(normalized.get("recent_traces") or [])[
+            :BOARD_CONTROL_TRACE_LIMIT
+        ]
         normalized["card_cache"] = dict(normalized.get("card_cache") or {})
         return normalized
 
     def _persist_board_control_runtime(self, runtime: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(DEFAULT_BOARD_CONTROL_STATUS)
         normalized.update(runtime if isinstance(runtime, dict) else {})
-        normalized["recent_traces"] = list(normalized.get("recent_traces") or [])[:BOARD_CONTROL_TRACE_LIMIT]
-        normalized["card_cache"] = self._trim_board_control_cache(dict(normalized.get("card_cache") or {}))
+        normalized["recent_traces"] = list(normalized.get("recent_traces") or [])[
+            :BOARD_CONTROL_TRACE_LIMIT
+        ]
+        normalized["card_cache"] = self._trim_board_control_cache(
+            dict(normalized.get("card_cache") or {})
+        )
         self._storage.update_status(board_control=normalized)
         return normalized
 
@@ -610,7 +717,9 @@ class AgentControlService:
             items.append((str(card_id).strip(), dict(payload)))
         items.sort(
             key=lambda item: (
-                str(item[1].get("last_processed_at", "") or item[1].get("cooldown_until", "") or ""),
+                str(
+                    item[1].get("last_processed_at", "") or item[1].get("cooldown_until", "") or ""
+                ),
                 item[0],
             ),
             reverse=True,
@@ -622,12 +731,22 @@ class AgentControlService:
         traces.insert(0, trace)
         runtime["recent_traces"] = traces[:BOARD_CONTROL_TRACE_LIMIT]
 
-    def _flatten_board_snapshot_cards(self, snapshot_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    def _flatten_board_snapshot_cards(
+        self, snapshot_payload: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         cards: list[dict[str, Any]] = []
-        columns = snapshot_payload.get("columns") if isinstance(snapshot_payload.get("columns"), list) else []
+        columns = (
+            snapshot_payload.get("columns")
+            if isinstance(snapshot_payload.get("columns"), list)
+            else []
+        )
         for column in columns:
             column_id = str(column.get("id", "") or "").strip() if isinstance(column, dict) else ""
-            items = column.get("cards") if isinstance(column, dict) and isinstance(column.get("cards"), list) else []
+            items = (
+                column.get("cards")
+                if isinstance(column, dict) and isinstance(column.get("cards"), list)
+                else []
+            )
             for card in items:
                 if not isinstance(card, dict):
                     continue
@@ -644,7 +763,9 @@ class AgentControlService:
             return False
         created_at = parse_datetime(str(card.get("created_at", "") or "").strip())
         updated_at = parse_datetime(str(card.get("updated_at", "") or "").strip())
-        return bool((created_at and created_at > baseline_at) or (updated_at and updated_at > baseline_at))
+        return bool(
+            (created_at and created_at > baseline_at) or (updated_at and updated_at > baseline_at)
+        )
 
     def _evaluate_board_control_triggers(
         self,
@@ -656,18 +777,30 @@ class AgentControlService:
         cooldown_until: Any,
         now: Any,
     ) -> dict[str, Any]:
-        card_context = compact_context.get("card_context") if isinstance(compact_context.get("card_context"), dict) else {}
+        card_context = (
+            compact_context.get("card_context")
+            if isinstance(compact_context.get("card_context"), dict)
+            else {}
+        )
         fingerprint = str(compact_context.get("fingerprint", "") or "").strip()
         created_at = parse_datetime(str(card.get("created_at", "") or "").strip())
         updated_at = parse_datetime(str(card.get("updated_at", "") or "").strip())
         triggers: list[str] = []
         if created_at and baseline_at and created_at > baseline_at:
             triggers.append("new_card")
-        if fingerprint and fingerprint != str(cache_entry.get("last_fingerprint", "") or "").strip():
+        if (
+            fingerprint
+            and fingerprint != str(cache_entry.get("last_fingerprint", "") or "").strip()
+        ):
             triggers.append("changed_card")
-        if card_context.get("vehicle_profile_incomplete") and str(((card_context.get("vehicle") or {}).get("vin", "") or "")).strip():
+        if (
+            card_context.get("vehicle_profile_incomplete")
+            and str((card_context.get("vehicle") or {}).get("vin", "") or "").strip()
+        ):
             triggers.append("vin_vehicle_gap")
-        if list(card_context.get("missing_key_fields") or []) and bool(card_context.get("has_candidate_facts")):
+        if list(card_context.get("missing_key_fields") or []) and bool(
+            card_context.get("has_candidate_facts")
+        ):
             triggers.append("missing_key_fields")
         if bool(card_context.get("normalization_candidate")):
             triggers.append("text_normalization")
@@ -677,13 +810,22 @@ class AgentControlService:
             return {"eligible": False, "triggers": [], "skip_reason": "cooldown"}
         if not triggers:
             return {"eligible": False, "triggers": [], "skip_reason": "no_allow_trigger"}
-        if updated_at and str(cache_entry.get("last_updated_at", "") or "").strip() == str(card.get("updated_at", "") or "").strip() and "changed_card" not in triggers:
+        if (
+            updated_at
+            and str(cache_entry.get("last_updated_at", "") or "").strip()
+            == str(card.get("updated_at", "") or "").strip()
+            and "changed_card" not in triggers
+        ):
             return {"eligible": False, "triggers": [], "skip_reason": "unchanged_after_recent_pass"}
         return {"eligible": True, "triggers": triggers, "skip_reason": ""}
 
     def _build_board_control_prompt(self, payload: dict[str, Any]) -> str:
         heading = str(payload.get("card_heading", "") or payload.get("title", "") or "").strip()
-        trigger_reasons = [str(item or "").strip() for item in payload.get("trigger_reasons", []) if str(item or "").strip()]
+        trigger_reasons = [
+            str(item or "").strip()
+            for item in payload.get("trigger_reasons", [])
+            if str(item or "").strip()
+        ]
         lines = [
             "Выполни тихий bounded сценарий board_control для одной карточки автосервиса.",
             "Следуй контракту: read -> evidence -> plan -> tools -> patch -> write -> verify.",
@@ -734,28 +876,48 @@ class AgentControlService:
         failed: list[dict[str, str]] = []
         cache = dict(runtime.get("card_cache") or {})
         try:
-            snapshot_payload = self._board_service.get_board_snapshot({"compact": True, "include_archive": False})
+            snapshot_payload = self._board_service.get_board_snapshot(
+                {"compact": True, "include_archive": False}
+            )
             baseline_at = parse_datetime(str(runtime.get("last_baseline_at", "") or "").strip())
-            cards = self._flatten_board_snapshot_cards(snapshot_payload if isinstance(snapshot_payload, dict) else {})
+            cards = self._flatten_board_snapshot_cards(
+                snapshot_payload if isinstance(snapshot_payload, dict) else {}
+            )
             if baseline_at is None:
                 runtime["last_baseline_at"] = now_text
                 runtime["last_success_at"] = now_text
                 runtime["running"] = False
                 self._persist_board_control_runtime(runtime)
                 return {"launched": [], "failed": []}
-            delta_cards = [card for card in cards if self._board_control_card_is_delta(card, baseline_at)]
+            delta_cards = [
+                card for card in cards if self._board_control_card_is_delta(card, baseline_at)
+            ]
             runtime["considered_count"] = len(delta_cards)
             for card in delta_cards:
                 card_id = str(card.get("id", "") or "").strip()
                 if not card_id:
                     continue
                 if self._storage.has_active_task_for_card(card_id, purpose="board_control"):
-                    self._append_board_control_trace(runtime, {"card_id": card_id, "status": "skipped", "reason": "active_task", "at": now_text})
+                    self._append_board_control_trace(
+                        runtime,
+                        {
+                            "card_id": card_id,
+                            "status": "skipped",
+                            "reason": "active_task",
+                            "at": now_text,
+                        },
+                    )
                     continue
                 cache_entry = dict(cache.get(card_id) or {})
-                cooldown_until = parse_datetime(str(cache_entry.get("cooldown_until", "") or "").strip())
-                context_payload = self._board_service.get_card_context({"card_id": card_id, "event_limit": 20, "include_repair_order_text": True})
-                compact_context = build_ai_compact_context_packet(context_payload, scenario_id="board_control", source="backend")
+                cooldown_until = parse_datetime(
+                    str(cache_entry.get("cooldown_until", "") or "").strip()
+                )
+                context_payload = self._board_service.get_card_context(
+                    {"card_id": card_id, "event_limit": 20, "include_repair_order_text": True}
+                )
+                compact_context = build_ai_compact_context_packet(
+                    context_payload, scenario_id="board_control", source="backend"
+                )
                 trigger_result = self._evaluate_board_control_triggers(
                     card=card,
                     compact_context=compact_context,
@@ -767,7 +929,12 @@ class AgentControlService:
                 if not trigger_result["eligible"]:
                     self._append_board_control_trace(
                         runtime,
-                        {"card_id": card_id, "status": "skipped", "reason": trigger_result["skip_reason"], "at": now_text},
+                        {
+                            "card_id": card_id,
+                            "status": "skipped",
+                            "reason": trigger_result["skip_reason"],
+                            "at": now_text,
+                        },
                     )
                     continue
                 runtime["triggered_count"] = int(runtime.get("triggered_count", 0) or 0) + 1
@@ -784,16 +951,28 @@ class AgentControlService:
                     trigger="background_interval",
                 )
                 if task is None:
-                    self._append_board_control_trace(runtime, {"card_id": card_id, "status": "skipped", "reason": "duplicate_enqueue", "at": now_text})
+                    self._append_board_control_trace(
+                        runtime,
+                        {
+                            "card_id": card_id,
+                            "status": "skipped",
+                            "reason": "duplicate_enqueue",
+                            "at": now_text,
+                        },
+                    )
                     continue
                 launched.append(str(task.get("id", "") or "").strip())
                 runtime["enqueued_count"] = int(runtime.get("enqueued_count", 0) or 0) + 1
                 cache_entry.update(
                     {
-                        "last_fingerprint": str(compact_context.get("fingerprint", "") or "").strip(),
+                        "last_fingerprint": str(
+                            compact_context.get("fingerprint", "") or ""
+                        ).strip(),
                         "last_updated_at": str(card.get("updated_at", "") or "").strip(),
                         "last_processed_at": str(task.get("created_at", "") or now_text),
-                        "cooldown_until": (now + timedelta(minutes=int(settings["cooldown_minutes"]))).isoformat(),
+                        "cooldown_until": (
+                            now + timedelta(minutes=int(settings["cooldown_minutes"]))
+                        ).isoformat(),
                         "last_result": "enqueued",
                         "last_triggers": list(trigger_result["triggers"]),
                     }
@@ -824,7 +1003,9 @@ class AgentControlService:
             failed.append({"task_id": "board_control", "error": str(exc)})
             return {"launched": launched, "failed": failed}
 
-    def _set_schedule_active(self, payload: dict[str, Any] | None, *, active: bool) -> dict[str, Any]:
+    def _set_schedule_active(
+        self, payload: dict[str, Any] | None, *, active: bool
+    ) -> dict[str, Any]:
         payload = payload or {}
         task_id = str(payload.get("task_id", "") or "").strip()
         if not task_id:
@@ -836,22 +1017,44 @@ class AgentControlService:
             task_id,
             active=active,
             updated_at=utc_now_iso(),
-            next_run_at=self._next_run_at({**scheduled, "active": active}, from_now=True) if active else "",
+            next_run_at=self._next_run_at({**scheduled, "active": active}, from_now=True)
+            if active
+            else "",
             last_error="",
         )
         return updated
 
-    def _normalize_schedule_payload(self, payload: dict[str, Any], *, existing: dict[str, Any] | None) -> dict[str, Any]:
+    def _normalize_schedule_payload(
+        self, payload: dict[str, Any], *, existing: dict[str, Any] | None
+    ) -> dict[str, Any]:
         now_text = utc_now_iso()
-        raw_id = str(payload.get("task_id", "") or payload.get("id", "") or (existing.get("id", "") if existing else "")).strip()
+        raw_id = str(
+            payload.get("task_id", "")
+            or payload.get("id", "")
+            or (existing.get("id", "") if existing else "")
+        ).strip()
         task_id = raw_id or f"agsch_{uuid.uuid4().hex[:12]}"
-        name = str(payload.get("name", existing.get("name", "") if existing else "") or "").strip()[:80]
-        prompt = str(payload.get("prompt", existing.get("prompt", "") if existing else "") or "").strip()[:8000]
+        name = str(payload.get("name", existing.get("name", "") if existing else "") or "").strip()[
+            :80
+        ]
+        prompt = str(
+            payload.get("prompt", existing.get("prompt", "") if existing else "") or ""
+        ).strip()[:8000]
         if not name:
             raise ValueError("name is required")
         if not prompt:
             raise ValueError("prompt is required")
-        scope_type = str(payload.get("scope_type", existing.get("scope_type", "all_cards") if existing else "all_cards") or "all_cards").strip().lower()
+        scope_type = (
+            str(
+                payload.get(
+                    "scope_type",
+                    existing.get("scope_type", "all_cards") if existing else "all_cards",
+                )
+                or "all_cards"
+            )
+            .strip()
+            .lower()
+        )
         if scope_type not in {"all_cards", "column", "current_card"}:
             scope_type = "all_cards"
         scope_column = str(
@@ -861,21 +1064,57 @@ class AgentControlService:
             or (existing.get("scope_column", "") if existing else "")
             or ""
         ).strip()
-        scope_column_label = str(payload.get("scope_column_label", existing.get("scope_column_label", "") if existing else "") or "").strip()
-        scope_card_id = str(payload.get("scope_card_id", existing.get("scope_card_id", "") if existing else "") or "").strip()
-        scope_card_label = str(payload.get("scope_card_label", existing.get("scope_card_label", "") if existing else "") or "").strip()
+        scope_column_label = str(
+            payload.get(
+                "scope_column_label", existing.get("scope_column_label", "") if existing else ""
+            )
+            or ""
+        ).strip()
+        scope_card_id = str(
+            payload.get("scope_card_id", existing.get("scope_card_id", "") if existing else "")
+            or ""
+        ).strip()
+        scope_card_label = str(
+            payload.get(
+                "scope_card_label", existing.get("scope_card_label", "") if existing else ""
+            )
+            or ""
+        ).strip()
         if scope_type == "column" and not scope_column:
             raise ValueError("scope column is required")
         if scope_type == "current_card" and not scope_card_id:
             raise ValueError("scope card id is required")
-        schedule_type = str(payload.get("schedule_type", existing.get("schedule_type", "once") if existing else "once") or "once").strip().lower()
+        schedule_type = (
+            str(
+                payload.get(
+                    "schedule_type", existing.get("schedule_type", "once") if existing else "once"
+                )
+                or "once"
+            )
+            .strip()
+            .lower()
+        )
         if schedule_type not in {"once", "interval", "on_create"}:
             schedule_type = "once"
-        interval_value = self._normalize_interval_value(payload.get("interval_value", existing.get("interval_value", 1) if existing else 1))
-        interval_unit = str(payload.get("interval_unit", existing.get("interval_unit", "minute") if existing else "minute") or "minute").strip().lower()
+        interval_value = self._normalize_interval_value(
+            payload.get("interval_value", existing.get("interval_value", 1) if existing else 1)
+        )
+        interval_unit = (
+            str(
+                payload.get(
+                    "interval_unit",
+                    existing.get("interval_unit", "minute") if existing else "minute",
+                )
+                or "minute"
+            )
+            .strip()
+            .lower()
+        )
         if interval_unit not in {"minute", "hour"}:
             interval_unit = "minute"
-        active = self._as_bool(payload.get("active", existing.get("active", True) if existing else True))
+        active = self._as_bool(
+            payload.get("active", existing.get("active", True) if existing else True)
+        )
         fields_changed = not existing or any(
             existing.get(field) != value
             for field, value in (
@@ -951,8 +1190,19 @@ class AgentControlService:
         if schedule_type == "on_create":
             return ""
         if schedule_type != "interval":
-            return utc_now_iso() if (from_now or not str(scheduled.get("last_enqueued_at", "")).strip()) else ""
-        base = utc_now() if from_now else (parse_datetime(str(scheduled.get("last_enqueued_at", "") or "").strip()) or utc_now())
+            return (
+                utc_now_iso()
+                if (from_now or not str(scheduled.get("last_enqueued_at", "")).strip())
+                else ""
+            )
+        base = (
+            utc_now()
+            if from_now
+            else (
+                parse_datetime(str(scheduled.get("last_enqueued_at", "") or "").strip())
+                or utc_now()
+            )
+        )
         step = self._normalize_interval_value(scheduled.get("interval_value"))
         unit = str(scheduled.get("interval_unit", "minute") or "minute").strip().lower()
         delta = timedelta(hours=step) if unit == "hour" else timedelta(minutes=step)
@@ -1008,7 +1258,10 @@ class AgentControlService:
             "last_error": "",
             "next_run_at": self._next_run_at(scheduled, from_now=False),
         }
-        if str(scheduled.get("schedule_type", "once") or "once").strip().lower() not in {"interval", "on_create"}:
+        if str(scheduled.get("schedule_type", "once") or "once").strip().lower() not in {
+            "interval",
+            "on_create",
+        }:
             updates["active"] = False
             updates["next_run_at"] = ""
         self._storage.update_schedule(task_id, **updates)
@@ -1044,7 +1297,11 @@ class AgentControlService:
             "scope_card_id": scope_card_id,
             "scope_card_label": scope_card_label,
             "scope_label": (
-                str(scheduled.get("scope_column_label", "") or scheduled.get("scope_column", "") or "").strip()
+                str(
+                    scheduled.get("scope_column_label", "")
+                    or scheduled.get("scope_column", "")
+                    or ""
+                ).strip()
                 if scope_type == "column"
                 else "Все карточки"
             ),
@@ -1055,20 +1312,28 @@ class AgentControlService:
             "busy": self._storage.has_active_task_for_schedule(task_id),
         }
 
-    def _schedule_matches_card(self, scheduled: dict[str, Any], *, card_id: str, column: str) -> bool:
+    def _schedule_matches_card(
+        self, scheduled: dict[str, Any], *, card_id: str, column: str
+    ) -> bool:
         scope_type = str(scheduled.get("scope_type", "all_cards") or "all_cards").strip().lower()
         if scope_type == "column":
             return str(scheduled.get("scope_column", "") or "").strip() == str(column or "").strip()
         if scope_type == "current_card":
-            return str(scheduled.get("scope_card_id", "") or "").strip() == str(card_id or "").strip()
+            return (
+                str(scheduled.get("scope_card_id", "") or "").strip() == str(card_id or "").strip()
+            )
         return True
 
     def _build_card_autofill_prompt(self, payload: dict[str, Any]) -> str:
         scenario_id = str(payload.get("scenario_id", "") or "").strip().lower()
         heading = str(payload.get("card_heading", "") or payload.get("title", "") or "").strip()
         vehicle = str(payload.get("vehicle", "") or "").strip()
-        mini_prompt = str(payload.get("prompt", "") or payload.get("ai_autofill_prompt", "") or "").strip()
-        ai_log_tail = payload.get("ai_log_tail") if isinstance(payload.get("ai_log_tail"), list) else []
+        mini_prompt = str(
+            payload.get("prompt", "") or payload.get("ai_autofill_prompt", "") or ""
+        ).strip()
+        ai_log_tail = (
+            payload.get("ai_log_tail") if isinstance(payload.get("ai_log_tail"), list) else []
+        )
         lines = [
             "Выполни автосопровождение карточки автосервиса.",
             "Работай только с этой карточкой и не добавляй шум, если полезных изменений нет.",

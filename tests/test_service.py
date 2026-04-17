@@ -1,4 +1,5 @@
-﻿from __future__ import annotations
+from __future__ import annotations
+# ruff: noqa: I001,E402,F401,UP017,F841,UP012
 
 import base64
 import json
@@ -49,6 +50,96 @@ class _FakeAgentControl:
         payload = dict(payload or {})
         self.created_payloads.append(payload)
         return {"launched": [], "meta": {"matched": 0}}
+
+    def agent_status(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {
+            "agent": {
+                "enabled": True,
+                "available": True,
+                "ready": True,
+                "availability_reason": "worker_running",
+                "configured": True,
+                "model": "gpt-test",
+                "board_api_url": "http://127.0.0.1:41731",
+            },
+            "ai_remodel": {},
+            "board_control": {},
+            "worker": {
+                "embedded": True,
+                "running": True,
+                "heartbeat_fresh": True,
+            },
+            "scheduler": {
+                "last_run_at": "",
+                "last_success_at": "",
+                "last_error": "",
+            },
+            "status": {
+                "running": True,
+                "current_task_id": None,
+                "current_run_id": None,
+                "last_heartbeat": utc_now().isoformat(),
+                "last_run_started_at": "",
+                "last_run_finished_at": "",
+                "last_error": "",
+                "last_scheduler_run_at": "",
+                "last_scheduler_success_at": "",
+                "last_scheduler_error": "",
+                "board_control": {},
+            },
+            "queue": {"pending_total": 0, "running_total": 0},
+            "scheduled": {"total": 0, "active_total": 0, "paused_total": 0},
+            "recent_runs": [],
+        }
+
+    def agent_tasks(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"tasks": [], "meta": {"limit": 50, "statuses": []}}
+
+    def agent_actions(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"actions": [], "meta": {"limit": 100, "run_id": None, "task_id": None}}
+
+    def agent_scheduled_tasks(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"tasks": [], "meta": {"total": 0}}
+
+    def save_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"task": {"id": "schedule-1"}}
+
+    def delete_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"deleted": True, "task_id": "schedule-1"}
+
+    def pause_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"task": {"id": "schedule-1", "active": False}}
+
+    def resume_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {"task": {"id": "schedule-1", "active": True}}
+
+    def run_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        _ = payload
+        return {
+            "task": {"id": "schedule-1"},
+            "scheduled_task": {"id": "schedule-1"},
+            "meta": {"already_running": False},
+        }
+
+    def agent_enqueue_task(self, payload: dict | None = None) -> dict:
+        payload = dict(payload or {})
+        self.autofill_calls.append({"payload": payload, "source": "ui", "trigger": "manual"})
+        return {
+            "task": {
+                "id": f"task-{len(self.autofill_calls)}",
+                "created_at": utc_now().isoformat(),
+                "status": "pending",
+                "metadata": payload.get("metadata", {}),
+            }
+        }
 
     def enqueue_card_autofill_task(
         self,
@@ -110,7 +201,9 @@ class CardServiceTests(unittest.TestCase):
     def _patch_time(self, moment: datetime):
         return (
             patch("minimal_kanban.services.card_service.utc_now", return_value=moment),
-            patch("minimal_kanban.services.card_service.utc_now_iso", return_value=moment.isoformat()),
+            patch(
+                "minimal_kanban.services.card_service.utc_now_iso", return_value=moment.isoformat()
+            ),
             patch("minimal_kanban.models.utc_now", return_value=moment),
         )
 
@@ -151,7 +244,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated["card"]["description"], "Новый текст")
         self.assertEqual(updated["card"]["status"], "ok")
         self.assertTrue(updated["meta"]["changed"])
-        self.assertEqual(set(updated["meta"]["changed_fields"]), {"vehicle", "title", "description", "deadline"})
+        self.assertEqual(
+            set(updated["meta"]["changed_fields"]), {"vehicle", "title", "description", "deadline"}
+        )
 
         archived = self.service.archive_card({"card_id": card_id})
         self.assertTrue(archived["card"]["archived"])
@@ -252,7 +347,9 @@ class CardServiceTests(unittest.TestCase):
         listed_before = self.service.list_repair_orders()
         self.assertEqual(listed_before["meta"]["total"], 0)
 
-        fetched = self.service.get_repair_order({"card_id": card_id, "actor_name": "UI", "source": "ui"})
+        fetched = self.service.get_repair_order(
+            {"card_id": card_id, "actor_name": "UI", "source": "ui"}
+        )
         self.assertTrue(fetched["meta"]["has_any_data"])
         self.assertTrue(fetched["meta"]["created"])
         self.assertEqual(fetched["repair_order"]["reason"], "Ленивая карточка")
@@ -263,7 +360,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(listed_after["meta"]["total"], 1)
         self.assertEqual(listed_after["repair_orders"][0]["card_id"], card_id)
 
-    def test_set_card_ai_autofill_returns_retired_cleanup_state_and_clears_legacy_fields(self) -> None:
+    def test_set_card_ai_autofill_returns_retired_cleanup_state_and_clears_legacy_fields(
+        self,
+    ) -> None:
         created = self.service.create_card(
             {
                 "vehicle": "Toyota Corolla",
@@ -291,7 +390,9 @@ class CardServiceTests(unittest.TestCase):
             settings=bundle["settings"],
         )
 
-        result = self.service.set_card_ai_autofill({"card_id": card_id, "enabled": True, "actor_name": "AI"})
+        result = self.service.set_card_ai_autofill(
+            {"card_id": card_id, "enabled": True, "actor_name": "AI"}
+        )
 
         self.assertFalse(result["meta"]["enabled"])
         self.assertFalse(result["meta"]["launched"])
@@ -309,7 +410,9 @@ class CardServiceTests(unittest.TestCase):
             [entry["message"] for entry in result["card"]["ai_autofill_log"]],
         )
 
-    def test_cleanup_card_content_normalizes_description_and_fills_obvious_local_fields(self) -> None:
+    def test_cleanup_card_content_normalizes_description_and_fills_obvious_local_fields(
+        self,
+    ) -> None:
         created = self.service.create_card(
             {
                 "title": "Течь антифриза",
@@ -368,6 +471,65 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(result["meta"]["legacy_request"], "run_full_card_enrichment")
         self.assertEqual(result["meta"]["cleanup_mode"], "local_card_cleanup")
         self.assertFalse(result["card"]["ai_autofill_active"])
+
+    def test_run_full_card_enrichment_enqueues_agent_task_when_agent_is_attached(self) -> None:
+        agent_control = _FakeAgentControl()
+        self.service.attach_agent_control(agent_control)
+        created = self.service.create_card(
+            {
+                "title": "Agent enrichment",
+                "description": "VIN: WAUZZZ8V0JA000001\nПроверить радиатор",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+
+        result = self.service.run_full_card_enrichment(
+            {
+                "card_id": card_id,
+                "actor_name": "AI",
+                "context_packet": {
+                    "kind": "compact_context",
+                    "scenario_id": "full_card_enrichment",
+                },
+            }
+        )
+
+        self.assertTrue(result["meta"]["launched"])
+        self.assertFalse(result["meta"]["already_running"])
+        self.assertEqual(result["meta"]["scenario_id"], "full_card_enrichment")
+        self.assertTrue(result["meta"]["server_available"])
+        self.assertEqual(
+            agent_control.autofill_calls[-1]["payload"]["scenario_id"], "full_card_enrichment"
+        )
+        self.assertEqual(agent_control.autofill_calls[-1]["source"], "ui_full_card_enrichment")
+
+    def test_set_card_ai_autofill_enqueues_agent_task_when_agent_is_attached(self) -> None:
+        agent_control = _FakeAgentControl()
+        self.service.attach_agent_control(agent_control)
+        created = self.service.create_card(
+            {
+                "title": "Auto enrich",
+                "description": "VIN: WAUZZZ8V0JA000001",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+
+        result = self.service.set_card_ai_autofill(
+            {
+                "card_id": card_id,
+                "enabled": True,
+                "prompt": "Не переписывай лишнее",
+                "actor_name": "AI",
+            }
+        )
+
+        self.assertTrue(result["meta"]["enabled"])
+        self.assertTrue(result["meta"]["launched"])
+        self.assertTrue(result["meta"]["server_available"])
+        self.assertEqual(agent_control.autofill_calls[-1]["source"], "ui_card_autofill")
+        self.assertEqual(agent_control.autofill_calls[-1]["trigger"], "manual_activate")
 
     def test_trigger_due_ai_followups_is_disabled(self) -> None:
         self.assertEqual(self.service.trigger_due_ai_followups(), {"launched": [], "failed": []})
@@ -473,7 +635,9 @@ class CardServiceTests(unittest.TestCase):
                     "status": "open",
                     "client": "Витя Покровский",
                     "vehicle": "Mitsubishi L200",
-                    "payments": [{"amount": "5000", "paid_at": "05.04.2026 10:00", "payment_method": "cash"}],
+                    "payments": [
+                        {"amount": "5000", "paid_at": "05.04.2026 10:00", "payment_method": "cash"}
+                    ],
                     "works": [
                         {
                             "name": "Диагностика",
@@ -492,7 +656,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(closed_row["executor_name"], "Иван Мастер")
         self.assertEqual(closed_row["salary_amount"], "1500")
 
-        closed_month = dt.strptime(closed["repair_order"]["closed_at"], "%d.%m.%Y %H:%M").strftime("%Y-%m")
+        closed_month = dt.strptime(closed["repair_order"]["closed_at"], "%d.%m.%Y %H:%M").strftime(
+            "%Y-%m"
+        )
         report = self.service.get_payroll_report({"month": closed_month})
         summary = next(item for item in report["summary"] if item["employee_id"] == employee["id"])
         self.assertEqual(summary["works_count"], 1)
@@ -527,7 +693,9 @@ class CardServiceTests(unittest.TestCase):
                     "status": "open",
                     "client": "Витя Покровский",
                     "vehicle": "Mitsubishi L200",
-                    "payments": [{"amount": "5000", "paid_at": "05.04.2026 10:00", "payment_method": "cash"}],
+                    "payments": [
+                        {"amount": "5000", "paid_at": "05.04.2026 10:00", "payment_method": "cash"}
+                    ],
                     "works": [
                         {
                             "name": "Диагностика",
@@ -559,7 +727,9 @@ class CardServiceTests(unittest.TestCase):
                 "work_percent": "20",
             }
         )["employee"]
-        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
         open_card = self.service.create_card(
             {
                 "vehicle": "KIA RIO",
@@ -638,7 +808,9 @@ class CardServiceTests(unittest.TestCase):
         )["transaction"]
 
         bundle = self.service._store.read_bundle()
-        old_transaction = next(item for item in bundle["cash_transactions"] if item.id == payout["id"])
+        old_transaction = next(
+            item for item in bundle["cash_transactions"] if item.id == payout["id"]
+        )
         old_transaction.created_at = (utc_now() - timedelta(days=220)).isoformat()
         self.service._store.write_bundle(
             columns=bundle["columns"],
@@ -656,16 +828,42 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(ledger["accrued_total"], "1400")
         self.assertEqual(ledger["payout_total"], "6000")
         self.assertEqual(ledger["advance_total"], "2000")
-        self.assertTrue(any(row["kind"] == "accrual" and row["card_id"] == closed_card["id"] for row in ledger["journal_rows"]))
-        self.assertFalse(any(row["kind"] == "accrual" and row["card_id"] == open_card["id"] for row in ledger["journal_rows"]))
-        self.assertFalse(any(row["kind"] == "salary_payout" and row["repair_order_number"] == "" and row["created_at"] == old_transaction.created_at for row in ledger["journal_rows"]))
+        self.assertTrue(
+            any(
+                row["kind"] == "accrual" and row["card_id"] == closed_card["id"]
+                for row in ledger["journal_rows"]
+            )
+        )
+        self.assertFalse(
+            any(
+                row["kind"] == "accrual" and row["card_id"] == open_card["id"]
+                for row in ledger["journal_rows"]
+            )
+        )
+        self.assertFalse(
+            any(
+                row["kind"] == "salary_payout"
+                and row["repair_order_number"] == ""
+                and row["created_at"] == old_transaction.created_at
+                for row in ledger["journal_rows"]
+            )
+        )
 
-        reopened = self.service.set_repair_order_status({"card_id": closed_card["id"], "status": "open"})
+        reopened = self.service.set_repair_order_status(
+            {"card_id": closed_card["id"], "status": "open"}
+        )
         self.assertEqual(reopened["repair_order"]["works"][0]["salary_amount"], "")
         reopened_row = reopened["repair_order"]["works"][0]
-        ledger_after_reopen = self.service.get_employee_salary_ledger({"employee_id": employee["id"]})
+        ledger_after_reopen = self.service.get_employee_salary_ledger(
+            {"employee_id": employee["id"]}
+        )
         self.assertEqual(ledger_after_reopen["balance_total"], "-8000")
-        self.assertFalse(any(row["kind"] == "accrual" and row["card_id"] == closed_card["id"] for row in ledger_after_reopen["journal_rows"]))
+        self.assertFalse(
+            any(
+                row["kind"] == "accrual" and row["card_id"] == closed_card["id"]
+                for row in ledger_after_reopen["journal_rows"]
+            )
+        )
         self.assertEqual(reopened_row["salary_amount"], "")
         self.assertEqual(reopened_row["salary_accrued_at"], "")
 
@@ -679,7 +877,9 @@ class CardServiceTests(unittest.TestCase):
 
         listed = self.service.list_employees()
         self.assertEqual(len(listed["employees"]), 3)
-        self.assertEqual({item["id"] for item in listed["employees"]}, {first["id"], second["id"], third["id"]})
+        self.assertEqual(
+            {item["id"] for item in listed["employees"]}, {first["id"], second["id"], third["id"]}
+        )
 
         deleted = self.service.delete_employee({"employee_id": second["id"], "actor_name": "ADMIN"})
         self.assertTrue(deleted["deleted"])
@@ -707,7 +907,11 @@ class CardServiceTests(unittest.TestCase):
                 }
             )["employee"]
             created_ids.append(result["id"])
-            expected_modes[result["id"]] = (result["salary_mode"], result["base_salary"], result["work_percent"])
+            expected_modes[result["id"]] = (
+                result["salary_mode"],
+                result["base_salary"],
+                result["work_percent"],
+            )
             if (index + 1) in checkpoints:
                 listed = self.service.list_employees()["employees"]
                 self.assertEqual(len(listed), index + 1)
@@ -741,13 +945,27 @@ class CardServiceTests(unittest.TestCase):
     def test_employee_toggle_updates_active_state(self) -> None:
         employee = self.service.save_employee({"name": "Иван", "position": "Мастер"})["employee"]
 
-        toggled_off = self.service.toggle_employee({"employee_id": employee["id"], "actor_name": "ADMIN"})
+        toggled_off = self.service.toggle_employee(
+            {"employee_id": employee["id"], "actor_name": "ADMIN"}
+        )
         self.assertFalse(toggled_off["employee"]["is_active"])
-        self.assertTrue(any(item["id"] == employee["id"] and not item["is_active"] for item in toggled_off["employees"]))
+        self.assertTrue(
+            any(
+                item["id"] == employee["id"] and not item["is_active"]
+                for item in toggled_off["employees"]
+            )
+        )
 
-        toggled_on = self.service.toggle_employee({"employee_id": employee["id"], "actor_name": "ADMIN"})
+        toggled_on = self.service.toggle_employee(
+            {"employee_id": employee["id"], "actor_name": "ADMIN"}
+        )
         self.assertTrue(toggled_on["employee"]["is_active"])
-        self.assertTrue(any(item["id"] == employee["id"] and item["is_active"] for item in toggled_on["employees"]))
+        self.assertTrue(
+            any(
+                item["id"] == employee["id"] and item["is_active"]
+                for item in toggled_on["employees"]
+            )
+        )
 
     def test_employee_creation_rejects_more_than_fifteen_records(self) -> None:
         for index in range(15):
@@ -814,8 +1032,12 @@ class CardServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Нельзя удалить кассу, пока в ней есть движения"):
             self.service.delete_cashbox({"cashbox_id": cashbox["short_id"], "actor_name": "ADMIN"})
 
-        empty_cashbox = self.service.create_cashbox({"name": "Резерв", "actor_name": "ADMIN"})["cashbox"]
-        deleted = self.service.delete_cashbox({"cashbox_id": empty_cashbox["short_id"], "actor_name": "ADMIN"})
+        empty_cashbox = self.service.create_cashbox({"name": "Резерв", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
+        deleted = self.service.delete_cashbox(
+            {"cashbox_id": empty_cashbox["short_id"], "actor_name": "ADMIN"}
+        )
         self.assertTrue(deleted["meta"]["deleted"])
         self.assertEqual(deleted["meta"]["removed_transactions"], 0)
         self.assertEqual(self.service.list_cashboxes()["meta"]["total"], 1)
@@ -834,7 +1056,10 @@ class CardServiceTests(unittest.TestCase):
         )
 
         self.assertTrue(reordered["meta"]["changed"])
-        self.assertEqual([item["id"] for item in reordered["cashboxes"]], [third["id"], first["id"], second["id"]])
+        self.assertEqual(
+            [item["id"] for item in reordered["cashboxes"]],
+            [third["id"], first["id"], second["id"]],
+        )
         self.assertEqual([item["order"] for item in reordered["cashboxes"]], [0, 1, 2])
 
         listed = self.service.list_cashboxes()["cashboxes"]
@@ -842,8 +1067,12 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual([item["order"] for item in listed], [0, 1, 2])
 
     def test_cashbox_transfer_moves_money_between_cashboxes(self) -> None:
-        source_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
-        target_cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
+        source_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
+        target_cashbox = self.service.create_cashbox(
+            {"name": "Безналичный", "actor_name": "ADMIN"}
+        )["cashbox"]
 
         self.service.create_cash_transaction(
             {
@@ -869,15 +1098,21 @@ class CardServiceTests(unittest.TestCase):
         self.assertIn("Перемещение в Безналичный", transferred["source_transaction"]["note"])
         self.assertIn("Перемещение из Наличный", transferred["target_transaction"]["note"])
 
-        source_details = self.service.get_cashbox({"cashbox_id": source_cashbox["id"], "transaction_limit": 10})
-        target_details = self.service.get_cashbox({"cashbox_id": target_cashbox["id"], "transaction_limit": 10})
+        source_details = self.service.get_cashbox(
+            {"cashbox_id": source_cashbox["id"], "transaction_limit": 10}
+        )
+        target_details = self.service.get_cashbox(
+            {"cashbox_id": target_cashbox["id"], "transaction_limit": 10}
+        )
         self.assertEqual(source_details["cashbox"]["statistics"]["balance_minor"], 75000)
         self.assertEqual(target_details["cashbox"]["statistics"]["balance_minor"], 25000)
         self.assertEqual(source_details["cashbox"]["statistics"]["transactions_total"], 2)
         self.assertEqual(target_details["cashbox"]["statistics"]["transactions_total"], 1)
 
     def test_cancel_last_cash_transaction_removes_latest_manual_movement(self) -> None:
-        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
         first = self.service.create_cash_transaction(
             {
                 "cashbox_id": cashbox["id"],
@@ -913,8 +1148,12 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(details["transactions"][0]["id"], first["id"])
 
     def test_cancel_last_cash_transaction_removes_linked_repair_order_payment(self) -> None:
-        cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
-        created = self.service.create_card({"vehicle": "KIA RIO", "title": "Оплата", "deadline": {"hours": 2}})["card"]
+        cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
+        created = self.service.create_card(
+            {"vehicle": "KIA RIO", "title": "Оплата", "deadline": {"hours": 2}}
+        )["card"]
         updated = self.service.update_card(
             {
                 "card_id": created["id"],
@@ -948,20 +1187,26 @@ class CardServiceTests(unittest.TestCase):
         card = self.service.get_card({"card_id": created["id"]})["card"]
         self.assertEqual(card["repair_order"]["payments"], [])
         self.assertEqual(card["repair_order"]["paid_total"], "0")
-        cashbox_details = self.service.get_cashbox({"cashbox_id": cashbox["id"], "transaction_limit": 10})
+        cashbox_details = self.service.get_cashbox(
+            {"cashbox_id": cashbox["id"], "transaction_limit": 10}
+        )
         self.assertEqual(cashbox_details["cashbox"]["statistics"]["transactions_total"], 0)
         self.assertEqual(cashbox_details["transactions"], [])
 
     def test_cashbox_creation_is_capped_at_six_items(self) -> None:
         for index in range(6):
-            created = self.service.create_cashbox({"name": f"Касса {index + 1}", "actor_name": "ADMIN"})
+            created = self.service.create_cashbox(
+                {"name": f"Касса {index + 1}", "actor_name": "ADMIN"}
+            )
             self.assertEqual(created["cashbox"]["name"], f"Касса {index + 1}")
 
         with self.assertRaisesRegex(ValueError, "Нельзя создать больше 6 касс"):
             self.service.create_cashbox({"name": "Касса 7", "actor_name": "ADMIN"})
 
     def test_cash_journal_returns_recent_three_months_text(self) -> None:
-        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
         self.service.create_cash_transaction(
             {
                 "cashbox_id": cashbox["id"],
@@ -982,9 +1227,15 @@ class CardServiceTests(unittest.TestCase):
         self.assertIn("1 000 ₽", journal["text"])
 
     def test_move_card_can_reorder_within_same_column(self) -> None:
-        first = self.service.create_card({"title": "First", "column": "inbox", "deadline": {"hours": 2}})
-        second = self.service.create_card({"title": "Second", "column": "inbox", "deadline": {"hours": 2}})
-        third = self.service.create_card({"title": "Third", "column": "inbox", "deadline": {"hours": 2}})
+        first = self.service.create_card(
+            {"title": "First", "column": "inbox", "deadline": {"hours": 2}}
+        )
+        second = self.service.create_card(
+            {"title": "Second", "column": "inbox", "deadline": {"hours": 2}}
+        )
+        third = self.service.create_card(
+            {"title": "Third", "column": "inbox", "deadline": {"hours": 2}}
+        )
 
         moved = self.service.move_card(
             {
@@ -997,7 +1248,10 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(moved["card"]["column"], "inbox")
         self.assertEqual(moved["card"]["position"], 1)
         self.assertEqual(moved["affected_column_ids"], ["inbox"])
-        self.assertEqual([card["id"] for card in moved["affected_cards"][:3]], [first["card"]["id"], third["card"]["id"], second["card"]["id"]])
+        self.assertEqual(
+            [card["id"] for card in moved["affected_cards"][:3]],
+            [first["card"]["id"], third["card"]["id"], second["card"]["id"]],
+        )
         self.assertTrue(all("repair_order" not in card for card in moved["affected_cards"]))
         self.assertTrue(moved["meta"]["changed"])
 
@@ -1012,9 +1266,15 @@ class CardServiceTests(unittest.TestCase):
         )
 
     def test_move_card_can_insert_before_card_in_another_column(self) -> None:
-        source = self.service.create_card({"title": "Source", "column": "inbox", "deadline": {"hours": 2}})
-        first_target = self.service.create_card({"title": "Target A", "column": "in_progress", "deadline": {"hours": 2}})
-        second_target = self.service.create_card({"title": "Target B", "column": "in_progress", "deadline": {"hours": 2}})
+        source = self.service.create_card(
+            {"title": "Source", "column": "inbox", "deadline": {"hours": 2}}
+        )
+        first_target = self.service.create_card(
+            {"title": "Target A", "column": "in_progress", "deadline": {"hours": 2}}
+        )
+        second_target = self.service.create_card(
+            {"title": "Target B", "column": "in_progress", "deadline": {"hours": 2}}
+        )
 
         moved = self.service.move_card(
             {
@@ -1084,7 +1344,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(profile["model_display"], "CX-5")
 
     def test_autofill_vehicle_data_does_not_treat_model_digits_as_coolant_capacity(self) -> None:
-        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None):
+        with patch.object(
+            self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None
+        ):
             autofilled = self.service.autofill_vehicle_data(
                 {
                     "raw_text": "BMW 320I 2017\nТечь антифриза\nVIN X4X8A594905J20193",
@@ -1157,7 +1419,9 @@ class CardServiceTests(unittest.TestCase):
         base = datetime(2026, 3, 23, 12, 0, 0, tzinfo=timezone.utc)
         patches = self._patch_time(base)
         with patches[0], patches[1], patches[2]:
-            created = self.service.create_card({"title": "Срочная задача", "deadline": {"minutes": 1, "seconds": 40}})
+            created = self.service.create_card(
+                {"title": "Срочная задача", "deadline": {"minutes": 1, "seconds": 40}}
+            )
         card_id = created["card"]["id"]
         self.assertEqual(created["card"]["remaining_seconds"], 100)
         self.assertEqual(created["card"]["status"], "ok")
@@ -1193,11 +1457,15 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(expired["indicator"], "red")
         self.assertTrue(expired["is_blinking"])
 
-    def test_deadline_heat_progress_uses_five_percent_steps_and_resets_after_deadline_change(self) -> None:
+    def test_deadline_heat_progress_uses_five_percent_steps_and_resets_after_deadline_change(
+        self,
+    ) -> None:
         base = datetime(2026, 3, 23, 12, 0, 0, tzinfo=timezone.utc)
         patches = self._patch_time(base)
         with patches[0], patches[1], patches[2]:
-            created = self.service.create_card({"title": "Тепловая шкала", "deadline": {"minutes": 1, "seconds": 40}})
+            created = self.service.create_card(
+                {"title": "Тепловая шкала", "deadline": {"minutes": 1, "seconds": 40}}
+            )
         card_id = created["card"]["id"]
 
         self.assertEqual(created["card"]["deadline_progress_bucket"], 0)
@@ -1230,17 +1498,23 @@ class CardServiceTests(unittest.TestCase):
 
         reset_patches = self._patch_time(later_time)
         with reset_patches[0], reset_patches[1], reset_patches[2]:
-            reset = self.service.update_card({"card_id": card_id, "deadline": {"minutes": 3, "seconds": 20}})
+            reset = self.service.update_card(
+                {"card_id": card_id, "deadline": {"minutes": 3, "seconds": 20}}
+            )
         self.assertEqual(reset["card"]["deadline_progress_bucket"], 0)
         self.assertEqual(reset["card"]["deadline_progress_step_percent"], 0)
-        self.assertEqual(reset["card"]["deadline_heat_color"], created["card"]["deadline_heat_color"])
+        self.assertEqual(
+            reset["card"]["deadline_heat_color"], created["card"]["deadline_heat_color"]
+        )
 
     def test_rejects_invalid_input(self) -> None:
         with self.assertRaises(ServiceError) as empty_title:
             self.service.create_card({"title": "   ", "deadline": {"days": 1, "hours": 0}})
         self.assertEqual(empty_title.exception.code, "validation_error")
 
-        created = self.service.create_card({"title": "Валидная карточка", "deadline": {"days": 1, "hours": 0}})
+        created = self.service.create_card(
+            {"title": "Валидная карточка", "deadline": {"days": 1, "hours": 0}}
+        )
         card_id = created["card"]["id"]
 
         with self.assertRaises(ServiceError) as invalid_bool:
@@ -1256,11 +1530,15 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(invalid_column.exception.code, "validation_error")
 
         with self.assertRaises(ServiceError) as invalid_deadline:
-            self.service.create_card({"title": "Сломанный срок", "deadline": {"days": 0, "hours": 0}})
+            self.service.create_card(
+                {"title": "Сломанный срок", "deadline": {"days": 0, "hours": 0}}
+            )
         self.assertEqual(invalid_deadline.exception.code, "validation_error")
 
         with self.assertRaises(ServiceError) as invalid_deadline_part:
-            self.service.create_card({"title": "Сломанный срок", "deadline": {"days": 0, "hours": 24}})
+            self.service.create_card(
+                {"title": "Сломанный срок", "deadline": {"days": 0, "hours": 24}}
+            )
         self.assertEqual(invalid_deadline_part.exception.code, "validation_error")
 
         self.service.create_column({"label": "Новый этап"})
@@ -1281,7 +1559,9 @@ class CardServiceTests(unittest.TestCase):
         base = datetime(2026, 3, 23, 12, 0, 0, tzinfo=timezone.utc)
         patches = self._patch_time(base)
         with patches[0], patches[1], patches[2]:
-            created = self.service.create_card({"title": "Срок после перезапуска", "deadline": {"seconds": 10}})
+            created = self.service.create_card(
+                {"title": "Срок после перезапуска", "deadline": {"seconds": 10}}
+            )
         card_id = created["card"]["id"]
 
         reloaded_store = JsonStore(state_file=self.state_file, logger=self.logger)
@@ -1318,7 +1598,9 @@ class CardServiceTests(unittest.TestCase):
         reloaded_service = CardService(reloaded_store, self.logger)
 
         columns = reloaded_service.list_columns()["columns"]
-        self.assertTrue(any(column["id"] == column_id and column["label"] == "Блокеры" for column in columns))
+        self.assertTrue(
+            any(column["id"] == column_id and column["label"] == "Блокеры" for column in columns)
+        )
 
         card = reloaded_service.get_card({"card_id": card_id})["card"]
         self.assertEqual(card["column"], column_id)
@@ -1333,7 +1615,10 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(deleted["deleted_column"]["id"], column_id)
         remaining_ids = [column["id"] for column in deleted["columns"]]
         self.assertNotIn(column_id, remaining_ids)
-        self.assertEqual([column["position"] for column in deleted["columns"]], list(range(len(deleted["columns"]))))
+        self.assertEqual(
+            [column["position"] for column in deleted["columns"]],
+            list(range(len(deleted["columns"]))),
+        )
 
     def test_rename_column_updates_label_but_keeps_id(self) -> None:
         created = self.service.create_column({"label": "TEMP RENAME"})
@@ -1346,20 +1631,29 @@ class CardServiceTests(unittest.TestCase):
         self.assertTrue(renamed["meta"]["changed"])
         self.assertEqual(renamed["meta"]["previous_label"], "TEMP RENAME")
         listed = self.service.list_columns()["columns"]
-        self.assertTrue(any(column["id"] == column_id and column["label"] == "READY FOR WORK" for column in listed))
+        self.assertTrue(
+            any(
+                column["id"] == column_id and column["label"] == "READY FOR WORK"
+                for column in listed
+            )
+        )
 
     def test_rename_column_rejects_duplicate_label(self) -> None:
         self.service.create_column({"label": "FIRST CUSTOM"})
         created = self.service.create_column({"label": "SECOND CUSTOM"})
 
         with self.assertRaises(ServiceError) as duplicate_label:
-            self.service.rename_column({"column_id": created["column"]["id"], "label": "FIRST CUSTOM"})
+            self.service.rename_column(
+                {"column_id": created["column"]["id"], "label": "FIRST CUSTOM"}
+            )
         self.assertEqual(duplicate_label.exception.code, "validation_error")
 
     def test_rename_column_allows_noop_for_same_label(self) -> None:
         created = self.service.create_column({"label": "UNCHANGED"})
 
-        renamed = self.service.rename_column({"column_id": created["column"]["id"], "label": "UNCHANGED"})
+        renamed = self.service.rename_column(
+            {"column_id": created["column"]["id"], "label": "UNCHANGED"}
+        )
 
         self.assertFalse(renamed["meta"]["changed"])
         self.assertEqual(renamed["column"]["label"], "UNCHANGED")
@@ -1369,13 +1663,24 @@ class CardServiceTests(unittest.TestCase):
         second = self.service.create_column({"label": "SECOND"})["column"]
         third = self.service.create_column({"label": "THIRD"})["column"]
 
-        moved = self.service.move_column({"column_id": third["id"], "before_column_id": first["id"]})
-        self.assertEqual([column["id"] for column in moved["columns"]][-3:], [third["id"], first["id"], second["id"]])
+        moved = self.service.move_column(
+            {"column_id": third["id"], "before_column_id": first["id"]}
+        )
+        self.assertEqual(
+            [column["id"] for column in moved["columns"]][-3:],
+            [third["id"], first["id"], second["id"]],
+        )
         self.assertTrue(moved["meta"]["changed"])
 
         moved_again = self.service.move_column({"column_id": third["id"]})
-        self.assertEqual([column["id"] for column in moved_again["columns"]][-3:], [first["id"], second["id"], third["id"]])
-        self.assertEqual([column["position"] for column in moved_again["columns"]], list(range(len(moved_again["columns"]))))
+        self.assertEqual(
+            [column["id"] for column in moved_again["columns"]][-3:],
+            [first["id"], second["id"], third["id"]],
+        )
+        self.assertEqual(
+            [column["position"] for column in moved_again["columns"]],
+            list(range(len(moved_again["columns"]))),
+        )
 
     def test_delete_column_rejects_non_empty(self) -> None:
         created_column = self.service.create_column({"label": "BLOCKED DELETE"})
@@ -1497,7 +1802,9 @@ class CardServiceTests(unittest.TestCase):
         )
         changed_snapshot = self.service.get_board_snapshot({"compact": True})
 
-        self.assertNotEqual(first_snapshot["meta"]["revision"], changed_snapshot["meta"]["revision"])
+        self.assertNotEqual(
+            first_snapshot["meta"]["revision"], changed_snapshot["meta"]["revision"]
+        )
 
     def test_board_snapshot_skips_expensive_prep_when_there_are_no_cards(self) -> None:
         snapshot_service = self.service._snapshot_service
@@ -1596,13 +1903,17 @@ class CardServiceTests(unittest.TestCase):
         base = datetime(2026, 3, 24, 12, 0, 0, tzinfo=timezone.utc)
         patches = self._patch_time(base)
         with patches[0], patches[1], patches[2]:
-            created = self.service.create_card({"title": "Удалённая задача", "deadline": {"hours": 3}})
+            created = self.service.create_card(
+                {"title": "Удалённая задача", "deadline": {"hours": 3}}
+            )
         card_id = created["card"]["id"]
 
         later = base + timedelta(minutes=5)
         patches = self._patch_time(later)
         with patches[0], patches[1], patches[2]:
-            deadline_updated = self.service.set_card_deadline({"card_id": card_id, "deadline": {"minutes": 1}})
+            deadline_updated = self.service.set_card_deadline(
+                {"card_id": card_id, "deadline": {"minutes": 1}}
+            )
         self.assertLessEqual(deadline_updated["card"]["remaining_seconds"], 60)
 
         indicator_time = later + timedelta(seconds=5)
@@ -1671,9 +1982,12 @@ class CardServiceTests(unittest.TestCase):
             self.service.archive_card({"card_id": archived_card["card"]["id"]})
 
         review_moment = base + timedelta(hours=50)
-        with patch("minimal_kanban.services.snapshot_service.utc_now", return_value=review_moment), patch(
-            "minimal_kanban.services.snapshot_service.utc_now_iso",
-            return_value=review_moment.isoformat(),
+        with (
+            patch("minimal_kanban.services.snapshot_service.utc_now", return_value=review_moment),
+            patch(
+                "minimal_kanban.services.snapshot_service.utc_now_iso",
+                return_value=review_moment.isoformat(),
+            ),
         ):
             review = self.service.review_board(
                 {
@@ -1689,7 +2003,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(review["summary"]["overdue_cards"], 1)
         self.assertGreaterEqual(review["summary"]["critical_cards"], 1)
         self.assertEqual(review["summary"]["stale_cards"], 3)
-        self.assertTrue(any(item["column_id"] == "inbox" and item["count"] == 3 for item in review["by_column"]))
+        self.assertTrue(
+            any(item["column_id"] == "inbox" and item["count"] == 3 for item in review["by_column"])
+        )
         self.assertTrue(any("перегружена" in item for item in review["alerts"]))
         self.assertEqual(review["priority_cards"][0]["card_id"], overdue_card["card"]["id"])
         self.assertIn("Просрочена", review["priority_cards"][0]["short_reason"])
@@ -1716,7 +2032,6 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(card.vehicle, "CAMRY 70")
         self.assertEqual(card.title, "НЕТ ЗАПУСКА")
 
-
     def test_explicit_empty_vehicle_preserves_title_with_separator(self) -> None:
         card = Card.from_dict(
             {
@@ -1740,7 +2055,12 @@ class CardServiceTests(unittest.TestCase):
         self.assertGreaterEqual(len(snapshot["cards"]), 10)
         self.assertGreaterEqual(len(snapshot["archive"]), 2)
         self.assertTrue(any(column["label"] == "ПРИЁМКА" for column in snapshot["columns"]))
-        self.assertTrue(any(card["vehicle"] == "CAMRY 70" and card["title"] == "НЕТ ЗАПУСКА" for card in snapshot["cards"]))
+        self.assertTrue(
+            any(
+                card["vehicle"] == "CAMRY 70" and card["title"] == "НЕТ ЗАПУСКА"
+                for card in snapshot["cards"]
+            )
+        )
         self.assertFalse(self.service.ensure_demo_board())
 
     def test_does_not_seed_demo_board_when_user_data_exists(self) -> None:
@@ -1961,7 +2281,10 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated["card"]["tag_items"][1]["color"], "green")
         events = self.service.get_card_log({"card_id": card_id})["events"]
         self.assertTrue(
-            any(event["action"] == "tag_color_changed" and "изменил цвет метки" in event["message"] for event in events)
+            any(
+                event["action"] == "tag_color_changed" and "изменил цвет метки" in event["message"]
+                for event in events
+            )
         )
 
     def test_rejects_more_than_three_tags(self) -> None:
@@ -1996,12 +2319,16 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(created["card"]["vehicle"], "Suzuki Swift 2014")
         self.assertEqual(created["card"]["vehicle_profile"]["vin"], "JSAZC72S001234567")
         self.assertEqual(created["card"]["vehicle_profile_compact"]["vin"], "JSAZC72S001234567")
-        self.assertEqual(created["card"]["vehicle_profile_compact"]["display_name"], "Suzuki Swift 2014")
+        self.assertEqual(
+            created["card"]["vehicle_profile_compact"]["display_name"], "Suzuki Swift 2014"
+        )
         self.assertIn("make_display", created["card"]["vehicle_profile"]["manual_fields"])
         self.assertIn("engine_code", created["card"]["vehicle_profile"]["manual_fields"])
 
     def test_update_card_stores_repair_order_and_persists_it(self) -> None:
-        cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
+        cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
         created = self.service.create_card(
             {
                 "vehicle": "KIA RIO",
@@ -2032,7 +2359,9 @@ class CardServiceTests(unittest.TestCase):
                         }
                     ],
                     "client_information": "Кратко объяснить клиенту объём работ и следующие шаги",
-                    "works": [{"name": "Замена масла", "quantity": "1", "price": "2500", "total": ""}],
+                    "works": [
+                        {"name": "Замена масла", "quantity": "1", "price": "2500", "total": ""}
+                    ],
                     "materials": [
                         {
                             "name": "Масло 5W-30",
@@ -2077,11 +2406,15 @@ class CardServiceTests(unittest.TestCase):
         self.assertTrue(order["has_taxes"])
         self.assertTrue(order["has_prepayment"])
 
-        reloaded = CardService(JsonStore(state_file=self.state_file, logger=self.logger), self.logger)
+        reloaded = CardService(
+            JsonStore(state_file=self.state_file, logger=self.logger), self.logger
+        )
         stored = reloaded.get_card({"card_id": card_id})["card"]["repair_order"]
         self.assertEqual(stored["number"], "1")
         self.assertEqual(stored["license_plate"], "А123АА124")
-        self.assertEqual(stored["client_information"], "Кратко объяснить клиенту объём работ и следующие шаги")
+        self.assertEqual(
+            stored["client_information"], "Кратко объяснить клиенту объём работ и следующие шаги"
+        )
         self.assertEqual(stored["works"][0]["quantity"], "1")
         self.assertEqual(stored["materials"][0]["catalog_number"], "08880-12345")
         self.assertEqual(stored["payment_method"], "cashless")
@@ -2096,9 +2429,15 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(stored["due_total"], "5095")
 
     def test_repair_order_cash_taxes_depend_on_selected_cashbox(self) -> None:
-        cashless_cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
-        cash_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
-        card_cashless = self.service.create_card({"vehicle": "AUDI A4", "title": "Диагностика", "deadline": {"hours": 2}})["card"]
+        cashless_cashbox = self.service.create_cashbox(
+            {"name": "Безналичный", "actor_name": "ADMIN"}
+        )["cashbox"]
+        cash_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
+        card_cashless = self.service.create_card(
+            {"vehicle": "AUDI A4", "title": "Диагностика", "deadline": {"hours": 2}}
+        )["card"]
         updated_cashless = self.service.update_card(
             {
                 "card_id": card_cashless["id"],
@@ -2154,8 +2493,12 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated_mixed["paid_total"], "1000")
         self.assertEqual(updated_mixed["due_total"], "150")
 
-        maria_cashbox = self.service.create_cashbox({"name": "Карта Мария", "actor_name": "ADMIN"})["cashbox"]
-        card_maria = self.service.create_card({"vehicle": "BMW X5", "title": "Осмотр", "deadline": {"hours": 2}})["card"]
+        maria_cashbox = self.service.create_cashbox({"name": "Карта Мария", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
+        card_maria = self.service.create_card(
+            {"vehicle": "BMW X5", "title": "Осмотр", "deadline": {"hours": 2}}
+        )["card"]
         updated_maria = self.service.update_card(
             {
                 "card_id": card_maria["id"],
@@ -2180,13 +2523,17 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated_maria["due_total"], "500")
 
     def test_repair_order_payment_summary_handles_cash_cashless_and_mixed_payments(self) -> None:
-        cashless_cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})["cashbox"]
-        cash_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        cashless_cashbox = self.service.create_cashbox(
+            {"name": "Безналичный", "actor_name": "ADMIN"}
+        )["cashbox"]
+        cash_cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
 
         def update_order(payments: list[dict[str, str]] | None = None) -> dict[str, str]:
-            created = self.service.create_card({"vehicle": "TOYOTA CAMRY", "title": "Сводка", "deadline": {"hours": 2}})[
-                "card"
-            ]
+            created = self.service.create_card(
+                {"vehicle": "TOYOTA CAMRY", "title": "Сводка", "deadline": {"hours": 2}}
+            )["card"]
             result = self.service.update_card(
                 {
                     "card_id": created["id"],
@@ -2323,11 +2670,17 @@ class CardServiceTests(unittest.TestCase):
                     self.assertEqual(summary[key], value)
                 self.assertEqual(order["subtotal_total"], "20000")
                 self.assertEqual(order["payment_summary"]["base_total"], order["subtotal_total"])
-                self.assertEqual(order["payment_summary"]["cash_due"], order["payment_summary"]["base_remaining"])
+                self.assertEqual(
+                    order["payment_summary"]["cash_due"], order["payment_summary"]["base_remaining"]
+                )
 
     def test_list_repair_orders_creates_text_files_and_sorts_by_latest_number(self) -> None:
-        first = self.service.create_card({"vehicle": "KIA RIO", "title": "Первый заказ", "deadline": {"hours": 2}})
-        second = self.service.create_card({"vehicle": "LADA VESTA", "title": "Второй заказ", "deadline": {"hours": 2}})
+        first = self.service.create_card(
+            {"vehicle": "KIA RIO", "title": "Первый заказ", "deadline": {"hours": 2}}
+        )
+        second = self.service.create_card(
+            {"vehicle": "LADA VESTA", "title": "Второй заказ", "deadline": {"hours": 2}}
+        )
 
         first_id = first["card"]["id"]
         second_id = second["card"]["id"]
@@ -2338,7 +2691,9 @@ class CardServiceTests(unittest.TestCase):
                 "repair_order": {
                     "client": "Иван",
                     "comment": "Первый текстовый заказ-наряд",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1000", "total": "1000"}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1000", "total": "1000"}
+                    ],
                 },
             }
         )
@@ -2348,7 +2703,9 @@ class CardServiceTests(unittest.TestCase):
                 "repair_order": {
                     "client": "Петр",
                     "comment": "Второй текстовый заказ-наряд",
-                    "materials": [{"name": "Масло", "quantity": "4", "price": "700", "total": "2800"}],
+                    "materials": [
+                        {"name": "Масло", "quantity": "4", "price": "700", "total": "2800"}
+                    ],
                 },
             }
         )
@@ -2385,7 +2742,14 @@ class CardServiceTests(unittest.TestCase):
                     "card_id": created["card"]["id"],
                     "repair_order": {
                         "client": f"Client {index}",
-                        "works": [{"name": f"Work {index}", "quantity": "1", "price": "1000", "total": "1000"}],
+                        "works": [
+                            {
+                                "name": f"Work {index}",
+                                "quantity": "1",
+                                "price": "1000",
+                                "total": "1000",
+                            }
+                        ],
                     },
                 }
             )
@@ -2404,19 +2768,29 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual([item["number"] for item in listed["repair_orders"]], ["3", "2"])
 
     def test_list_repair_orders_cleans_up_old_text_files_beyond_retention_limit(self) -> None:
-        first = self.service.create_card({"vehicle": "KIA RIO", "title": "Order one", "deadline": {"hours": 2}})
-        second = self.service.create_card({"vehicle": "LADA VESTA", "title": "Order two", "deadline": {"hours": 2}})
+        first = self.service.create_card(
+            {"vehicle": "KIA RIO", "title": "Order one", "deadline": {"hours": 2}}
+        )
+        second = self.service.create_card(
+            {"vehicle": "LADA VESTA", "title": "Order two", "deadline": {"hours": 2}}
+        )
 
         self.service.update_card(
             {
                 "card_id": first["card"]["id"],
-                "repair_order": {"client": "A", "works": [{"name": "W1", "quantity": "1", "price": "1", "total": "1"}]},
+                "repair_order": {
+                    "client": "A",
+                    "works": [{"name": "W1", "quantity": "1", "price": "1", "total": "1"}],
+                },
             }
         )
         self.service.update_card(
             {
                 "card_id": second["card"]["id"],
-                "repair_order": {"client": "B", "works": [{"name": "W2", "quantity": "1", "price": "2", "total": "2"}]},
+                "repair_order": {
+                    "client": "B",
+                    "works": [{"name": "W2", "quantity": "1", "price": "2", "total": "2"}],
+                },
             }
         )
 
@@ -2446,7 +2820,9 @@ class CardServiceTests(unittest.TestCase):
                 "card_id": card_id,
                 "repair_order": {
                     "client": "Иван",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1000", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1000", "total": ""}
+                    ],
                 },
             }
         )
@@ -2463,15 +2839,21 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated["card"]["repair_order"]["number"], "1")
 
     def test_list_repair_orders_separates_open_and_closed_orders(self) -> None:
-        first = self.service.create_card({"vehicle": "KIA RIO", "title": "Open order", "deadline": {"hours": 2}})
-        second = self.service.create_card({"vehicle": "LADA VESTA", "title": "Closed order", "deadline": {"hours": 2}})
+        first = self.service.create_card(
+            {"vehicle": "KIA RIO", "title": "Open order", "deadline": {"hours": 2}}
+        )
+        second = self.service.create_card(
+            {"vehicle": "LADA VESTA", "title": "Closed order", "deadline": {"hours": 2}}
+        )
 
         self.service.update_card(
             {
                 "card_id": first["card"]["id"],
                 "repair_order": {
                     "client": "Иван",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1000", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1000", "total": ""}
+                    ],
                 },
             }
         )
@@ -2480,7 +2862,9 @@ class CardServiceTests(unittest.TestCase):
                 "card_id": second["card"]["id"],
                 "repair_order": {
                     "client": "Пётр",
-                    "payments": [{"amount": "2000", "paid_at": "06.04.2026 12:00", "payment_method": "cash"}],
+                    "payments": [
+                        {"amount": "2000", "paid_at": "06.04.2026 12:00", "payment_method": "cash"}
+                    ],
                     "works": [{"name": "Ремонт", "quantity": "1", "price": "2000", "total": ""}],
                 },
             }
@@ -2494,25 +2878,40 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(active["meta"]["status"], "open")
         self.assertEqual(active["meta"]["active_total"], 1)
         self.assertEqual(active["meta"]["archived_total"], 1)
-        self.assertEqual([item["card_id"] for item in active["repair_orders"]], [first["card"]["id"]])
+        self.assertEqual(
+            [item["card_id"] for item in active["repair_orders"]], [first["card"]["id"]]
+        )
 
         self.assertEqual(archived["meta"]["status"], "closed")
-        self.assertEqual([item["card_id"] for item in archived["repair_orders"]], [second["card"]["id"]])
+        self.assertEqual(
+            [item["card_id"] for item in archived["repair_orders"]], [second["card"]["id"]]
+        )
         self.assertEqual(archived["repair_orders"][0]["status"], "closed")
 
         self.assertEqual(all_orders["meta"]["total"], 2)
         self.assertEqual(all_orders["repair_orders"][0]["card_id"], second["card"]["id"])
 
     def test_repair_order_numbers_follow_card_open_time_not_update_order(self) -> None:
-        first = self.service.create_card({"vehicle": "KIA RIO", "title": "First card", "deadline": {"hours": 2}})
-        second = self.service.create_card({"vehicle": "LADA VESTA", "title": "Second card", "deadline": {"hours": 2}})
+        first = self.service.create_card(
+            {"vehicle": "KIA RIO", "title": "First card", "deadline": {"hours": 2}}
+        )
+        second = self.service.create_card(
+            {"vehicle": "LADA VESTA", "title": "Second card", "deadline": {"hours": 2}}
+        )
 
         self.service.update_card(
             {
                 "card_id": second["card"]["id"],
                 "repair_order": {
                     "client": "Пётр",
-                    "works": [{"name": "Поздняя в списке первая", "quantity": "1", "price": "1000", "total": ""}],
+                    "works": [
+                        {
+                            "name": "Поздняя в списке первая",
+                            "quantity": "1",
+                            "price": "1000",
+                            "total": "",
+                        }
+                    ],
                 },
             }
         )
@@ -2521,7 +2920,14 @@ class CardServiceTests(unittest.TestCase):
                 "card_id": first["card"]["id"],
                 "repair_order": {
                     "client": "Иван",
-                    "works": [{"name": "Хронологически первая карточка", "quantity": "1", "price": "1000", "total": ""}],
+                    "works": [
+                        {
+                            "name": "Хронологически первая карточка",
+                            "quantity": "1",
+                            "price": "1000",
+                            "total": "",
+                        }
+                    ],
                 },
             }
         )
@@ -2533,8 +2939,12 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(by_card_id[second["card"]["id"]]["number"], "2")
 
     def test_list_repair_orders_supports_query_sort_and_tags(self) -> None:
-        first = self.service.create_card({"vehicle": "Audi A6", "title": "Диагностика DSG", "deadline": {"hours": 2}})
-        second = self.service.create_card({"vehicle": "BMW X5", "title": "Замена масла", "deadline": {"hours": 2}})
+        first = self.service.create_card(
+            {"vehicle": "Audi A6", "title": "Диагностика DSG", "deadline": {"hours": 2}}
+        )
+        second = self.service.create_card(
+            {"vehicle": "BMW X5", "title": "Замена масла", "deadline": {"hours": 2}}
+        )
 
         self.service.update_repair_order(
             {
@@ -2547,7 +2957,9 @@ class CardServiceTests(unittest.TestCase):
                         {"label": "Срочно", "color": "yellow"},
                         {"label": "DSG", "color": "green"},
                     ],
-                    "works": [{"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}
+                    ],
                 },
             }
         )
@@ -2558,7 +2970,9 @@ class CardServiceTests(unittest.TestCase):
                     "client": "Петр Петров",
                     "phone": "+7 901 000-11-22",
                     "comment": "Стандартное ТО",
-                    "works": [{"name": "Замена масла", "quantity": "1", "price": "1500", "total": ""}],
+                    "works": [
+                        {"name": "Замена масла", "quantity": "1", "price": "1500", "total": ""}
+                    ],
                 },
             }
         )
@@ -2586,7 +3000,9 @@ class CardServiceTests(unittest.TestCase):
             ],
         )
 
-        ordered = self.service.list_repair_orders({"status": "all", "sort_by": "number", "sort_dir": "asc"})
+        ordered = self.service.list_repair_orders(
+            {"status": "all", "sort_by": "number", "sort_dir": "asc"}
+        )
         self.assertEqual([item["number"] for item in ordered["repair_orders"]], ["1", "2"])
 
     def test_archived_card_retention_cleans_up_orphan_attachment_directories(self) -> None:
@@ -2594,8 +3010,12 @@ class CardServiceTests(unittest.TestCase):
         service = CardService(self.store, self.logger, attachments_dir=attachments_dir)
 
         with patch("minimal_kanban.storage.json_store.ARCHIVED_CARD_RETENTION_LIMIT", 1):
-            first = service.create_card({"vehicle": "KIA RIO", "title": "Archive one", "deadline": {"hours": 2}})
-            second = service.create_card({"vehicle": "LADA VESTA", "title": "Archive two", "deadline": {"hours": 2}})
+            first = service.create_card(
+                {"vehicle": "KIA RIO", "title": "Archive one", "deadline": {"hours": 2}}
+            )
+            second = service.create_card(
+                {"vehicle": "LADA VESTA", "title": "Archive two", "deadline": {"hours": 2}}
+            )
 
             service.add_card_attachment(
                 {
@@ -2630,7 +3050,9 @@ class CardServiceTests(unittest.TestCase):
     def test_remove_card_attachment_deletes_file_and_empty_card_directory(self) -> None:
         attachments_dir = Path(self.temp_dir.name) / "attachments"
         service = CardService(self.store, self.logger, attachments_dir=attachments_dir)
-        created = service.create_card({"vehicle": "KIA RIO", "title": "Attachment remove", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "KIA RIO", "title": "Attachment remove", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
 
         added = service.add_card_attachment(
@@ -2647,7 +3069,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertTrue(file_path.exists())
         self.assertTrue(file_path.parent.exists())
 
-        removed = service.remove_card_attachment({"card_id": card_id, "attachment_id": attachment_id})
+        removed = service.remove_card_attachment(
+            {"card_id": card_id, "attachment_id": attachment_id}
+        )
 
         self.assertFalse(file_path.exists())
         self.assertFalse(file_path.parent.exists())
@@ -2655,15 +3079,25 @@ class CardServiceTests(unittest.TestCase):
 
     def test_allowed_attachment_roundtrip_preserves_name_mime_and_bytes(self) -> None:
         service = self._build_service()
-        created = service.create_card({"vehicle": "KIA RIO", "title": "Attachment roundtrip", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "KIA RIO", "title": "Attachment roundtrip", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
         samples = [
             ("клиент фото.png", "image/png", PNG_1X1_BYTES),
             ("клиент фото.jpg", "image/jpeg", JPEG_1X1_BYTES),
             ("клиент фото.jpeg", "image/jpeg", JPEG_1X1_BYTES),
             ("preview.gif", "image/gif", GIF_1X1_BYTES),
-            ("report.final.v1.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", minimal_docx_bytes()),
-            ("report.final.v1.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", minimal_xlsx_bytes()),
+            (
+                "report.final.v1.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                minimal_docx_bytes(),
+            ),
+            (
+                "report.final.v1.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                minimal_xlsx_bytes(),
+            ),
             ("диагностика финал.txt", "text/plain", minimal_text_bytes()),
             ("счёт.final copy.pdf", "application/pdf", minimal_pdf_bytes()),
         ]
@@ -2689,7 +3123,9 @@ class CardServiceTests(unittest.TestCase):
 
     def test_attachment_upload_generates_safe_name_for_missing_clipboard_image_name(self) -> None:
         service = self._build_service()
-        created = service.create_card({"vehicle": "BMW", "title": "Clipboard image", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "BMW", "title": "Clipboard image", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
 
         added = service.add_card_attachment(
@@ -2708,7 +3144,9 @@ class CardServiceTests(unittest.TestCase):
 
     def test_attachment_long_file_name_keeps_pdf_extension_after_truncation(self) -> None:
         service = self._build_service()
-        created = service.create_card({"vehicle": "BMW", "title": "Long attachment name", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "BMW", "title": "Long attachment name", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
         long_file_name = ("очень длинное имя файла." * 20) + "pdf"
 
@@ -2725,9 +3163,13 @@ class CardServiceTests(unittest.TestCase):
         self.assertLessEqual(len(attachment["file_name"]), 240)
         self.assertTrue(attachment["file_name"].endswith(".pdf"))
 
-    def test_attachment_upload_rejects_disallowed_extensions_double_extensions_and_fake_mime(self) -> None:
+    def test_attachment_upload_rejects_disallowed_extensions_double_extensions_and_fake_mime(
+        self,
+    ) -> None:
         service = self._build_service()
-        created = service.create_card({"vehicle": "KIA RIO", "title": "Attachment validation", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "KIA RIO", "title": "Attachment validation", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
         cases = [
             ("payload.exe", "application/x-msdownload", b"MZ\x90\x00", "Разрешены только"),
@@ -2752,7 +3194,9 @@ class CardServiceTests(unittest.TestCase):
 
     def test_attachment_download_repairs_legacy_extension_mime_and_storage_name(self) -> None:
         service = self._build_service()
-        created = service.create_card({"vehicle": "AUDI", "title": "Legacy attachment", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "AUDI", "title": "Legacy attachment", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
         payload = minimal_pdf_bytes()
         added = service.add_card_attachment(
@@ -2793,7 +3237,9 @@ class CardServiceTests(unittest.TestCase):
 
     def test_attachment_persistence_survives_service_restart(self) -> None:
         service = self._build_service()
-        created = service.create_card({"vehicle": "VW", "title": "Attachment persistence", "deadline": {"hours": 2}})
+        created = service.create_card(
+            {"vehicle": "VW", "title": "Attachment persistence", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
         payload = minimal_docx_bytes("Persistence check")
         added = service.add_card_attachment(
@@ -2808,10 +3254,15 @@ class CardServiceTests(unittest.TestCase):
         restarted = self._build_service()
         card = restarted.get_card({"card_id": card_id})["card"]
         attachment = card["attachments"][0]
-        repaired_path, repaired_attachment = restarted.get_attachment_download(card_id, added["attachment"]["id"])
+        repaired_path, repaired_attachment = restarted.get_attachment_download(
+            card_id, added["attachment"]["id"]
+        )
 
         self.assertEqual(attachment["file_name"], "Persistence финал.docx")
-        self.assertEqual(attachment["mime_type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.assertEqual(
+            attachment["mime_type"],
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
         self.assertEqual(repaired_attachment.file_name, "Persistence финал.docx")
         self.assertEqual(repaired_path.read_bytes(), payload)
 
@@ -2830,7 +3281,9 @@ class CardServiceTests(unittest.TestCase):
                 "card_id": card_id,
                 "repair_order": {
                     "client": "Иван Иванов",
-                    "works": [{"name": "Диагностика", "quantity": "1", "price": "1200", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика", "quantity": "1", "price": "1200", "total": ""}
+                    ],
                 },
             }
         )
@@ -2849,7 +3302,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertIn("К доплате: 1200", context["repair_order_text"]["text"])
 
     def test_repair_order_patch_and_row_replacement_tools_update_order(self) -> None:
-        created = self.service.create_card({"vehicle": "KIA RIO", "title": "Ремонт", "deadline": {"hours": 2}})
+        created = self.service.create_card(
+            {"vehicle": "KIA RIO", "title": "Ремонт", "deadline": {"hours": 2}}
+        )
         card_id = created["card"]["id"]
 
         patched = self.service.update_repair_order(
@@ -2905,7 +3360,9 @@ class CardServiceTests(unittest.TestCase):
                     "client": "Иван Иванов",
                     "phone": "+7 900 123-45-67",
                     "license_plate": "В003НК124",
-                    "works": [{"name": "Диагностика АКПП", "quantity": "1", "price": "2000", "total": ""}],
+                    "works": [
+                        {"name": "Диагностика АКПП", "quantity": "1", "price": "2000", "total": ""}
+                    ],
                 },
             }
         )
@@ -2963,7 +3420,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(order["works"][0]["quantity"], "1")
         self.assertEqual(order["materials"][0]["name"], "ATF")
 
-    def test_autofill_repair_order_extracts_structured_rows_and_client_summary_from_text(self) -> None:
+    def test_autofill_repair_order_extracts_structured_rows_and_client_summary_from_text(
+        self,
+    ) -> None:
         created = self.service.create_card(
             {
                 "vehicle": "Volkswagen Tiguan II",
@@ -2998,8 +3457,14 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(order["vin"], "WVWZZZ1KZBP123456")
         self.assertEqual(order["mileage"], "145000")
         self.assertIn("пинки dsg", order["reason"].lower())
-        self.assertEqual([row["name"] for row in order["works"][:3]], ["Диагностика DSG", "Адаптация DSG", "Замена масла АКПП"])
-        self.assertEqual([row["name"] for row in order["materials"][:3]], ["ATF", "Фильтр АКПП", "Прокладка поддона"])
+        self.assertEqual(
+            [row["name"] for row in order["works"][:3]],
+            ["Диагностика DSG", "Адаптация DSG", "Замена масла АКПП"],
+        )
+        self.assertEqual(
+            [row["name"] for row in order["materials"][:3]],
+            ["ATF", "Фильтр АКПП", "Прокладка поддона"],
+        )
         self.assertEqual(order["materials"][0]["quantity"], "6")
         self.assertEqual(order["materials"][1]["quantity"], "1")
         self.assertIn("Клиент обратился с запросом", order["client_information"])
@@ -3024,8 +3489,17 @@ class CardServiceTests(unittest.TestCase):
                     "card_id": created["card"]["id"],
                     "repair_order": {
                         "client": "Иван Иванов",
-                        "works": [{"name": "Диагностика DSG", "quantity": "1", "price": "2500", "total": ""}],
-                        "materials": [{"name": "ATF", "quantity": "6", "price": "950", "total": ""}],
+                        "works": [
+                            {
+                                "name": "Диагностика DSG",
+                                "quantity": "1",
+                                "price": "2500",
+                                "total": "",
+                            }
+                        ],
+                        "materials": [
+                            {"name": "ATF", "quantity": "6", "price": "950", "total": ""}
+                        ],
                     },
                 }
             )
@@ -3090,7 +3564,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(by_engine["cards"][0]["id"], card_id)
         self.assertIn("engine_code", by_engine["cards"][0]["match"]["fields"])
 
-    def test_autofill_vehicle_data_preserves_manual_fields_and_enriches_missing_values(self) -> None:
+    def test_autofill_vehicle_data_preserves_manual_fields_and_enriches_missing_values(
+        self,
+    ) -> None:
         with patch.object(
             self.service._vehicle_profiles,
             "_enrich_from_vin_decode",
@@ -3105,7 +3581,9 @@ class CardServiceTests(unittest.TestCase):
                         "gearbox_model": "official_vin_decode_nhtsa",
                         "gearbox_type": "official_vin_decode_nhtsa",
                     },
-                    "source_links_or_refs": ["vin:https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended"],
+                    "source_links_or_refs": [
+                        "vin:https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended"
+                    ],
                 }
             ),
         ):
@@ -3117,7 +3595,12 @@ class CardServiceTests(unittest.TestCase):
                         "model_display": "Swift",
                         "production_year": 2014,
                         "engine_code": "CUSTOM-ENGINE",
-                        "manual_fields": ["engine_code", "make_display", "model_display", "production_year"],
+                        "manual_fields": [
+                            "engine_code",
+                            "make_display",
+                            "model_display",
+                            "production_year",
+                        ],
                     },
                     "explicit_description": "Клиент жалуется на стук спереди",
                 }
@@ -3133,7 +3616,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(autofilled["card_draft"]["vehicle"], "Suzuki Swift 2014")
 
     def test_autofill_vehicle_data_extracts_contact_platform_and_transmission_details(self) -> None:
-        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None):
+        with patch.object(
+            self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None
+        ):
             autofilled = self.service.autofill_vehicle_data(
                 {
                     "raw_text": (
@@ -3177,7 +3662,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(autofilled["vehicle_profile"]["model_display"], "Camry")
 
     def test_autofill_vehicle_data_uses_card_fields_when_raw_text_is_empty(self) -> None:
-        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None):
+        with patch.object(
+            self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None
+        ):
             autofilled = self.service.autofill_vehicle_data(
                 {
                     "vehicle": "Suzuki Swift 2014",
@@ -3196,8 +3683,12 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(profile["gearbox_model"], "Aisin")
         self.assertEqual(profile["drivetrain"], "FWD")
 
-    def test_autofill_vehicle_data_skips_vin_decode_when_text_already_identifies_vehicle(self) -> None:
-        with patch.object(self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None) as enrich:
+    def test_autofill_vehicle_data_skips_vin_decode_when_text_already_identifies_vehicle(
+        self,
+    ) -> None:
+        with patch.object(
+            self.service._vehicle_profiles, "_enrich_from_vin_decode", return_value=None
+        ) as enrich:
             autofilled = self.service.autofill_vehicle_data(
                 {
                     "raw_text": "Mazda CX 5 2019 VIN JM3KF123456789012",
@@ -3223,7 +3714,12 @@ class CardServiceTests(unittest.TestCase):
                     "vin": "JM3KF123456789012",
                     "source_summary": "VIN decoded",
                     "source_confidence": 0.91,
-                    "autofilled_fields": ["make_display", "model_display", "production_year", "vin"],
+                    "autofilled_fields": [
+                        "make_display",
+                        "model_display",
+                        "production_year",
+                        "vin",
+                    ],
                 }
             ),
         ) as enrich:
@@ -3243,10 +3739,33 @@ class CardServiceTests(unittest.TestCase):
         created_column = self.service.create_column({"label": "MCP TEST COLUMN"})
         target_column = created_column["column"]["id"]
 
-        first = self.service.create_card({"vehicle": "CAR-1", "title": "Bulk one", "column": "inbox", "deadline": {"hours": 3}})
-        second = self.service.create_card({"vehicle": "CAR-2", "title": "Bulk two", "column": "in_progress", "deadline": {"hours": 3}})
-        already_there = self.service.create_card({"vehicle": "CAR-3", "title": "Bulk three", "column": target_column, "deadline": {"hours": 3}})
-        archived = self.service.create_card({"vehicle": "CAR-4", "title": "Bulk archived", "column": "done", "deadline": {"hours": 3}})
+        first = self.service.create_card(
+            {"vehicle": "CAR-1", "title": "Bulk one", "column": "inbox", "deadline": {"hours": 3}}
+        )
+        second = self.service.create_card(
+            {
+                "vehicle": "CAR-2",
+                "title": "Bulk two",
+                "column": "in_progress",
+                "deadline": {"hours": 3},
+            }
+        )
+        already_there = self.service.create_card(
+            {
+                "vehicle": "CAR-3",
+                "title": "Bulk three",
+                "column": target_column,
+                "deadline": {"hours": 3},
+            }
+        )
+        archived = self.service.create_card(
+            {
+                "vehicle": "CAR-4",
+                "title": "Bulk archived",
+                "column": "done",
+                "deadline": {"hours": 3},
+            }
+        )
         self.service.archive_card({"card_id": archived["card"]["id"]})
 
         moved = self.service.bulk_move_cards(
@@ -3271,9 +3790,21 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(moved["meta"]["errors"], 2)
         self.assertTrue(moved["meta"]["partial_failure"])
         self.assertTrue(all(card["column"] == target_column for card in moved["moved_cards"]))
-        self.assertTrue(any(card["id"] == already_there["card"]["id"] for card in moved["unchanged_cards"]))
-        self.assertTrue(any(item["card_id"] == archived["card"]["id"] and item["code"] == "archived_card" for item in moved["errors"]))
-        self.assertTrue(any(item["card_id"] == "missing-card" and item["code"] == "not_found" for item in moved["errors"]))
+        self.assertTrue(
+            any(card["id"] == already_there["card"]["id"] for card in moved["unchanged_cards"])
+        )
+        self.assertTrue(
+            any(
+                item["card_id"] == archived["card"]["id"] and item["code"] == "archived_card"
+                for item in moved["errors"]
+            )
+        )
+        self.assertTrue(
+            any(
+                item["card_id"] == "missing-card" and item["code"] == "not_found"
+                for item in moved["errors"]
+            )
+        )
 
         first_after = self.service.get_card({"card_id": first["card"]["id"]})["card"]
         second_after = self.service.get_card({"card_id": second["card"]["id"]})["card"]
@@ -3300,7 +3831,14 @@ class CardServiceTests(unittest.TestCase):
             )
             card_ids.append(created["card"]["id"])
 
-        moved = self.service.bulk_move_cards({"card_ids": card_ids, "column": target_column, "actor_name": "MCP TEST", "source": "mcp"})
+        moved = self.service.bulk_move_cards(
+            {
+                "card_ids": card_ids,
+                "column": target_column,
+                "actor_name": "MCP TEST",
+                "source": "mcp",
+            }
+        )
 
         self.assertEqual(moved["meta"]["requested"], 24)
         self.assertEqual(moved["meta"]["moved"], 24)
@@ -3310,7 +3848,13 @@ class CardServiceTests(unittest.TestCase):
         snapshot_cards = self.service.get_cards()["cards"]
         moved_ids = {card["id"] for card in moved["moved_cards"]}
         self.assertEqual(moved_ids, set(card_ids))
-        self.assertTrue(all(card["column"] == target_column for card in snapshot_cards if card["id"] in moved_ids))
+        self.assertTrue(
+            all(
+                card["column"] == target_column
+                for card in snapshot_cards
+                if card["id"] in moved_ids
+            )
+        )
 
     def test_board_settings_are_exported_in_snapshot(self) -> None:
         snapshot = self.service.get_board_snapshot()
@@ -3319,7 +3863,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(snapshot["settings"]["board_scale"], 1.0)
 
     def test_board_scale_updates_are_saved_and_audited(self) -> None:
-        updated = self.service.update_board_settings({"board_scale": 1.25, "actor_name": "ОПЕРАТОР"})
+        updated = self.service.update_board_settings(
+            {"board_scale": 1.25, "actor_name": "ОПЕРАТОР"}
+        )
         snapshot = self.service.get_board_snapshot()
         events = self.store.read_bundle()["events"]
 
@@ -3347,7 +3893,10 @@ class CardServiceTests(unittest.TestCase):
             updated["settings"]["ai_board_control"],
             {"enabled": True, "interval_minutes": 30, "cooldown_minutes": 90},
         )
-        self.assertEqual(updated["meta"]["previous_ai_board_control"], {"enabled": False, "interval_minutes": 20, "cooldown_minutes": 60})
+        self.assertEqual(
+            updated["meta"]["previous_ai_board_control"],
+            {"enabled": False, "interval_minutes": 20, "cooldown_minutes": 60},
+        )
         self.assertTrue(updated["meta"]["board_control_changed"])
         self.assertEqual(
             snapshot["settings"]["ai_board_control"],
@@ -3379,7 +3928,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertTrue(any(item["id"] == sticky_id for item in snapshot["stickies"]))
         self.assertGreater(snapshot["meta"]["stickies_total"], 0)
 
-        moved = self.service.move_sticky({"sticky_id": sticky_id, "x": 240, "y": 160, "actor_name": "МАСТЕР", "source": "api"})
+        moved = self.service.move_sticky(
+            {"sticky_id": sticky_id, "x": 240, "y": 160, "actor_name": "МАСТЕР", "source": "api"}
+        )
         self.assertEqual(moved["sticky"]["x"], 240)
         self.assertEqual(moved["sticky"]["y"], 160)
 
@@ -3394,7 +3945,9 @@ class CardServiceTests(unittest.TestCase):
         )
         self.assertIn("после замены", updated["sticky"]["text"])
 
-        deleted = self.service.delete_sticky({"sticky_id": sticky_id, "actor_name": "МАСТЕР", "source": "api"})
+        deleted = self.service.delete_sticky(
+            {"sticky_id": sticky_id, "actor_name": "МАСТЕР", "source": "api"}
+        )
         self.assertTrue(deleted["deleted"])
         self.assertFalse(any(item["id"] == sticky_id for item in deleted["stickies"]))
 
@@ -3431,10 +3984,11 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(updated["sticky"]["id"], sticky_id)
         self.assertIn("после согласования", updated["sticky"]["text"])
 
-        deleted = self.service.delete_sticky({"sticky_id": sticky_short_id, "actor_name": "МАСТЕР", "source": "api"})
+        deleted = self.service.delete_sticky(
+            {"sticky_id": sticky_short_id, "actor_name": "МАСТЕР", "source": "api"}
+        )
         self.assertTrue(deleted["deleted"])
         self.assertFalse(any(item["id"] == sticky_id for item in deleted["stickies"]))
-
 
     def test_gpt_wall_returns_full_context_layer(self) -> None:
         created = self.service.create_card(
@@ -3450,11 +4004,15 @@ class CardServiceTests(unittest.TestCase):
         )
         card_id = created["card"]["id"]
         card_short_id = created["card"]["short_id"]
-        self.service.move_card({"card_id": card_id, "column": "in_progress", "actor_name": "МАСТЕР", "source": "api"})
+        self.service.move_card(
+            {"card_id": card_id, "column": "in_progress", "actor_name": "МАСТЕР", "source": "api"}
+        )
 
         self.service.archive_card({"card_id": card_id, "actor_name": "MASTER", "source": "api"})
         wall = self.service.get_gpt_wall({"include_archived": True, "event_limit": 50})
-        searched = self.service.search_cards({"query": card_short_id, "limit": 5, "include_archived": True})
+        searched = self.service.search_cards(
+            {"query": card_short_id, "limit": 5, "include_archived": True}
+        )
 
         self.assertIn("text", wall)
         self.assertIn("board_context", wall)
@@ -3468,10 +4026,18 @@ class CardServiceTests(unittest.TestCase):
         self.assertFalse(wall_card["vehicle_profile_compact"]["has_any_data"])
         self.assertTrue(any(event["card_id"] == card_id for event in wall["events"]))
         self.assertIn(card_short_id, wall["sections"]["board_content"]["text"])
-        self.assertTrue(any(event["card_id"] == card_id for event in wall["sections"]["event_log"]["events"]))
-        self.assertEqual(wall["board_context"]["context"]["board_scope"], "single_local_board_instance")
-        self.assertEqual(wall["meta"]["active_cards"], wall["board_context"]["context"]["active_cards_total"])
-        self.assertEqual(wall["meta"]["archived_cards"], wall["board_context"]["context"]["archived_cards_total"])
+        self.assertTrue(
+            any(event["card_id"] == card_id for event in wall["sections"]["event_log"]["events"])
+        )
+        self.assertEqual(
+            wall["board_context"]["context"]["board_scope"], "single_local_board_instance"
+        )
+        self.assertEqual(
+            wall["meta"]["active_cards"], wall["board_context"]["context"]["active_cards_total"]
+        )
+        self.assertEqual(
+            wall["meta"]["archived_cards"], wall["board_context"]["context"]["archived_cards_total"]
+        )
         self.assertEqual(searched["cards"][0]["id"], card_id)
         self.assertIn("short_id: " + card_short_id, wall["text"])
         self.assertIn(card_short_id, wall["sections"]["event_log"]["text"])
@@ -3564,7 +4130,6 @@ class CardServiceTests(unittest.TestCase):
         self.assertIn("клиент / телефон: +7 900 123-45-67", wall["text"])
         self.assertIn("клиент / ФИО: Иван Иванов", wall["text"])
 
-
     def test_gpt_wall_text_is_limited_to_3000_lines(self) -> None:
         created = self.service.create_card(
             {
@@ -3638,7 +4203,9 @@ class CardServiceTests(unittest.TestCase):
         self.assertGreaterEqual(context["context"]["columns_total"], 1)
         self.assertEqual(context["context"]["stickies_total"], 1)
         self.assertTrue(any(column["id"] == column_id for column in context["context"]["columns"]))
-        body_column = next(column for column in context["context"]["columns"] if column["id"] == column_id)
+        body_column = next(
+            column for column in context["context"]["columns"] if column["id"] == column_id
+        )
         self.assertEqual(body_column["active_cards"], 1)
         self.assertEqual(body_column["archived_cards"], 0)
         self.assertIn("[BOARD CONTEXT]", context["text"])

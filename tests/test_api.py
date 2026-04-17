@@ -200,6 +200,101 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("СУТЬ", cleaned["data"]["card"]["description"])
         self.assertEqual(cleaned["data"]["card"]["vehicle_profile"]["customer_name"], "Иван Иванов")
 
+    def test_agent_routes_and_full_enrichment_launch_when_agent_is_attached(self) -> None:
+        agent_status_payload = {
+            "agent": {
+                "name": "AUTOSTOP SERVER AGENT",
+                "enabled": True,
+                "available": True,
+                "ready": True,
+                "availability_reason": "worker_running",
+                "configured": True,
+                "model": "gpt-test",
+                "board_api_url": self.base_url,
+            },
+            "ai_remodel": {},
+            "board_control": {},
+            "worker": {
+                "embedded": True,
+                "running": True,
+                "heartbeat_fresh": True,
+            },
+            "scheduler": {
+                "last_run_at": "",
+                "last_success_at": "",
+                "last_error": "",
+            },
+            "status": {
+                "running": True,
+                "current_task_id": None,
+                "current_run_id": None,
+                "last_heartbeat": utc_now().isoformat(),
+                "last_run_started_at": "",
+                "last_run_finished_at": "",
+                "last_error": "",
+                "last_scheduler_run_at": "",
+                "last_scheduler_success_at": "",
+                "last_scheduler_error": "",
+                "board_control": {},
+            },
+            "queue": {"pending_total": 0, "running_total": 0},
+            "scheduled": {"total": 0, "active_total": 0, "paused_total": 0},
+            "recent_runs": [],
+        }
+        agent_control = Mock()
+        agent_control.agent_status.return_value = agent_status_payload
+        agent_control.agent_tasks.return_value = {
+            "tasks": [],
+            "meta": {"limit": 20, "statuses": []},
+        }
+        agent_control.agent_actions.return_value = {
+            "actions": [],
+            "meta": {"limit": 80, "run_id": None, "task_id": None},
+        }
+        agent_control.agent_scheduled_tasks.return_value = {"tasks": [], "meta": {"total": 0}}
+        agent_control.enqueue_card_autofill_task.return_value = {
+            "id": "task-123",
+            "created_at": utc_now().isoformat(),
+            "status": "pending",
+        }
+        self.service.attach_agent_control(agent_control)
+
+        status, agent_status = self.request("/api/agent_status", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(agent_status["ok"])
+        self.assertTrue(agent_status["data"]["agent"]["enabled"])
+        self.assertEqual(agent_status["data"]["agent"]["model"], "gpt-test")
+
+        status, agent_tasks = self.request("/api/agent_tasks?limit=20", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(agent_tasks["ok"])
+        self.assertEqual(agent_tasks["data"]["meta"]["limit"], 20)
+
+        status, agent_scheduled = self.request("/api/agent_scheduled_tasks", method="GET")
+        self.assertEqual(status, 200)
+        self.assertTrue(agent_scheduled["ok"])
+
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "title": "AI карточка",
+                "description": "VIN: WAUZZZ8V0JA000001\nПроверить радиатор",
+                "deadline": {"hours": 2},
+            },
+        )
+        self.assertEqual(status, 200)
+        card_id = created["data"]["card"]["id"]
+
+        status, launched = self.request(
+            "/api/run_full_card_enrichment",
+            {"card_id": card_id, "actor_name": "AI", "context_packet": {"kind": "compact_context"}},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(launched["ok"])
+        self.assertTrue(launched["data"]["meta"]["launched"])
+        self.assertEqual(launched["data"]["meta"]["task_id"], "task-123")
+        agent_control.enqueue_card_autofill_task.assert_called()
+
     def test_head_root_and_health_are_supported(self) -> None:
         parsed = urlsplit(self.base_url)
         connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)

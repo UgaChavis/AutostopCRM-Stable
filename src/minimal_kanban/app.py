@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import replace
-from hashlib import sha1
 import os
 import socket
 import sys
 import traceback
+from dataclasses import replace
+from hashlib import sha1
 
 
 def _suppress_error_dialogs() -> bool:
@@ -142,18 +142,21 @@ def run() -> int:
 
     logger = None
     api_server = None
+    agent_control = None
     mcp_controller = None
     tunnel_controller = None
     try:
         update_splash("Загружаю модули...")
+        from .agent.control import AgentControlService
+        from .agent.storage import AgentStorage
         from .api.server import ApiServer
         from .config import get_api_bearer_token, get_api_host, get_api_port
         from .integration_runtime import McpRuntimeController
         from .logging_setup import close_logger, configure_logging
         from .operator_auth import OperatorAuthService
+        from .services.card_service import CardService
         from .settings_service import SettingsService
         from .settings_store import SettingsStore
-        from .services.card_service import CardService
         from .storage.json_store import JsonStore
         from .tunnel_runtime import TunnelRuntimeController
         from .ui.main_window import MainWindow
@@ -162,6 +165,9 @@ def run() -> int:
         logger = configure_logging()
         store = JsonStore(logger=logger)
         service = CardService(store, logger)
+        agent_storage = AgentStorage()
+        agent_control = AgentControlService(agent_storage)
+        service.attach_agent_control(agent_control)
         operator_service = OperatorAuthService(store, service, logger=logger)
         settings_store = SettingsStore(logger=logger)
         settings_service = SettingsService(settings_store, logger)
@@ -174,14 +180,25 @@ def run() -> int:
             logger.exception("failed_to_seed_demo_board error=%s", exc)
 
         host_from_env = os.environ.get("MINIMAL_KANBAN_API_HOST")
-        api_host = get_api_host() if host_from_env is not None else settings.local_api.local_api_host
+        api_host = (
+            get_api_host() if host_from_env is not None else settings.local_api.local_api_host
+        )
         if host_from_env is None and api_host in {"127.0.0.1", "localhost"}:
             api_host = "0.0.0.0"
-        api_port = get_api_port() if os.environ.get("MINIMAL_KANBAN_API_PORT") is not None else settings.local_api.local_api_port
+        api_port = (
+            get_api_port()
+            if os.environ.get("MINIMAL_KANBAN_API_PORT") is not None
+            else settings.local_api.local_api_port
+        )
         if os.environ.get("MINIMAL_KANBAN_API_BEARER_TOKEN") is not None:
             api_bearer_token = get_api_bearer_token()
         elif settings.local_api.local_api_auth_mode == "bearer":
-            api_bearer_token = settings.local_api.local_api_bearer_token or settings.auth.local_api_bearer_token or settings.auth.access_token or None
+            api_bearer_token = (
+                settings.local_api.local_api_bearer_token
+                or settings.auth.local_api_bearer_token
+                or settings.auth.access_token
+                or None
+            )
         else:
             api_bearer_token = None
 
@@ -252,6 +269,8 @@ def run() -> int:
                 tunnel_controller.stop()
             else:
                 tunnel_controller.preserve_for_reuse()
+        if agent_control is not None:
+            agent_control.close()
         if mcp_controller is not None:
             mcp_controller.stop()
         if api_server is not None:

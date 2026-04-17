@@ -432,10 +432,115 @@ class CardService:
         )
 
     def attach_agent_control(self, agent_control: Any | None) -> None:
-        # Legacy compatibility hook: the old server agent runtime is retired,
-        # so the service no longer binds a live agent controller.
-        _ = agent_control
-        self._agent_control = None
+        self._agent_control = agent_control
+
+    def agent_status(self, payload: dict | None = None) -> dict:
+        if self._agent_control is not None:
+            return self._agent_control.agent_status(payload)
+        return {
+            "agent": {
+                "name": "AUTOSTOP SERVER AGENT",
+                "enabled": False,
+                "available": False,
+                "ready": False,
+                "availability_reason": "disabled",
+                "configured": False,
+                "model": "",
+                "board_api_url": "",
+            },
+            "ai_remodel": {},
+            "board_control": {},
+            "worker": {
+                "embedded": False,
+                "running": False,
+                "heartbeat_fresh": False,
+            },
+            "scheduler": {
+                "last_run_at": "",
+                "last_success_at": "",
+                "last_error": "",
+            },
+            "status": {
+                "running": False,
+                "current_task_id": None,
+                "current_run_id": None,
+                "last_heartbeat": "",
+                "last_run_started_at": "",
+                "last_run_finished_at": "",
+                "last_error": "",
+                "last_scheduler_run_at": "",
+                "last_scheduler_success_at": "",
+                "last_scheduler_error": "",
+                "board_control": {},
+            },
+            "queue": {
+                "pending_total": 0,
+                "running_total": 0,
+            },
+            "scheduled": {
+                "total": 0,
+                "active_total": 0,
+                "paused_total": 0,
+            },
+            "recent_runs": [],
+        }
+
+    def agent_tasks(self, payload: dict | None = None) -> dict:
+        if self._agent_control is not None:
+            return self._agent_control.agent_tasks(payload)
+        limit = self._normalize_limit(
+            payload.get("limit") if isinstance(payload, dict) else None,
+            default=50,
+            minimum=1,
+            maximum=200,
+        )
+        return {"tasks": [], "meta": {"limit": limit, "statuses": []}}
+
+    def agent_actions(self, payload: dict | None = None) -> dict:
+        if self._agent_control is not None:
+            return self._agent_control.agent_actions(payload)
+        limit = self._normalize_limit(
+            payload.get("limit") if isinstance(payload, dict) else None,
+            default=100,
+            minimum=1,
+            maximum=500,
+        )
+        return {"actions": [], "meta": {"limit": limit, "run_id": None, "task_id": None}}
+
+    def agent_scheduled_tasks(self, payload: dict | None = None) -> dict:
+        if self._agent_control is not None:
+            return self._agent_control.agent_scheduled_tasks(payload)
+        return {"tasks": [], "meta": {"total": 0}}
+
+    def save_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        if self._agent_control is None:
+            self._fail("agent_runtime_unavailable", "AI агент не подключён.", status_code=503)
+        return self._agent_control.save_agent_scheduled_task(payload)
+
+    def delete_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        if self._agent_control is None:
+            self._fail("agent_runtime_unavailable", "AI агент не подключён.", status_code=503)
+        return self._agent_control.delete_agent_scheduled_task(payload)
+
+    def pause_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        if self._agent_control is None:
+            self._fail("agent_runtime_unavailable", "AI агент не подключён.", status_code=503)
+        return self._agent_control.pause_agent_scheduled_task(payload)
+
+    def resume_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        if self._agent_control is None:
+            self._fail("agent_runtime_unavailable", "AI агент не подключён.", status_code=503)
+        return self._agent_control.resume_agent_scheduled_task(payload)
+
+    def run_agent_scheduled_task(self, payload: dict | None = None) -> dict:
+        if self._agent_control is None:
+            self._fail("agent_runtime_unavailable", "AI агент не подключён.", status_code=503)
+        return self._agent_control.run_agent_scheduled_task(payload)
+
+    def agent_enqueue_task(self, payload: dict | None = None) -> dict:
+        if self._agent_control is None:
+            self._fail("agent_runtime_unavailable", "AI агент не подключён.", status_code=503)
+        return self._agent_control.agent_enqueue_task(payload)
 
     def create_card(self, payload: dict) -> dict:
         with self._lock:
@@ -826,6 +931,8 @@ class CardService:
     # Retained only as inert reference during the rollback stabilization pass.
     # The live compatibility shim is defined further below.
     def set_card_ai_autofill(self, payload: dict | None = None) -> dict:
+        if self._agent_control is not None:
+            return self._set_card_ai_autofill_with_agent_control(payload)
         with self._lock:
             payload = payload or {}
             bundle = self._store.read_bundle()
@@ -888,6 +995,8 @@ class CardService:
     # Retained only as inert reference during the rollback stabilization pass.
     # The live compatibility shim is defined further below.
     def run_full_card_enrichment(self, payload: dict | None = None) -> dict:
+        if self._agent_control is not None:
+            return self._run_full_card_enrichment_with_agent_control(payload)
         result = self.cleanup_card_content(payload)
         result["meta"].update(
             {
@@ -901,6 +1010,235 @@ class CardService:
             }
         )
         return result
+
+    def _set_card_ai_autofill_with_agent_control(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cards = bundle["cards"]
+            events = bundle["events"]
+            columns = bundle["columns"]
+            card = self._find_card(cards, payload.get("card_id"))
+            self._ensure_not_archived(card)
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+            enabled_requested = "enabled" in payload
+            prompt_requested = "prompt" in payload or "ai_autofill_prompt" in payload
+            previous_enabled = bool(card.ai_autofill_active)
+            enabled = self._validated_optional_bool(payload, "enabled", default=previous_enabled)
+            prompt_text = normalize_text(
+                payload.get("prompt", payload.get("ai_autofill_prompt", card.ai_autofill_prompt)),
+                default=card.ai_autofill_prompt,
+                limit=800,
+            )
+            now = utc_now()
+            now_iso = now.isoformat()
+            prompt_updated = prompt_text != str(card.ai_autofill_prompt or "").strip()
+            card.ai_autofill_prompt = prompt_text
+            if enabled_requested:
+                card.ai_autofill_active = enabled
+                card.ai_autofill_until = (now + timedelta(hours=4)).isoformat() if enabled else ""
+                card.ai_next_run_at = now_iso if enabled else ""
+            if enabled_requested and not enabled:
+                card.last_card_fingerprint = ""
+                card.ai_run_count = 0
+                self._append_card_ai_log(
+                    card, level="DONE", message="Автосопровождение остановлено."
+                )
+            if prompt_requested and prompt_updated:
+                self._append_card_ai_log(
+                    card, level="INFO", message="ИИ-подсказка автосопровождения обновлена."
+                )
+            launched_task_id = ""
+            server_available = self._agent_control is not None
+            if self._agent_control is not None:
+                try:
+                    status_payload = self._agent_control.agent_status()
+                    server_available = bool(status_payload.get("agent", {}).get("available"))
+                except Exception:
+                    server_available = True
+            if enabled_requested and enabled and not previous_enabled:
+                self._append_card_ai_log(card, level="RUN", message="Автосопровождение включено.")
+                for level, message in self._card_ai_context_messages(card):
+                    self._append_card_ai_log(card, level=level, message=message)
+                if self._agent_control is not None:
+                    task = self._agent_control.enqueue_card_autofill_task(
+                        {
+                            "card_id": card.id,
+                            "card_heading": card.heading(),
+                            "title": card.title,
+                            "vehicle": card.vehicle_display(),
+                            "requested_by": actor_name,
+                            "ai_autofill_prompt": card.ai_autofill_prompt,
+                            "ai_log_tail": list(card.ai_autofill_log[-8:]),
+                        },
+                        source="ui_card_autofill",
+                        trigger="manual_activate",
+                    )
+                    if task is not None:
+                        launched_task_id = str(task.get("id", "") or "").strip()
+                        card.last_ai_run_at = (
+                            str(task.get("created_at", "") or now_iso).strip() or now_iso
+                        )
+                        card.ai_run_count = max(0, int(card.ai_run_count)) + 1
+                        card.ai_next_run_at = (
+                            now
+                            + timedelta(
+                                minutes=self._card_ai_next_interval_minutes(card, changed=True)
+                            )
+                        ).isoformat()
+                        self._append_card_ai_log(
+                            card,
+                            level="RUN",
+                            message="Первый проход запущен.",
+                            task_id=launched_task_id,
+                        )
+                    else:
+                        self._append_card_ai_log(
+                            card, level="WAIT", message="Проход уже выполняется."
+                        )
+                else:
+                    self._append_card_ai_log(card, level="WARN", message="Server AI недоступен.")
+            self._touch_card(card, actor_name)
+            if enabled:
+                card.last_card_fingerprint = self._card_ai_fingerprint(card)
+            event_action = "card_ai_autofill_enabled" if enabled else "card_ai_autofill_disabled"
+            event_message = (
+                f"{actor_name} {'включил' if enabled else 'выключил'} автосопровождение карточки"
+            )
+            if prompt_requested and not enabled_requested:
+                event_action = "card_ai_autofill_prompt_updated"
+                event_message = f"{actor_name} обновил mini-prompt автосопровождения"
+            self._append_event(
+                events,
+                actor_name=actor_name,
+                source=source,
+                action=event_action,
+                message=event_message,
+                card_id=card.id,
+                details={
+                    "enabled": enabled,
+                    "ai_autofill_until": card.ai_autofill_until,
+                    "ai_autofill_prompt": card.ai_autofill_prompt,
+                    "task_id": launched_task_id,
+                },
+            )
+            self._save_bundle(bundle, columns=columns, cards=cards, events=events)
+            return {
+                "card": self._serialize_card(
+                    card, events, column_labels=self._column_labels(columns)
+                ),
+                "meta": {
+                    "enabled": enabled,
+                    "launched": bool(launched_task_id),
+                    "prompt_updated": prompt_updated,
+                    "task_id": launched_task_id,
+                    "server_available": server_available,
+                    "next_check_at": card.ai_next_run_at,
+                },
+            }
+
+    def _run_full_card_enrichment_with_agent_control(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cards = bundle["cards"]
+            events = bundle["events"]
+            columns = bundle["columns"]
+            card = self._find_card(cards, payload.get("card_id"))
+            self._ensure_not_archived(card)
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+            server_available = self._agent_control is not None
+            launched_task_id = ""
+            already_running = False
+            if self._agent_control is not None:
+                try:
+                    status_payload = self._agent_control.agent_status()
+                    server_available = bool(status_payload.get("agent", {}).get("available"))
+                except Exception:
+                    server_available = True
+            scenario_context = (
+                payload.get("context_packet")
+                if isinstance(payload.get("context_packet"), dict)
+                else None
+            )
+            if self._agent_control is not None:
+                task = self._agent_control.enqueue_card_autofill_task(
+                    {
+                        "card_id": card.id,
+                        "card_heading": card.heading(),
+                        "title": card.title,
+                        "vehicle": card.vehicle_display(),
+                        "requested_by": actor_name,
+                        "ai_autofill_prompt": normalize_text(
+                            payload.get("prompt", card.ai_autofill_prompt),
+                            default=card.ai_autofill_prompt,
+                            limit=800,
+                        ),
+                        "ai_log_tail": list(card.ai_autofill_log[-8:]),
+                        "scenario_id": "full_card_enrichment",
+                        "context_packet": scenario_context,
+                    },
+                    source="ui_full_card_enrichment",
+                    trigger="manual_enrichment",
+                )
+                if task is not None:
+                    launched_task_id = str(task.get("id", "") or "").strip()
+                    card.last_ai_run_at = (
+                        str(task.get("created_at", "") or utc_now_iso()).strip() or utc_now_iso()
+                    )
+                    card.ai_run_count = max(0, int(card.ai_run_count)) + 1
+                    self._append_card_ai_log(
+                        card,
+                        level="RUN",
+                        message="AI-обогащение карточки запущено.",
+                        task_id=launched_task_id,
+                    )
+                    for level, message in self._card_ai_context_messages(card):
+                        self._append_card_ai_log(
+                            card, level=level, message=message, task_id=launched_task_id
+                        )
+                else:
+                    already_running = True
+                    latest_task = self._agent_control.latest_task_for_card(
+                        card.id, purpose="card_autofill"
+                    )
+                    launched_task_id = str((latest_task or {}).get("id", "") or "").strip()
+                    self._append_card_ai_log(
+                        card,
+                        level="WAIT",
+                        message="AI-обогащение карточки уже выполняется.",
+                        task_id=launched_task_id,
+                    )
+            else:
+                self._append_card_ai_log(card, level="WARN", message="Server AI недоступен.")
+            self._touch_card(card, actor_name)
+            self._append_event(
+                events,
+                actor_name=actor_name,
+                source=source,
+                action="card_full_enrichment_requested",
+                message=f"{actor_name} запустил bounded AI-обогащение карточки",
+                card_id=card.id,
+                details={
+                    "task_id": launched_task_id,
+                    "server_available": server_available,
+                    "already_running": already_running,
+                    "scenario_id": "full_card_enrichment",
+                },
+            )
+            self._save_bundle(bundle, columns=columns, cards=cards, events=events)
+            return {
+                "card": self._serialize_card(
+                    card, events, column_labels=self._column_labels(columns)
+                ),
+                "meta": {
+                    "launched": bool(launched_task_id) and not already_running,
+                    "already_running": already_running,
+                    "task_id": launched_task_id,
+                    "server_available": server_available,
+                    "scenario_id": "full_card_enrichment",
+                },
+            }
 
     def trigger_due_ai_followups(self) -> dict:
         with self._lock:
@@ -5230,8 +5568,17 @@ class CardService:
         return updated_at
 
     def _notify_agent_card_created(self, card: Card) -> None:
-        _ = card
-        return
+        if self._agent_control is None:
+            return
+        try:
+            self._agent_control.handle_card_created(
+                {
+                    "card_id": card.id,
+                    "column": card.column,
+                }
+            )
+        except Exception as exc:
+            self._logger.warning("agent_card_created_hook_failed card_id=%s error=%s", card.id, exc)
 
     def _card_ai_fingerprint(self, card: Card) -> str:
         payload = {
