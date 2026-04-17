@@ -438,8 +438,6 @@ class AgentRunner:
             summary_bits = [
                 f"task_type={task_type}",
                 f"vin={'yes' if confirmed_facts['vin'] else 'no'}",
-                f"dtc={len(confirmed_facts['dtc_codes'])}",
-                f"parts={len(confirmed_facts['part_queries'])}",
             ]
             evidence_result = EvidenceResult(
                 context_kind=context_kind,
@@ -731,7 +729,8 @@ class AgentRunner:
             if isinstance(item, dict) and str(item.get("name", "") or "").strip()
         ]
         if purpose == "card_autofill":
-            return autofill_scenarios or ["normalization"]
+            filtered = [item for item in autofill_scenarios if item == "vin_enrichment"]
+            return filtered or ["vin_enrichment"]
         if purpose == "board_control":
             filtered = [
                 item for item in autofill_scenarios if item in {"vin_enrichment", "normalization"}
@@ -749,11 +748,9 @@ class AgentRunner:
             return ["repair_order_assistance"]
         if context_kind == "card":
             if task_type == "vin_decode":
-                return [
-                    item
-                    for item in autofill_scenarios
-                    if item in {"vin_enrichment", "normalization"}
-                ] or ["vin_enrichment", "normalization"]
+                return [item for item in autofill_scenarios if item == "vin_enrichment"] or [
+                    "vin_enrichment"
+                ]
             if task_type == "parts_lookup":
                 return [
                     item
@@ -2580,20 +2577,14 @@ class AgentRunner:
 
     def _build_card_autofill_eligibility(self, facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
         result: dict[str, dict[str, Any]] = {}
-        for scenario_name in (
-            "vin_enrichment",
-            "parts_lookup",
-            "maintenance_lookup",
-            "dtc_lookup",
-            "fault_research",
-        ):
-            evidence = self._scenario_evidence(facts, scenario_name)
-            result[scenario_name] = {
-                "eligible": bool(evidence["trigger_found"] and evidence["confidence_enough"]),
-                "trigger_found": bool(evidence["trigger_found"]),
-                "confidence_enough": bool(evidence["confidence_enough"]),
-                "reason": self._scenario_skip_reason(scenario_name, facts),
-            }
+        scenario_name = "vin_enrichment"
+        evidence = self._scenario_evidence(facts, scenario_name)
+        result[scenario_name] = {
+            "eligible": bool(evidence["trigger_found"] and evidence["confidence_enough"]),
+            "trigger_found": bool(evidence["trigger_found"]),
+            "confidence_enough": bool(evidence["confidence_enough"]),
+            "reason": self._scenario_skip_reason(scenario_name, facts),
+        }
         return result
 
     def _build_card_autofill_strategy(
@@ -2615,52 +2606,6 @@ class AgentRunner:
                     "reason": self._scenario_skip_reason("vin_enrichment", facts),
                 }
             )
-        if bool(eligibility.get("parts_lookup", {}).get("eligible")) and budget >= 1:
-            with_price = budget >= 2
-            scenarios.append(
-                {
-                    "name": "parts_lookup",
-                    "label": "ЗАПЧАСТИ",
-                    "cost": 2 if with_price else 1,
-                    "query": facts["part_queries"][0],
-                    "with_price": with_price,
-                    "vin_gate_required": bool(facts.get("vin")),
-                }
-            )
-            budget -= 2 if with_price else 1
-        else:
-            skipped.append(
-                {
-                    "name": "parts_lookup",
-                    "reason": self._scenario_skip_reason("parts_lookup", facts),
-                }
-            )
-        if bool(eligibility.get("maintenance_lookup", {}).get("eligible")) and budget >= 1:
-            scenarios.append({"name": "maintenance_lookup", "label": "ТО", "cost": 1})
-            budget -= 1
-        else:
-            skipped.append(
-                {
-                    "name": "maintenance_lookup",
-                    "reason": self._scenario_skip_reason("maintenance_lookup", facts),
-                }
-            )
-        if bool(eligibility.get("dtc_lookup", {}).get("eligible")) and budget >= 1:
-            scenarios.append(
-                {"name": "dtc_lookup", "label": "DTC", "cost": 1, "code": facts["dtc_codes"][0]}
-            )
-            budget -= 1
-        else:
-            skipped.append(
-                {"name": "dtc_lookup", "reason": self._scenario_skip_reason("dtc_lookup", facts)}
-            )
-        if (
-            bool(eligibility.get("fault_research", {}).get("eligible"))
-            and not facts["waiting_state"]
-            and budget >= 1
-        ):
-            scenarios.append({"name": "fault_research", "label": "СИМПТОМЫ", "cost": 1})
-        scenarios.append({"name": "normalization", "label": "СТРУКТУРА", "cost": 0})
         return {"scenarios": scenarios, "skipped": skipped, "budget_left": budget}
 
     def _build_card_autofill_plan(self, facts: dict[str, Any]) -> dict[str, Any]:
@@ -2675,11 +2620,6 @@ class AgentRunner:
         normalized: list[dict[str, Any]] = []
         fallback_labels = {
             "vin_enrichment": "VIN",
-            "parts_lookup": "ЗАПЧАСТИ",
-            "maintenance_lookup": "ТО",
-            "dtc_lookup": "DTC",
-            "fault_research": "СИМПТОМЫ",
-            "normalization": "СТРУКТУРА",
         }
         for item in scenarios:
             if not isinstance(item, dict):
@@ -2702,15 +2642,13 @@ class AgentRunner:
         labels = [
             str(item.get("label", "") or "").strip()
             for item in scenarios
-            if isinstance(item, dict)
-            and str(item.get("label", "") or "").strip()
-            and str(item.get("name", "") or "").strip().lower() != "normalization"
+            if isinstance(item, dict) and str(item.get("label", "") or "").strip()
         ]
         safe_labels = [label for label in labels if label]
         if not safe_labels:
-            message = "План: карточка прочитана, подтвержденных внешних сценариев нет, будет только аккуратная нормализация."
+            message = "План: карточка прочитана, будет только поиск и расшифровка VIN."
         else:
-            message = "План: " + " -> ".join(safe_labels + ["СТРУКТУРА"])
+            message = "План: " + " -> ".join(safe_labels)
         plan = facts.get("autofill_plan") if isinstance(facts.get("autofill_plan"), dict) else {}
         skipped = plan.get("skipped") if isinstance(plan.get("skipped"), list) else []
         gated = [
@@ -2954,18 +2892,7 @@ class AgentRunner:
             facts.get("evidence_model") if isinstance(facts.get("evidence_model"), dict) else {}
         )
         plan = facts.get("autofill_plan") if isinstance(facts.get("autofill_plan"), dict) else {}
-        evidence_bits = [
-            name
-            for name, enabled in (
-                ("vin", evidence.get("vin_found")),
-                ("part", evidence.get("explicit_part_found")),
-                ("maintenance", evidence.get("maintenance_context_found")),
-                ("mileage", evidence.get("mileage_found")),
-                ("dtc", evidence.get("dtc_found")),
-                ("symptoms", evidence.get("fault_symptoms_found")),
-            )
-            if enabled
-        ]
+        evidence_bits = ["vin"] if bool(evidence.get("vin_found")) else []
         self._record_log_action(
             task_id=task_id,
             run_id=run_id,

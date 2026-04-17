@@ -767,6 +767,11 @@ class CardService:
                 if isinstance(payload.get("context_packet"), dict)
                 else None
             )
+            vin_only_prompt = (
+                "Найди VIN в описании карточки, расшифруй его через внешние источники и верни "
+                "только подтвержденные данные для заполнения карточки. Не используй никакие "
+                "другие сценарии."
+            )
             if self._agent_control is not None:
                 task = self._agent_control.enqueue_card_autofill_task(
                     {
@@ -775,11 +780,7 @@ class CardService:
                         "title": card.title,
                         "vehicle": card.vehicle_display(),
                         "requested_by": actor_name,
-                        "ai_autofill_prompt": normalize_text(
-                            payload.get("prompt", card.ai_autofill_prompt),
-                            default=card.ai_autofill_prompt,
-                            limit=800,
-                        ),
+                        "ai_autofill_prompt": vin_only_prompt,
                         "ai_log_tail": list(card.ai_autofill_log[-8:]),
                         "scenario_id": "full_card_enrichment",
                         "context_packet": scenario_context,
@@ -1161,6 +1162,11 @@ class CardService:
                 if isinstance(payload.get("context_packet"), dict)
                 else None
             )
+            vin_only_prompt = (
+                "Найди VIN в описании карточки, расшифруй его через внешние источники и верни "
+                "только подтвержденные данные для заполнения карточки. Не используй никакие "
+                "другие сценарии."
+            )
             if self._agent_control is not None:
                 task = self._agent_control.enqueue_card_autofill_task(
                     {
@@ -1169,11 +1175,7 @@ class CardService:
                         "title": card.title,
                         "vehicle": card.vehicle_display(),
                         "requested_by": actor_name,
-                        "ai_autofill_prompt": normalize_text(
-                            payload.get("prompt", card.ai_autofill_prompt),
-                            default=card.ai_autofill_prompt,
-                            limit=800,
-                        ),
+                        "ai_autofill_prompt": vin_only_prompt,
                         "ai_log_tail": list(card.ai_autofill_log[-8:]),
                         "scenario_id": "full_card_enrichment",
                         "context_packet": scenario_context,

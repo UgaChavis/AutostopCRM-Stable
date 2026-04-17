@@ -294,6 +294,12 @@ class ApiServerTests(unittest.TestCase):
         self.assertTrue(launched["data"]["meta"]["launched"])
         self.assertEqual(launched["data"]["meta"]["task_id"], "task-123")
         agent_control.enqueue_card_autofill_task.assert_called()
+        payload = agent_control.enqueue_card_autofill_task.call_args.args[0]
+        prompt_text = str(payload.get("ai_autofill_prompt", ""))
+        self.assertIn("VIN", prompt_text)
+        self.assertNotIn("parts", prompt_text.lower())
+        self.assertNotIn("dtc", prompt_text.lower())
+        self.assertNotIn("maintenance", prompt_text.lower())
 
     def test_head_root_and_health_are_supported(self) -> None:
         parsed = urlsplit(self.base_url)

@@ -1335,14 +1335,12 @@ class AgentControlService:
             payload.get("ai_log_tail") if isinstance(payload.get("ai_log_tail"), list) else []
         )
         lines = [
-            "Выполни автосопровождение карточки автосервиса.",
-            "Работай только с этой карточкой и не добавляй шум, если полезных изменений нет.",
+            "Выполни VIN-only обогащение карточки автосервиса.",
+            "Работай только с этой карточкой и не добавляй ничего, кроме поиска и расшифровки VIN.",
             "Сначала прочитай get_card_context.",
-            "Если есть VIN, используй decode_vin и кратко дополни карточку.",
-            "Если есть детали, используй find_part_numbers и estimate_price_ru.",
-            "Если есть DTC-коды, используй decode_dtc.",
-            "Если есть симптомы без кодов, при необходимости используй search_fault_info.",
-            "Обновляй карточку коротко, структурированно и без перезаписи полезного существующего текста.",
+            "Найди VIN в описании или карточке, затем используй decode_vin.",
+            "Не используй никакие другие сценарии или инструменты.",
+            "Обновляй карточку только подтвержденными данными из VIN-расшифровки и без перезаписи полезного существующего текста.",
         ]
         if heading:
             lines.append(f"Карточка: {heading}.")
@@ -1361,8 +1359,8 @@ class AgentControlService:
                 "When you update the card, use update_card or apply.update_card.",
             ]
         )
-        if scenario_id == "full_card_enrichment":
-            lines[0] = "Выполни bounded сценарий полного обогащения карточки автосервиса."
+        if scenario_id in {"full_card_enrichment", "vin_decode", "vin_enrichment"}:
+            lines[0] = "Выполни bounded сценарий VIN-обогащения карточки автосервиса."
             lines.extend(
                 [
                     "Follow the bounded contract: read -> evidence -> plan -> tools -> patch -> write -> verify.",
