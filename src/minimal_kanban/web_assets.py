@@ -3599,9 +3599,9 @@ BOARD_WEB_APP_HTML = "".join(
         minmax(35px, 46px)
         minmax(67px, 79px)
         minmax(100px, 116px)
-        minmax(136px, 168px)
+        minmax(152px, 184px)
         minmax(168px, 203px)
-        minmax(125px, 1.161fr)
+        minmax(109px, 1.013fr)
         minmax(239px, 2.223fr)
         minmax(72px, 84px)
         minmax(72px, 84px);

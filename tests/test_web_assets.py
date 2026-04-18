@@ -1295,8 +1295,9 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn(".repair-orders-row__total", BOARD_WEB_APP_HTML)
         self.assertIn(".repair-orders-row__payment-status", BOARD_WEB_APP_HTML)
         self.assertIn(".repair-orders-row__paid", BOARD_WEB_APP_HTML)
+        self.assertIn("minmax(152px, 184px)", BOARD_WEB_APP_HTML)
+        self.assertIn("minmax(109px, 1.013fr)", BOARD_WEB_APP_HTML)
         self.assertIn("minmax(168px, 203px)", BOARD_WEB_APP_HTML)
-        self.assertIn("minmax(125px, 1.161fr)", BOARD_WEB_APP_HTML)
         self.assertIn("minmax(239px, 2.223fr)", BOARD_WEB_APP_HTML)
         self.assertIn("minmax(72px, 84px)", BOARD_WEB_APP_HTML)
         self.assertIn(
