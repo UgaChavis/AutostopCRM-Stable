@@ -185,11 +185,30 @@ class VinEnrichmentScenarioTests(unittest.TestCase):
         decoded = result.orchestration_updates["decode_vin"]
         self.assertEqual(decoded["make"], "AUDI")
         self.assertEqual(decoded["engine_model"], "CDN")
-        self.assertEqual(decoded["gearbox_model"], "ZF 8HP55")
         self.assertEqual(decoded["engine_power_hp"], 211)
+        self.assertEqual(decoded.get("gearbox_model", ""), "")
         self.assertIn("web_source_urls", decoded)
         self.assertIn("web_enrichment_fields", decoded)
         self.assertIn("VIN web enrichment produced additional confirmed facts.", runtime.logs)
+
+    def test_web_text_prefers_clean_vehicle_fields(self) -> None:
+        service = VehicleProfileService()
+        text = (
+            "1988 Audi 90 Quattro Specs Review (97 kW / 132 PS / 130 hp) (since mid-year ...\n"
+            "Audi V8 D1 (44) data and specifications catalogue - Automobile-Catalog\n"
+            "1988 Audi 80 Specifications, Features, Safety & Warranty\n"
+            "1988 Audi 80 - AudiWorld\n"
+            "AUDI V8 Specs, Performance & Photos - 1988, 1989, 1990, 1991, 1992 ..."
+        )
+        profile, _, _ = service._parse_text_payload(text, explicit_vehicle="AUDI 1988")
+        profile_data = profile.to_dict()
+        self.assertEqual(profile_data["make_display"], "Audi")
+        self.assertEqual(profile_data["model_display"], "90")
+        self.assertEqual(profile_data["production_year"], 1988)
+        self.assertEqual(profile_data["engine_power_hp"], 130)
+        self.assertEqual(profile_data["drivetrain"], "AWD")
+        self.assertEqual(profile_data["engine_model"], "")
+        self.assertEqual(profile_data["gearbox_model"], "")
 
     def test_sparse_decode_keeps_trying_after_failed_excerpts(self) -> None:
         service = VehicleProfileService()

@@ -87,7 +87,7 @@ _MILEAGE_PATTERN = re.compile(
     r"(?:ПРОБЕГ|MILEAGE|ОДОМЕТР)\s*[:\-]?\s*([\d\s]{2,12})", re.IGNORECASE
 )
 _ENGINE_LABEL_PATTERN = re.compile(
-    r"(?:ENGINE(?:\s+MODEL)?|ДВИГАТЕЛЬ|МОТОР)\s*[:\-]?\s*([A-Z0-9\-/. ]{3,32})", re.IGNORECASE
+    r"(?:ENGINE(?:\s+MODEL)?|ДВИГАТЕЛЬ|МОТОР)\s*[:\-]\s*([A-Z0-9\-/. ]{3,32})", re.IGNORECASE
 )
 _ENGINE_CODE_PATTERN = re.compile(
     r"(?:ENGINE\s+CODE|КОД\s+ДВИГАТЕЛЯ|ENGINE NO|ДВИГАТЕЛЬ №)\s*[:\-]?\s*([A-Z0-9\-]{3,24})",
@@ -112,6 +112,18 @@ _GEARBOX_MODEL_FALLBACK_PATTERN = re.compile(
     r"\b(?:DQ\d{3,4}|DL\d{3,4}|JF\d{3,4}[A-Z]?|RE\d{2}[A-Z]\d{2}[A-Z]?|TF-\d{2,3}[A-Z]*|A6GF1|UA80E|8HP\d{2}|6T\d{2}|09G|01M|AISIN)\b",
     re.IGNORECASE,
 )
+_GENERIC_ENGINE_MODEL_VALUES = {
+    "SIZE",
+    "POWER",
+    "SPECS",
+    "SPECIFICATIONS",
+    "REVIEW",
+    "DATA",
+    "TECHNICAL",
+    "DIMENSIONS",
+    "FUEL",
+    "CONSUMPTION",
+}
 _BOLT_PATTERN = re.compile(r"\b([45]x1\d{2}(?:[.,]\d)?)\b", re.IGNORECASE)
 _MAKE_MODEL_SPLIT_PATTERN = re.compile(r"[^A-ZА-Я0-9]+", re.IGNORECASE)
 _PROBLEM_MARKER_PATTERN = re.compile(
@@ -661,10 +673,19 @@ class VehicleProfileService:
         engine_model_match = _ENGINE_LABEL_PATTERN.search(combined_text)
         if engine_model_match:
             candidate = normalize_vehicle_text(engine_model_match.group(1), limit=40)
-            if candidate and candidate.upper() not in {
-                profile.make_display.upper(),
-                profile.model_display.upper(),
-            }:
+            candidate = re.split(
+                r"\b(?:TRANSMISSION|GEARBOX|DRIVETRAIN|КПП|КОРОБКА)\b",
+                candidate,
+                maxsplit=1,
+                flags=re.IGNORECASE,
+            )[0].rstrip(" .,:;-")
+            candidate_upper = candidate.upper()
+            if (
+                candidate
+                and candidate_upper
+                not in {profile.make_display.upper(), profile.model_display.upper()}
+                and candidate_upper not in _GENERIC_ENGINE_MODEL_VALUES
+            ):
                 profile.engine_model = candidate
 
         displacement_match = _DISPLACEMENT_PATTERN.search(combined_text)
@@ -682,11 +703,11 @@ class VehicleProfileService:
         gearbox_label_match = _GEARBOX_LABEL_PATTERN.search(combined_text)
         if gearbox_label_match:
             candidate = normalize_vehicle_text(gearbox_label_match.group(1), limit=40)
-            if candidate:
+            if candidate and self._looks_like_gearbox_model(candidate):
                 profile.gearbox_model = candidate
         elif not profile.gearbox_model:
             gearbox_model_hint = self._extract_gearbox_model_hint(combined_text)
-            if gearbox_model_hint:
+            if gearbox_model_hint and self._looks_like_gearbox_model(gearbox_model_hint):
                 profile.gearbox_model = gearbox_model_hint
 
         for drivetrain, pattern in _DRIVETRAIN_PATTERNS:
@@ -1202,6 +1223,21 @@ $payload | ConvertTo-Json -Compress -Depth 6
         if not match:
             return ""
         return normalize_vehicle_text(match.group(0), limit=40).upper()
+
+    def _looks_like_gearbox_model(self, candidate: str) -> bool:
+        value = normalize_vehicle_text(candidate, limit=40).upper()
+        if not value:
+            return False
+        if value in {"AT", "MT", "CVT", "DSG"}:
+            return True
+        if re.fullmatch(
+            r"(?:DQ\d{3,4}|DL\d{3,4}|JF\d{3,4}[A-Z]?|RE\d{2}[A-Z]\d{2}[A-Z]?|TF-\d{2,3}[A-Z]*|A6GF1|UA80E|8HP\d{2}|6T\d{2}|09G|01M)",
+            value,
+        ):
+            return True
+        if value == "AISIN":
+            return True
+        return False
 
     def _build_issue_title(self, text: str) -> str:
         candidate = ""
