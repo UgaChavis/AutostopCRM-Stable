@@ -762,11 +762,6 @@ class CardService:
                     server_available = bool(status_payload.get("agent", {}).get("available"))
                 except Exception:
                     server_available = True
-            scenario_context = (
-                payload.get("context_packet")
-                if isinstance(payload.get("context_packet"), dict)
-                else None
-            )
             vin_only_prompt = (
                 "Найди VIN в описании карточки, расшифруй его через внешние источники и верни "
                 "только подтвержденные данные для заполнения карточки. Не используй никакие "
@@ -778,11 +773,9 @@ class CardService:
                         "card_id": card.id,
                         "card_heading": card.heading(),
                         "title": card.title,
-                        "vehicle": card.vehicle_display(),
                         "requested_by": actor_name,
                         "task_text": vin_only_prompt,
                         "scenario_id": "full_card_enrichment",
-                        "context_packet": scenario_context,
                     },
                     source="ui_full_card_enrichment",
                     trigger="manual_enrichment",
@@ -1158,11 +1151,6 @@ class CardService:
                     server_available = bool(status_payload.get("agent", {}).get("available"))
                 except Exception:
                     server_available = True
-            scenario_context = (
-                payload.get("context_packet")
-                if isinstance(payload.get("context_packet"), dict)
-                else None
-            )
             vin_only_prompt = (
                 "Найди VIN в описании карточки, расшифруй его через внешние источники и верни "
                 "только подтвержденные данные для заполнения карточки. Не используй никакие "
@@ -1174,11 +1162,9 @@ class CardService:
                         "card_id": card.id,
                         "card_heading": card.heading(),
                         "title": card.title,
-                        "vehicle": card.vehicle_display(),
                         "requested_by": actor_name,
                         "task_text": vin_only_prompt,
                         "scenario_id": "full_card_enrichment",
-                        "context_packet": scenario_context,
                     },
                     source="ui_full_card_enrichment",
                     trigger="manual_enrichment",
