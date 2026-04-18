@@ -11,8 +11,12 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from minimal_kanban.agent.contracts import ToolResult
+from minimal_kanban.agent.runner import AgentRunner
 from minimal_kanban.agent.scenarios import ScenarioContext, build_default_scenario_registry
-from minimal_kanban.agent.scenarios.vin_enrichment import VinEnrichmentScenarioExecutor
+from minimal_kanban.agent.scenarios.vin_enrichment import (
+    VinEnrichmentScenarioExecutor,
+    _merge_web_enrichment,
+)
 from minimal_kanban.services.vehicle_profile_service import VehicleProfileService
 
 
@@ -209,6 +213,37 @@ class VinEnrichmentScenarioTests(unittest.TestCase):
         self.assertEqual(profile_data["drivetrain"], "AWD")
         self.assertEqual(profile_data["engine_model"], "")
         self.assertEqual(profile_data["gearbox_model"], "")
+
+    def test_web_enrichment_keeps_gearbox_type_out_of_gearbox_model(self) -> None:
+        merged, fields = _merge_web_enrichment(
+            {"vin": "WAUZZZ8V0JA000001", "make": "AUDI", "model": "90"},
+            {"gearbox_type": "automatic", "drivetrain": "AWD"},
+        )
+
+        self.assertEqual(merged.get("gearbox_model", ""), "")
+        self.assertEqual(merged.get("transmission"), "automatic")
+        self.assertEqual(merged.get("drive_type"), "AWD")
+        self.assertIn("gearbox_type", fields)
+
+    def test_runner_patch_keeps_gearbox_type_separate_from_gearbox_model(self) -> None:
+        runner = object.__new__(AgentRunner)
+        patch = AgentRunner._autofill_vehicle_patch(
+            runner,
+            facts={"vehicle_profile": {}, "vin": "WAUZZZ8V0JA000001"},
+            decoded_vin={
+                "vin": "WAUZZZ8V0JA000001",
+                "make": "AUDI",
+                "model": "90",
+                "model_year": "1988",
+                "gearbox_type": "automatic",
+                "drive_type": "AWD",
+            },
+            vin_decode_status="success",
+        )
+
+        self.assertEqual(patch["gearbox_type"], "automatic")
+        self.assertNotIn("gearbox_model", patch)
+        self.assertEqual(patch["drivetrain"], "AWD")
 
     def test_sparse_decode_keeps_trying_after_failed_excerpts(self) -> None:
         service = VehicleProfileService()

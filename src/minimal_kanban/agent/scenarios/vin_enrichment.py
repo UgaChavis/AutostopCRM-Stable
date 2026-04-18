@@ -58,9 +58,13 @@ def _merge_web_enrichment(
     engine_model = _clean_engine_model(parsed_profile.get("engine_model"))
     _set_if_missing("engine_model", engine_model or parsed_profile.get("engine_model"))
     _set_if_missing("engine_power_hp", parsed_profile.get("engine_power_hp"))
-    gearbox_model = parsed_profile.get("gearbox_model") or parsed_profile.get("gearbox_type")
+    gearbox_model = parsed_profile.get("gearbox_model")
+    gearbox_type = parsed_profile.get("gearbox_type")
     _set_if_missing("gearbox_model", gearbox_model)
-    _set_if_missing("transmission", gearbox_model, field_name="gearbox_model")
+    if gearbox_type:
+        _set_if_missing("transmission", gearbox_type, field_name="gearbox_type")
+    elif gearbox_model:
+        _set_if_missing("transmission", gearbox_model, field_name="gearbox_model")
     _set_if_missing("drive_type", parsed_profile.get("drivetrain"))
 
     if parsed_profile.get("warnings"):

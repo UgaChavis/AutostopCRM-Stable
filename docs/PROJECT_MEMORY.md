@@ -18,6 +18,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - VIN enrichment is now bounded but multi-step: `decode_vin` runs first, then sparse VIN results trigger `search_web` and `fetch_page_excerpt` for the same VIN only, and the card patch merges only confirmed vehicle facts
 - VIN web parsing has a known trap: prepending `explicit_vehicle` with a year can suppress model detection, so model parsing should prefer the raw web text first; the web follow-up also needs to skip 403 pages and continue to later results instead of stopping early
 - VIN web parsing should stay strict about field quality: drop generic `engine_model` candidates like `size`, trim trailing label noise like `CDN. Transmission`, and only accept `gearbox_model` when it looks like a real gearbox code, not a model echo
+- VIN enrichment must keep `gearbox_type` and `gearbox_model` separate: a transmission style like `automatic` should never be written into `gearbox_model`; the runner and scenario now store it as `gearbox_type`/`transmission` instead
 
 ## Current Known Cautions
 

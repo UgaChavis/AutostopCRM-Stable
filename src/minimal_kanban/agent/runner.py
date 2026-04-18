@@ -3258,12 +3258,13 @@ class AgentRunner:
                 vin_bits.append(f"двигатель: {decoded_vin.get('engine_model')}")
             if decoded_vin.get("engine_power_hp") and "engine_power_hp" in vehicle_patch:
                 vin_bits.append(f"мощность: {decoded_vin.get('engine_power_hp')} л.с.")
-            if (
-                decoded_vin.get("gearbox_model") or decoded_vin.get("transmission")
-            ) and "gearbox_model" in vehicle_patch:
-                vin_bits.append(
-                    f"КПП: {decoded_vin.get('gearbox_model') or decoded_vin.get('transmission')}"
-                )
+            gearbox_text = (
+                decoded_vin.get("gearbox_model")
+                or decoded_vin.get("transmission")
+                or decoded_vin.get("gearbox_type")
+            )
+            if gearbox_text and "gearbox_model" in vehicle_patch:
+                vin_bits.append(f"КПП: {gearbox_text}")
             if decoded_vin.get("drive_type") and "drivetrain" in vehicle_patch:
                 vin_bits.append(f"привод: {decoded_vin.get('drive_type')}")
             if decoded_vin.get("plant_country"):
@@ -3287,10 +3288,12 @@ class AgentRunner:
                     elif field_name == "engine_power_hp" and decoded_vin.get("engine_power_hp"):
                         web_bits.append(f"мощность: {decoded_vin.get('engine_power_hp')} л.с.")
                     elif field_name == "gearbox_model" and (
-                        decoded_vin.get("gearbox_model") or decoded_vin.get("transmission")
+                        decoded_vin.get("gearbox_model")
+                        or decoded_vin.get("transmission")
+                        or decoded_vin.get("gearbox_type")
                     ):
                         web_bits.append(
-                            f"КПП: {decoded_vin.get('gearbox_model') or decoded_vin.get('transmission')}"
+                            f"КПП: {decoded_vin.get('gearbox_model') or decoded_vin.get('transmission') or decoded_vin.get('gearbox_type')}"
                         )
                     elif field_name == "drive_type" and decoded_vin.get("drive_type"):
                         web_bits.append(f"привод: {decoded_vin.get('drive_type')}")
@@ -3549,8 +3552,9 @@ class AgentRunner:
                 field_sources["production_year"] = "official_vin_decode_nhtsa"
         _set_if_missing("engine_model", decoded_vin.get("engine_model"))
         _set_if_missing("engine_power_hp", decoded_vin.get("engine_power_hp"))
+        _set_if_missing("gearbox_model", decoded_vin.get("gearbox_model"))
         _set_if_missing(
-            "gearbox_model", decoded_vin.get("gearbox_model") or decoded_vin.get("transmission")
+            "gearbox_type", decoded_vin.get("gearbox_type") or decoded_vin.get("transmission")
         )
         _set_if_missing("drivetrain", decoded_vin.get("drive_type"))
         if not patch:
