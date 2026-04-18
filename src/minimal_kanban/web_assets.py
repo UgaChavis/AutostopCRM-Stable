@@ -13691,9 +13691,11 @@ function renderCompactArchiveRows(cards) {
 
     function updateRepairOrdersTabs() {
       const isClosed = state.repairOrdersFilter === 'closed';
+      const repairOrdersDialog = els.repairOrdersModal ? els.repairOrdersModal.querySelector('.dialog--repair-orders') : null;
       if (els.repairOrdersOpenTab) els.repairOrdersOpenTab.classList.toggle('is-active', !isClosed);
       if (els.repairOrdersClosedTab) els.repairOrdersClosedTab.classList.toggle('is-active', isClosed);
       if (els.repairOrdersModal) els.repairOrdersModal.dataset.repairOrdersFilter = isClosed ? 'closed' : 'open';
+      if (repairOrdersDialog) repairOrdersDialog.dataset.repairOrdersFilter = isClosed ? 'closed' : 'open';
       syncRepairOrdersLayout(isClosed ? 'closed' : 'open');
     }
 
