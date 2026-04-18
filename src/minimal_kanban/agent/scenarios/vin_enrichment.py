@@ -63,10 +63,14 @@ def _vin_web_result_score(item: dict[str, Any]) -> int:
 
 
 def _merge_web_enrichment(
-    decoded_vin: dict[str, Any], parsed_profile: dict[str, Any]
+    decoded_vin: dict[str, Any],
+    parsed_profile: dict[str, Any],
+    *,
+    fallback_profile: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     merged = dict(decoded_vin)
     enriched_fields: list[str] = []
+    fallback_profile = fallback_profile if isinstance(fallback_profile, dict) else {}
 
     def _clean_engine_model(value: Any) -> str:
         text = str(value or "").strip()
@@ -74,6 +78,31 @@ def _merge_web_enrichment(
             return ""
         cleaned = re.sub(r"\s+\d{2,4}\s*(?:HP|Л\.?\s*С\.?|ЛС)\b.*$", "", text, flags=re.IGNORECASE)
         return cleaned.strip()
+
+    def _normalize_text(value: Any) -> str:
+        return " ".join(str(value or "").strip().split()).casefold()
+
+    def _set_fallback_value(target_key: str, source_value: Any) -> None:
+        value = source_value
+        if value in (None, ""):
+            return
+        normalized = str(value).strip()
+        if not normalized:
+            return
+        merged[target_key] = value
+
+    if fallback_profile:
+        for target_key, source_key in (
+            ("make", "make_display"),
+            ("model", "model_display"),
+            ("model_year", "production_year"),
+            ("engine_model", "engine_model"),
+            ("engine_power_hp", "engine_power_hp"),
+            ("gearbox_model", "gearbox_model"),
+            ("transmission", "gearbox_type"),
+            ("drive_type", "drivetrain"),
+        ):
+            _set_fallback_value(target_key, fallback_profile.get(source_key))
 
     def _set_if_missing(
         target_key: str, source_value: Any, *, field_name: str | None = None
@@ -85,6 +114,28 @@ def _merge_web_enrichment(
         if not normalized:
             return
         if str(merged.get(target_key, "") or "").strip():
+            return
+        fallback_value = ""
+        if fallback_profile:
+            if target_key == "make":
+                fallback_value = fallback_profile.get("make_display", "")
+            elif target_key == "model":
+                fallback_value = fallback_profile.get("model_display", "")
+            elif target_key == "model_year":
+                fallback_value = fallback_profile.get("production_year", "")
+            elif target_key == "engine_model":
+                fallback_value = fallback_profile.get("engine_model", "")
+            elif target_key == "engine_power_hp":
+                fallback_value = fallback_profile.get("engine_power_hp", "")
+            elif target_key == "gearbox_model":
+                fallback_value = fallback_profile.get("gearbox_model", "")
+            elif target_key == "transmission":
+                fallback_value = fallback_profile.get("gearbox_type", "") or fallback_profile.get(
+                    "gearbox_model", ""
+                )
+            elif target_key == "drive_type":
+                fallback_value = fallback_profile.get("drivetrain", "")
+        if fallback_value and _normalize_text(fallback_value) != _normalize_text(value):
             return
         merged[target_key] = value
         label = field_name or target_key
@@ -166,6 +217,11 @@ class VinEnrichmentScenarioExecutor:
             facts["vehicle_context"] = runtime._merge_vehicle_context(
                 facts["vehicle_context"],
                 orchestration_payload,
+            )
+            fallback_profile = (
+                facts.get("related_vehicle_profile")
+                if isinstance(facts.get("related_vehicle_profile"), dict)
+                else None
             )
             web_tool_calls = 0
             web_lookup_attempted = False
@@ -258,40 +314,59 @@ class VinEnrichmentScenarioExecutor:
                     explicit_vehicle=" ".join(
                         part
                         for part in (
-                            str(orchestration_payload.get("make", "") or "").strip(),
-                            str(orchestration_payload.get("model", "") or "").strip(),
-                            str(orchestration_payload.get("model_year", "") or "").strip(),
+                            str(
+                                (facts.get("related_vehicle_profile") or {}).get("make_display", "")
+                                or orchestration_payload.get("make", "")
+                                or ""
+                            ).strip(),
+                            str(
+                                (facts.get("related_vehicle_profile") or {}).get(
+                                    "model_display", ""
+                                )
+                                or orchestration_payload.get("model", "")
+                                or ""
+                            ).strip(),
+                            str(
+                                (facts.get("related_vehicle_profile") or {}).get(
+                                    "production_year", ""
+                                )
+                                or orchestration_payload.get("model_year", "")
+                                or ""
+                            ).strip(),
                         )
                         if part
                     ),
                 )
                 enriched_payload, enriched_fields = _merge_web_enrichment(
-                    orchestration_payload, parsed_profile
+                    orchestration_payload,
+                    parsed_profile,
+                    fallback_profile=fallback_profile,
                 )
-                if enriched_fields:
+                if enriched_fields or fallback_profile:
                     enriched_payload["web_source_urls"] = [
                         str(item.get("url", "") or "").strip()
                         for item in (web_results if isinstance(web_results, list) else [])
                         if isinstance(item, dict) and str(item.get("url", "") or "").strip()
                     ][:4]
-                    enriched_payload["web_enrichment_fields"] = enriched_fields
                     orchestration_payload = enriched_payload
-                    facts["vin_web_enrichment_used"] = True
-                    facts["vin_web_enrichment_fields"] = list(enriched_fields)
                     facts["vehicle_context"] = runtime._merge_vehicle_context(
                         facts["vehicle_context"],
                         orchestration_payload,
                     )
-                    vin_status = "success"
-                    facts["vin_decode_status"] = vin_status
-                    runtime._record_log_action(
-                        task_id=context.task_id,
-                        run_id=context.run_id,
-                        step=max(3, 2 + len(excerpt_payloads)),
-                        level="INFO",
-                        phase="analysis",
-                        message="VIN web enrichment produced additional confirmed facts.",
-                    )
+                    if enriched_fields:
+                        enriched_payload["web_enrichment_fields"] = enriched_fields
+                        facts["vin_web_enrichment_used"] = True
+                        facts["vin_web_enrichment_fields"] = list(enriched_fields)
+                        vin_status = "success"
+                        facts["vin_decode_status"] = vin_status
+                        runtime._record_log_action(
+                            task_id=context.task_id,
+                            run_id=context.run_id,
+                            step=max(3, 2 + len(excerpt_payloads)),
+                            level="INFO",
+                            phase="analysis",
+                            message="VIN web enrichment produced additional confirmed facts.",
+                        )
         else:
             web_tool_calls = 0
             web_lookup_attempted = False

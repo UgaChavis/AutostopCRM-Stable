@@ -608,6 +608,131 @@ class VinEnrichmentScenarioTests(unittest.TestCase):
         self.assertTrue(display_sections)
         self.assertEqual(facts["vin_decode_status"], "success")
 
+    def test_web_merge_keeps_same_vin_fallback_on_conflict(self) -> None:
+        decoded_vin = {
+            "vin": "KNALU412BD6015036",
+            "make": "KIA",
+            "model": "Rio",
+            "model_year": "1983",
+            "engine_model": "YOUCANIC",
+            "engine_power_hp": None,
+            "gearbox_model": "8AT",
+            "gearbox_type": "8AT",
+            "transmission": "8AT",
+            "drive_type": "RWD",
+        }
+        parsed_profile = {
+            "make_display": "Kia",
+            "model_display": "Rio",
+            "production_year": 1983,
+            "engine_model": "YOUCANIC",
+            "engine_power_hp": 130,
+            "gearbox_model": "8AT",
+            "gearbox_type": "8AT",
+            "drivetrain": "RWD",
+        }
+        fallback_profile = {
+            "vin": "KNALU412BD6015036",
+            "make_display": "Kia",
+            "model_display": "Quoris",
+            "production_year": 2013,
+            "engine_model": "3.8 MPI",
+            "engine_power_hp": 240,
+            "gearbox_model": "8AT",
+            "gearbox_type": "AT",
+            "drivetrain": "RWD",
+        }
+
+        merged, enriched_fields = _merge_web_enrichment(
+            decoded_vin,
+            parsed_profile,
+            fallback_profile=fallback_profile,
+        )
+
+        self.assertEqual(merged["make"], "Kia")
+        self.assertEqual(merged["model"], "Quoris")
+        self.assertEqual(merged["model_year"], 2013)
+        self.assertEqual(merged["engine_model"], "3.8 MPI")
+        self.assertEqual(merged["gearbox_model"], "8AT")
+        self.assertEqual(merged["transmission"], "AT")
+        self.assertEqual(merged["drive_type"], "RWD")
+        self.assertEqual(enriched_fields, [])
+
+    def test_same_vin_board_profile_wins_over_conflicting_decode(self) -> None:
+        runner = object.__new__(AgentRunner)
+        facts = {
+            "vin": "KNALU412BD6015036",
+            "vin_decode_attempted": True,
+            "vin_decode_status": "success",
+            "card": {
+                "id": "card-current",
+                "vehicle": "Kia Quoris",
+                "description": "KNALU412BD6015036",
+            },
+            "vehicle_context": {},
+            "vehicle_profile": {},
+            "related_cards": [
+                {
+                    "id": "card-related",
+                    "vehicle": "Kia Quoris",
+                    "title": "Заказ запчастей — Kia Quoris",
+                    "column": "Заказы запчастей",
+                    "vehicle_profile_compact": {
+                        "vin": "KNALU412BD6015036",
+                        "make_display": "Kia",
+                        "model_display": "Quoris",
+                        "production_year": 2013,
+                        "engine_model": "3.8 MPI",
+                        "engine_power_hp": 240,
+                        "gearbox_model": "8AT",
+                        "gearbox_type": "AT",
+                        "drivetrain": "RWD",
+                    },
+                }
+            ],
+            "evidence_model": {},
+        }
+        orchestration_results = {
+            "decode_vin": {
+                "vin": "KNALU412BD6015036",
+                "make": "KIA",
+                "model": "Rio",
+                "model_year": "1983",
+                "engine_model": "YOUCANIC",
+                "engine_power_hp": None,
+                "gearbox_model": "8AT",
+                "gearbox_type": "8AT",
+                "transmission": "8AT",
+                "drive_type": "RWD",
+                "source_url": "https://vpic.nhtsa.dot.gov/api/vehicles/example",
+                "web_enrichment_fields": ["model_display", "engine_model"],
+            }
+        }
+
+        update_args, display_sections = AgentRunner._compose_card_autofill_update(
+            runner,
+            card_id="card-current",
+            facts=facts,
+            orchestration_results=orchestration_results,
+        )
+
+        self.assertIsNotNone(update_args)
+        assert update_args is not None
+        self.assertEqual(update_args["vehicle"], "Kia Quoris 2013")
+        self.assertIn("Kia", update_args["description"])
+        self.assertIn("Quoris", update_args["description"])
+        self.assertIn("2013", update_args["description"])
+        self.assertNotIn("Rio", update_args["description"])
+        self.assertNotIn("1983", update_args["description"])
+        self.assertEqual(update_args["vehicle_profile"]["make_display"], "Kia")
+        self.assertEqual(update_args["vehicle_profile"]["model_display"], "Quoris")
+        self.assertEqual(update_args["vehicle_profile"]["production_year"], 2013)
+        self.assertEqual(update_args["vehicle_profile"]["engine_model"], "3.8 MPI")
+        self.assertEqual(update_args["vehicle_profile"]["gearbox_model"], "8AT")
+        self.assertEqual(update_args["vehicle_profile"]["drivetrain"], "RWD")
+        self.assertIn("same VIN board context", update_args["vehicle_profile"]["source_summary"])
+        self.assertTrue(display_sections)
+
 
 if __name__ == "__main__":
     unittest.main()

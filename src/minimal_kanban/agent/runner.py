@@ -3376,8 +3376,8 @@ class AgentRunner:
         vin_decode_status = str(facts.get("vin_decode_status", "") or "").strip().lower()
         related_vehicle_profile = self._best_related_vehicle_profile(facts)
         related_vehicle_facts = self._related_vehicle_profile_to_vin_facts(related_vehicle_profile)
-        resolved_vin_payload = dict(decoded_vin) if isinstance(decoded_vin, dict) else {}
-        for key, value in related_vehicle_facts.items():
+        resolved_vin_payload = dict(related_vehicle_facts) if related_vehicle_facts else {}
+        for key, value in decoded_vin.items() if isinstance(decoded_vin, dict) else []:
             if key == "engine_power_hp":
                 if value not in (None, "", 0) and not resolved_vin_payload.get(key):
                     resolved_vin_payload[key] = value
