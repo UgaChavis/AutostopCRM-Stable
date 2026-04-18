@@ -1560,6 +1560,30 @@ class CardServiceTests(unittest.TestCase):
             self.service.update_card({"card_id": card_id, "title": "Нельзя"})
         self.assertEqual(archived_error.exception.code, "archived_card")
 
+    def test_update_card_rejects_conflicting_vehicle_profile_vin(self) -> None:
+        created = self.service.create_card(
+            {
+                "title": "VIN guard",
+                "description": "TEST VIN WAUZZZ8V0JA000001",
+                "deadline": {"hours": 2},
+            }
+        )
+        card_id = created["card"]["id"]
+
+        with self.assertRaises(ServiceError) as conflict_error:
+            self.service.update_card(
+                {
+                    "card_id": card_id,
+                    "vehicle_profile": {
+                        "vin": "JTEBU3FJX05027767",
+                        "make_display": "Toyota",
+                    },
+                }
+            )
+
+        self.assertEqual(conflict_error.exception.code, "validation_error")
+        self.assertEqual(conflict_error.exception.details.get("field"), "vehicle_profile.vin")
+
     def test_deadline_survives_service_reload(self) -> None:
         base = datetime(2026, 3, 23, 12, 0, 0, tzinfo=timezone.utc)
         patches = self._patch_time(base)

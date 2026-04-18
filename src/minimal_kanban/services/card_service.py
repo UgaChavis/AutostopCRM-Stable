@@ -5920,6 +5920,38 @@ class CardService:
         actor_name: str,
         source: str,
     ) -> bool:
+        incoming_vin = ""
+        if isinstance(value, dict):
+            incoming_vin = normalize_text(value.get("vin"), default="", limit=32).upper()
+        if incoming_vin:
+            card_vin_hints = []
+            vehicle_vin = self._extract_vin_from_text(card.vehicle)
+            if vehicle_vin:
+                card_vin_hints.append(vehicle_vin)
+            title_vin = self._extract_vin_from_text(card.title)
+            if title_vin:
+                card_vin_hints.append(title_vin)
+            description_vin = self._extract_vin_from_text(card.description)
+            if description_vin:
+                card_vin_hints.append(description_vin)
+            repair_order_vin = normalize_text(card.repair_order.vin, default="", limit=32).upper()
+            if repair_order_vin:
+                card_vin_hints.append(repair_order_vin)
+            profile_vin = normalize_text(card.vehicle_profile.vin, default="", limit=32).upper()
+            if profile_vin:
+                card_vin_hints.append(profile_vin)
+            card_vin_hints = [vin for vin in dict.fromkeys(card_vin_hints) if vin]
+            conflicting_vins = [vin for vin in card_vin_hints if vin != incoming_vin]
+            if conflicting_vins:
+                self._fail(
+                    "validation_error",
+                    "VIN в vehicle_profile не совпадает с VIN, уже найденным в карточке.",
+                    details={
+                        "field": "vehicle_profile.vin",
+                        "card_vin_hints": card_vin_hints,
+                        "incoming_vin": incoming_vin,
+                    },
+                )
         profile, changed_fields = self._merge_vehicle_profile_patch(card.vehicle_profile, value)
         if (
             not changed_fields
@@ -5954,6 +5986,12 @@ class CardService:
             details=details,
         )
         return True
+
+    @staticmethod
+    def _extract_vin_from_text(value: str) -> str:
+        source_text = normalize_text(value, default="", limit=4000).upper()
+        match = _CARD_AI_VIN_PATTERN.search(source_text)
+        return match.group(0) if match else ""
 
     def _update_description(
         self,
