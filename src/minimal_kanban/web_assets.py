@@ -1790,6 +1790,12 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-field--vehicle input[type="text"] {
       font-size: 14.75px;
     }
+    .repair-order-field--phone input[type="text"] {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--text);
+    }
     .repair-order-card__grid--document .field--compact label,
     .repair-order-card__grid--payment .field--compact label,
     .repair-order-card__grid--vehicle .field--compact label,
