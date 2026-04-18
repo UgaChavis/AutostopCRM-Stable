@@ -147,9 +147,19 @@ class _FakeAgentControl:
         *,
         source: str = "ui_card_autofill",
         trigger: str = "manual",
+        purpose: str = "card_autofill",
+        mode: str | None = None,
     ) -> dict | None:
         payload = dict(payload or {})
-        self.autofill_calls.append({"payload": payload, "source": source, "trigger": trigger})
+        self.autofill_calls.append(
+            {
+                "payload": payload,
+                "source": source,
+                "trigger": trigger,
+                "purpose": purpose,
+                "mode": mode,
+            }
+        )
         return {
             "id": f"task-{len(self.autofill_calls)}",
             "created_at": utc_now().isoformat(),
@@ -502,6 +512,8 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(
             agent_control.autofill_calls[-1]["payload"]["scenario_id"], "full_card_enrichment"
         )
+        self.assertEqual(agent_control.autofill_calls[-1]["purpose"], "card_enrichment")
+        self.assertEqual(agent_control.autofill_calls[-1]["mode"], "card_enrichment")
         prompt_text = str(agent_control.autofill_calls[-1]["payload"].get("ai_autofill_prompt", ""))
         self.assertIn("VIN", prompt_text)
         self.assertNotIn("parts", prompt_text.lower())

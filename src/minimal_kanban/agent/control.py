@@ -339,12 +339,16 @@ class AgentControlService:
         *,
         source: str = "ui_card_autofill",
         trigger: str = "manual",
+        purpose: str = "card_autofill",
+        mode: str | None = None,
     ) -> dict[str, Any] | None:
         payload = payload or {}
         card_id = str(payload.get("card_id", "") or "").strip()
         if not card_id:
             raise ValueError("card_id is required")
-        if self._storage.has_active_task_for_card(card_id, purpose="card_autofill"):
+        normalized_purpose = str(purpose or "").strip().lower() or "card_autofill"
+        normalized_mode = str(mode or "").strip() or normalized_purpose
+        if self._storage.has_active_task_for_card(card_id, purpose=normalized_purpose):
             return None
         task_text = str(
             payload.get("task_text", "") or ""
@@ -352,7 +356,7 @@ class AgentControlService:
         metadata = {
             "requested_by": str(payload.get("requested_by", "") or "autofill").strip()
             or "autofill",
-            "purpose": "card_autofill",
+            "purpose": normalized_purpose,
             "scenario_id": str(payload.get("scenario_id", "") or "").strip().lower()
             or "full_card_enrichment",
             "trigger": str(trigger or "manual").strip() or "manual",
@@ -385,7 +389,7 @@ class AgentControlService:
         return self._storage.enqueue_task(
             task_text=task_text,
             source=source,
-            mode="card_autofill",
+            mode=normalized_mode,
             metadata=metadata,
         )
 

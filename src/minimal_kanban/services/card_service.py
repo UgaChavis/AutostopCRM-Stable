@@ -787,6 +787,8 @@ class CardService:
                     },
                     source="ui_full_card_enrichment",
                     trigger="manual_enrichment",
+                    purpose="card_enrichment",
+                    mode="card_enrichment",
                 )
                 if task is not None:
                     launched_task_id = str(task.get("id", "") or "").strip()
@@ -807,7 +809,7 @@ class CardService:
                 else:
                     already_running = True
                     latest_task = self._agent_control.latest_task_for_card(
-                        card.id, purpose="card_autofill"
+                        card.id, purpose="card_enrichment"
                     )
                     launched_task_id = str((latest_task or {}).get("id", "") or "").strip()
                     self._append_card_ai_log(
@@ -1182,6 +1184,8 @@ class CardService:
                     },
                     source="ui_full_card_enrichment",
                     trigger="manual_enrichment",
+                    purpose="card_enrichment",
+                    mode="card_enrichment",
                 )
                 if task is not None:
                     launched_task_id = str(task.get("id", "") or "").strip()
@@ -1202,7 +1206,7 @@ class CardService:
                 else:
                     already_running = True
                     latest_task = self._agent_control.latest_task_for_card(
-                        card.id, purpose="card_autofill"
+                        card.id, purpose="card_enrichment"
                     )
                     launched_task_id = str((latest_task or {}).get("id", "") or "").strip()
                     self._append_card_ai_log(
