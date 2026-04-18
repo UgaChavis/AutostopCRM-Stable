@@ -1776,7 +1776,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid--vehicle .field--compact input[type="text"] {
       min-height: 29px;
       padding: 4px 7px;
-      font-size: 12px;
+      font-size: 13.5px;
     }
     .repair-order-field--number input[type="text"],
     .repair-order-field--vin input[type="text"] {
@@ -1788,7 +1788,7 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-field--client input[type="text"],
     .repair-order-field--vehicle input[type="text"] {
-      font-size: 13px;
+      font-size: 14px;
     }
     .repair-order-card__grid--document .field--compact label,
     .repair-order-card__grid--payment .field--compact label,
@@ -1803,8 +1803,8 @@ BOARD_WEB_APP_HTML = "".join(
       height: 112px;
       max-height: 168px;
       line-height: 1.4;
-      padding: 7px 9px;
-      font-size: 12.5px;
+      padding: 8px 10px;
+      font-size: 14px;
     }
     .repair-order-status {
       display: inline-flex;
@@ -1886,7 +1886,7 @@ BOARD_WEB_APP_HTML = "".join(
       padding: 5px 7px;
       min-height: 30px;
       outline: none;
-      font-size: 12.25px;
+      font-size: 13.5px;
     }
     .repair-order-table__input:focus {
       border-bottom-color: var(--accent);
@@ -5086,14 +5086,15 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .repair-order-table__select {
       width: 100%;
-      min-height: 36px;
+      min-height: 32px;
       background: rgba(18, 24, 20, 0.84);
       border: 1px solid var(--line);
       color: var(--text);
-      padding: 8px 10px;
-      font: inherit;
+      padding: 4px 7px;
+      font-size: 10.75px;
+      line-height: 1.2;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.04em;
     }
   </style>
 </head>
