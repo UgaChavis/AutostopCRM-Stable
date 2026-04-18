@@ -24,7 +24,6 @@ Use this file for durable notes that should not be rediscovered every session.
 - the card indicator button must use the open card state (`state.activeCard` / `state.editingId`) as the source of truth; relying only on `agentContext` can make the button say "open the card" even when the card modal is already open
 - same-VIN board context is now the stronger fallback when it conflicts with sparse or noisy VIN/web decode results; model/year/engine/gearbox/drivetrain should not be overwritten by a weaker `Rio / 1983`-style parse if the board already has a richer same-VIN profile
 - the CRM ↔ agent bridge is now pinned in `docs/VIN_ENRICHMENT_BRIDGE.md`: task payload uses `card_id` + `purpose=card_enrichment`, the worker must read `get_card_context(card_id)` first, and the only CRM write path is `update_card` with `description`, `vehicle`, and `vehicle_profile`
-- CRM `update_card` now rejects `vehicle_profile.vin` when it conflicts with VINs already visible in the card body, title, vehicle, repair order, or existing profile; this prevents weak or off-card VIN decodes from being written back as fact
 
 ## Current Known Cautions
 
