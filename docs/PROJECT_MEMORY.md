@@ -20,6 +20,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - VIN web parsing should stay strict about field quality: drop generic `engine_model` candidates like `size`, trim trailing label noise like `CDN. Transmission`, and only accept `gearbox_model` when it looks like a real gearbox code, not a model echo
 - VIN enrichment must keep `gearbox_type` and `gearbox_model` separate: a transmission style like `automatic` should never be written into `gearbox_model`; the runner and scenario now store it as `gearbox_type`/`transmission` instead
 - VIN enrichment must also continue into web follow-up when `decode_vin` is only `insufficient`; the live VIN may still be present, and the scenario now treats web-confirmed fields as enough to finish the write
+- same-VIN board context must win not only in the vehicle profile patch but also in the rendered vehicle label; otherwise the passport can be correct while the card header still shows a stale `Rio / 1983` decode
 - the card indicator button must use the open card state (`state.activeCard` / `state.editingId`) as the source of truth; relying only on `agentContext` can make the button say "open the card" even when the card modal is already open
 - same-VIN board context is now the stronger fallback when it conflicts with sparse or noisy VIN/web decode results; model/year/engine/gearbox/drivetrain should not be overwritten by a weaker `Rio / 1983`-style parse if the board already has a richer same-VIN profile
 
