@@ -3955,7 +3955,7 @@ BOARD_WEB_APP_HTML = "".join(
       }
     }
     .dialog--repair-orders {
-      width: min(1760px, calc(100vw - 24px));
+      width: min(1940px, calc(100vw - 24px));
       max-height: min(94vh, 980px);
     }
     .repair-orders-controls {

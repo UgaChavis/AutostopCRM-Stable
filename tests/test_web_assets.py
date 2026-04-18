@@ -1268,7 +1268,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("'/api/open_card'", BOARD_WEB_APP_HTML)
         self.assertIn("data-open-repair-order-card", BOARD_WEB_APP_HTML)
         self.assertIn(".dialog--repair-orders {", BOARD_WEB_APP_HTML)
-        self.assertIn("width: min(1760px, calc(100vw - 24px));", BOARD_WEB_APP_HTML)
+        self.assertIn("width: min(1940px, calc(100vw - 24px));", BOARD_WEB_APP_HTML)
         self.assertIn(
             "repairOrderListTotalText(item.grand_total, item.works_total)", BOARD_WEB_APP_HTML
         )
