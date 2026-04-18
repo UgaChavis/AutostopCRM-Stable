@@ -733,6 +733,35 @@ class VinEnrichmentScenarioTests(unittest.TestCase):
         self.assertIn("same VIN board context", update_args["vehicle_profile"]["source_summary"])
         self.assertTrue(display_sections)
 
+    def test_same_vin_board_context_wins_for_vehicle_label(self) -> None:
+        runner = object.__new__(AgentRunner)
+        facts = {
+            "card": {
+                "id": "card-current",
+                "vehicle": "",
+                "description": "VIN: KNALU412BD6015036",
+            },
+            "vehicle_context": {},
+        }
+
+        label = AgentRunner._autofill_vehicle_label_patch(
+            runner,
+            facts=facts,
+            decoded_vin={
+                "make": "KIA",
+                "model": "Rio",
+                "model_year": "1983",
+            },
+            vin_decode_status="success",
+            fallback_vehicle_profile={
+                "make_display": "Kia",
+                "model_display": "Quoris",
+                "production_year": 2013,
+            },
+        )
+
+        self.assertEqual(label, "Kia Quoris 2013")
+
 
 if __name__ == "__main__":
     unittest.main()

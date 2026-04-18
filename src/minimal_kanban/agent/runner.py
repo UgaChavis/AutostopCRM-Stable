@@ -3638,18 +3638,31 @@ class AgentRunner:
         if vin_decode_status != "success" and not fallback_vehicle_profile:
             return ""
         current_vehicle = str(facts["card"].get("vehicle", "") or "").strip()
+        fallback_candidate = ""
+        if isinstance(fallback_vehicle_profile, dict):
+            fallback_candidate = " ".join(
+                part
+                for part in (
+                    str(fallback_vehicle_profile.get("make_display", "") or "").strip(),
+                    str(fallback_vehicle_profile.get("model_display", "") or "").strip(),
+                    str(fallback_vehicle_profile.get("production_year", "") or "").strip(),
+                )
+                if part
+            ).strip()
         context = (
             facts.get("vehicle_context") if isinstance(facts.get("vehicle_context"), dict) else {}
         )
-        candidate = " ".join(
-            part
-            for part in (
-                str(context.get("make", "") or "").strip(),
-                str(context.get("model", "") or "").strip(),
-                str(context.get("year", "") or "").strip(),
-            )
-            if part
-        ).strip()
+        candidate = fallback_candidate
+        if not candidate:
+            candidate = " ".join(
+                part
+                for part in (
+                    str(context.get("make", "") or "").strip(),
+                    str(context.get("model", "") or "").strip(),
+                    str(context.get("year", "") or "").strip(),
+                )
+                if part
+            ).strip()
         if not candidate and isinstance(decoded_vin, dict):
             candidate = " ".join(
                 part
@@ -3657,16 +3670,6 @@ class AgentRunner:
                     str(decoded_vin.get("make", "") or "").strip(),
                     str(decoded_vin.get("model", "") or "").strip(),
                     str(decoded_vin.get("model_year", "") or "").strip(),
-                )
-                if part
-            ).strip()
-        if not candidate and isinstance(fallback_vehicle_profile, dict):
-            candidate = " ".join(
-                part
-                for part in (
-                    str(fallback_vehicle_profile.get("make_display", "") or "").strip(),
-                    str(fallback_vehicle_profile.get("model_display", "") or "").strip(),
-                    str(fallback_vehicle_profile.get("production_year", "") or "").strip(),
                 )
                 if part
             ).strip()
