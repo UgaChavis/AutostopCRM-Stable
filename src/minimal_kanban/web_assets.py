@@ -3601,8 +3601,8 @@ BOARD_WEB_APP_HTML = "".join(
         minmax(100px, 116px)
         minmax(136px, 168px)
         minmax(168px, 203px)
-        minmax(159px, 189px)
-        minmax(205px, 1.917fr)
+        minmax(184px, 1.71fr)
+        minmax(180px, 1.674fr)
         minmax(72px, 84px)
         minmax(72px, 84px);
     }
