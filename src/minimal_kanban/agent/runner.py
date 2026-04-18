@@ -3133,9 +3133,6 @@ class AgentRunner:
                 notes.append(line.lstrip("- ").strip())
         return [item for item in notes if item]
 
-    def _extract_autofill_symptom_query_legacy_unused(self, source_text: str) -> str:
-        return self._extract_autofill_symptom_query(source_text)
-
     def _extract_autofill_symptom_query(self, source_text: str) -> str:
         lines: list[str] = []
         symptom_lines: list[str] = []
