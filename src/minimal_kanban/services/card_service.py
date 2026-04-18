@@ -675,6 +675,85 @@ class CardService:
 
     # Retained only as inert reference during the rollback stabilization pass.
     # The live compatibility shim is defined further below.
+    def cleanup_card_content(self, payload: dict | None = None) -> dict:
+        with self._lock:
+            payload = payload or {}
+            bundle = self._store.read_bundle()
+            cards = bundle["cards"]
+            events = bundle["events"]
+            columns = bundle["columns"]
+            card = self._find_card(cards, payload.get("card_id"))
+            self._ensure_not_archived(card)
+            actor_name, source = self._audit_identity(payload, default_source="ui")
+
+            changed = False
+            changed_fields: list[str] = []
+            normalized_description = self._build_card_cleanup_description(card)
+            if normalized_description and normalized_description != card.description:
+                if self._update_description(
+                    card, normalized_description, events, actor_name, source
+                ):
+                    changed = True
+                    changed_fields.append("description")
+
+            cleanup_vehicle = self._build_card_cleanup_vehicle_label(card)
+            if cleanup_vehicle and cleanup_vehicle != card.vehicle:
+                if self._update_vehicle(card, cleanup_vehicle, events, actor_name, source):
+                    changed = True
+                    changed_fields.append("vehicle")
+
+            profile_patch = self._build_card_cleanup_vehicle_profile_patch(card)
+            if profile_patch:
+                if self._update_vehicle_profile(card, profile_patch, events, actor_name, source):
+                    changed = True
+                    changed_fields.append("vehicle_profile")
+
+            verify = {
+                "description_ok": not normalized_description
+                or card.description == normalized_description,
+                "vehicle_ok": not cleanup_vehicle or card.vehicle == cleanup_vehicle,
+                "vehicle_profile_ok": self._cleanup_profile_patch_applied(card, profile_patch),
+                "external_calls": False,
+            }
+            verify_passed = (
+                bool(verify["description_ok"])
+                and bool(verify["vehicle_ok"])
+                and bool(verify["vehicle_profile_ok"])
+                and not bool(verify["external_calls"])
+            )
+
+            if changed:
+                self._touch_card(card, actor_name)
+                self._append_event(
+                    events,
+                    actor_name=actor_name,
+                    source=source,
+                    action="card_cleanup_applied",
+                    message=f"{actor_name} прибрался в карточке",
+                    card_id=card.id,
+                    details={
+                        "changed_fields": changed_fields,
+                        "verify_passed": verify_passed,
+                        "cleanup_mode": "local_card_cleanup",
+                    },
+                )
+                self._save_bundle(bundle, columns=columns, cards=cards, events=events)
+
+            return {
+                "card": self._serialize_card(
+                    card, events, column_labels=self._column_labels(columns)
+                ),
+                "meta": {
+                    "changed": changed,
+                    "changed_fields": changed_fields,
+                    "verify": {
+                        **verify,
+                        "passed": verify_passed,
+                    },
+                    "cleanup_mode": "local_card_cleanup",
+                },
+            }
+
     def run_full_card_enrichment(self, payload: dict | None = None) -> dict:
         if self._agent_control is not None:
             return self._run_full_card_enrichment_with_agent_control(payload)
