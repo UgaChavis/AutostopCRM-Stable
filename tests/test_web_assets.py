@@ -80,7 +80,7 @@ class WebAssetsTests(unittest.TestCase):
         )
         self.assertIn("setStatus('ОТКРОЙ КАРТОЧКУ ДЛЯ AI-ОБОГАЩЕНИЯ.', true);", BOARD_WEB_APP_HTML)
         self.assertIn("api('/api/run_full_card_enrichment'", BOARD_WEB_APP_HTML)
-        self.assertIn("openAgentModal('card');", BOARD_WEB_APP_HTML)
+        self.assertNotIn("openAgentModal('card');", BOARD_WEB_APP_HTML)
 
     def test_card_tag_editor_uses_compact_tag_controls(self) -> None:
         self.assertIn(".tags-panel {", BOARD_WEB_APP_HTML)

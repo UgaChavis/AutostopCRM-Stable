@@ -9537,12 +9537,10 @@ BOARD_WEB_APP_HTML = "".join(
         state.cardCleanupState = data?.meta?.launched || data?.meta?.already_running ? 'running' : 'idle';
         state.cardCleanupError = '';
         renderCardCleanupIndicator();
-        openAgentModal('card');
         if (taskId) {
           state.agentTaskId = taskId;
           state.agentTaskStatus = 'pending';
         }
-        await refreshAgentModalState();
       } catch (error) {
         state.cardCleanupState = 'error';
         state.cardCleanupError = error.message;
@@ -9565,15 +9563,6 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     function openAiSurface(kind = 'chat') {
-      const normalizedKind = String(kind || '').trim().toLowerCase();
-      if (normalizedKind === 'card') {
-        openAgentModal('card');
-        return;
-      }
-      if (normalizedKind === 'board') {
-        openAgentModal('board');
-        return;
-      }
       return reportLegacyAgentRuntimeRetired();
     }
 
