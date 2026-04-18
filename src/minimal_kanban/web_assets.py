@@ -3602,9 +3602,9 @@ BOARD_WEB_APP_HTML = "".join(
         minmax(136px, 168px)
         minmax(168px, 203px)
         minmax(159px, 189px)
-        minmax(185px, 1.726fr)
-        minmax(82px, 96px)
-        minmax(82px, 96px);
+        minmax(205px, 1.917fr)
+        minmax(72px, 84px)
+        minmax(72px, 84px);
     }
     .dialog--repair-orders .dialog__title {
       font-size: 16px;
