@@ -1060,9 +1060,58 @@ class AgentRunner:
                     phase="analysis",
                     message=f"Контекст доски: найдено связанных карточек — {len(facts['related_cards'])}.",
                 )
-        plan_payload = (
-            facts.get("autofill_plan") if isinstance(facts.get("autofill_plan"), dict) else {}
-        )
+                related_vehicle_profile = self._best_related_vehicle_profile(facts)
+                if self._related_vehicle_profile_is_sparse(related_vehicle_profile):
+                    related_card_id = str(
+                        facts["related_cards"][0].get("id", "")
+                        if isinstance(facts["related_cards"][0], dict)
+                        else ""
+                    ).strip()
+                    if related_card_id:
+                        related_context_args = {"card_id": related_card_id}
+                        related_context_payload = self._run_autofill_tool(
+                            task_id=task["id"],
+                            run_id=run_id,
+                            step=tool_calls + 1,
+                            tool_name="get_card_context",
+                            args=related_context_args,
+                            reason="Load the full same-VIN card context when search results are sparse",
+                        )
+                        tool_calls += 1
+                        if related_context_payload is not None:
+                            self._record_log_action(
+                                task_id=task["id"],
+                                run_id=run_id,
+                                step=tool_calls,
+                                level="INFO",
+                                phase="analysis",
+                                message="Выгружен полный контекст связанной same-VIN карточки.",
+                            )
+                            related_context_data = self._response_data(related_context_payload)
+                            related_context_card = (
+                                related_context_data.get("card")
+                                if isinstance(related_context_data.get("card"), dict)
+                                else related_context_data
+                            )
+                            related_profile = (
+                                related_context_card.get("vehicle_profile_compact")
+                                if isinstance(related_context_card, dict)
+                                and isinstance(
+                                    related_context_card.get("vehicle_profile_compact"), dict
+                                )
+                                else {}
+                            )
+                            if not related_profile and isinstance(related_context_card, dict):
+                                related_profile = (
+                                    related_context_card.get("vehicle_profile")
+                                    if isinstance(related_context_card.get("vehicle_profile"), dict)
+                                    else {}
+                                )
+                            if isinstance(related_profile, dict) and related_profile:
+                                facts["related_vehicle_profile"] = dict(related_profile)
+            plan_payload = (
+                facts.get("autofill_plan") if isinstance(facts.get("autofill_plan"), dict) else {}
+            )
         scenarios = (
             plan_payload.get("scenarios") if isinstance(plan_payload.get("scenarios"), list) else []
         )
@@ -1990,6 +2039,13 @@ class AgentRunner:
         return related
 
     def _best_related_vehicle_profile(self, facts: dict[str, Any]) -> dict[str, Any]:
+        related_vehicle_profile = (
+            facts.get("related_vehicle_profile")
+            if isinstance(facts.get("related_vehicle_profile"), dict)
+            else {}
+        )
+        if related_vehicle_profile:
+            return dict(related_vehicle_profile)
         related_cards = (
             facts.get("related_cards") if isinstance(facts.get("related_cards"), list) else []
         )
@@ -2023,6 +2079,20 @@ class AgentRunner:
                 best_score = score
                 best_profile = dict(profile)
         return best_profile if best_score >= 3 else {}
+
+    def _related_vehicle_profile_is_sparse(self, profile: dict[str, Any] | None) -> bool:
+        if not isinstance(profile, dict) or not profile:
+            return True
+        return not any(
+            str(profile.get(field_name, "") or "").strip()
+            for field_name in (
+                "engine_model",
+                "engine_power_hp",
+                "gearbox_model",
+                "gearbox_type",
+                "drivetrain",
+            )
+        )
 
     def _related_vehicle_profile_to_vin_facts(
         self, profile: dict[str, Any] | None
