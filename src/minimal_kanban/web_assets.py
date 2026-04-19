@@ -194,10 +194,27 @@ BOARD_WEB_APP_HTML = "".join(
       transform: none;
     }
     #repairOrderCloseButton[data-close-available="true"] {
-      border-color: rgba(138, 150, 109, 0.34);
-      background: rgba(16, 21, 17, 0.88);
-      color: #edf0df;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      border-color: rgba(165, 176, 122, 0.72);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), transparent 22%),
+        rgba(30, 36, 28, 0.98);
+      color: #f5f8eb;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.12),
+        0 0 0 1px rgba(0,0,0,0.18);
+      cursor: pointer;
+      transition: border-color 120ms ease, background 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+    }
+    #repairOrderCloseButton[data-close-available="true"]:hover {
+      border-color: var(--accent);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.12), transparent 18%),
+        rgba(36, 44, 35, 1);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.16),
+        0 0 0 1px rgba(0,0,0,0.18),
+        0 8px 20px rgba(0,0,0,0.18);
+      transform: translateY(-1px);
     }
     .gear-button {
       width: 48px;
