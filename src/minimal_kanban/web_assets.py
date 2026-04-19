@@ -229,8 +229,8 @@ BOARD_WEB_APP_HTML = "".join(
         linear-gradient(180deg, rgba(255,255,255,0.08), transparent 24%),
         rgba(18, 24, 19, 0.94);
       color: var(--text);
-      width: 68px;
-      height: 68px;
+      width: 44px;
+      height: 44px;
       padding: 0;
       cursor: pointer;
       display: inline-flex;
@@ -243,8 +243,8 @@ BOARD_WEB_APP_HTML = "".join(
     }
     .sticky-dock__button:hover { border-color: var(--accent); transform: translateY(-1px); }
     .sticky-dock__button svg {
-        width: 34px;
-        height: 34px;
+        width: 22px;
+        height: 22px;
         stroke: currentColor;
         stroke-width: 1.8;
         fill: rgba(214, 194, 117, 0.18);
