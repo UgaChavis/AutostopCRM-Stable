@@ -13111,7 +13111,7 @@ BOARD_WEB_APP_HTML = "".join(
         if (!task) {
           state.cardCleanupState = 'running';
           renderCardCleanupIndicator();
-          scheduleCardCleanupPolling(1500);
+          scheduleCardCleanupPolling(2500);
           return;
         }
         const status = String(task.status || '').trim().toLowerCase();
@@ -13136,7 +13136,7 @@ BOARD_WEB_APP_HTML = "".join(
         state.cardCleanupState = 'error';
         state.cardCleanupError = error.message;
         renderCardCleanupIndicator();
-        scheduleCardCleanupPolling(3000);
+        scheduleCardCleanupPolling(6000);
       }
     }
 
