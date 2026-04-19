@@ -1415,10 +1415,10 @@ class WebAssetsTests(unittest.TestCase):
             "els.repairOrderCloseButton.dataset.closeAvailable = closeAvailable ? 'true' : 'false';",
             BOARD_WEB_APP_HTML,
         )
-        self.assertIn('#repairOrderCloseButton[data-close-available="false"]', BOARD_WEB_APP_HTML)
-        self.assertIn(
-            '#repairOrderCloseButton[data-close-available="false"]:hover', BOARD_WEB_APP_HTML
-        )
+        self.assertIn('#repairOrderCloseButton[data-close-available="false"],', BOARD_WEB_APP_HTML)
+        self.assertIn("display: none;", BOARD_WEB_APP_HTML)
+        self.assertIn('#repairOrderCloseButton[data-close-available="true"] {', BOARD_WEB_APP_HTML)
+        self.assertIn("border-color: rgba(138, 150, 109, 0.34);", BOARD_WEB_APP_HTML)
         self.assertIn(
             "async function persistRepairOrderRecord({ statusMessage = '', silent = false } = {})",
             BOARD_WEB_APP_HTML,
@@ -1431,6 +1431,10 @@ class WebAssetsTests(unittest.TestCase):
             "els.repairOrderCloseButton.addEventListener('click', toggleRepairOrderStatus);",
             BOARD_WEB_APP_HTML,
         )
+        self.assertIn(".repair-order-status {", BOARD_WEB_APP_HTML)
+        self.assertIn("font-size: 10.5px;", BOARD_WEB_APP_HTML)
+        self.assertIn("background: rgba(88, 138, 70, 0.28);", BOARD_WEB_APP_HTML)
+        self.assertIn('.repair-order-status[data-status="closed"] {', BOARD_WEB_APP_HTML)
 
     def test_repair_orders_menu_supports_open_and_closed_filters(self) -> None:
         self.assertIn('id="repairOrdersOpenTab"', BOARD_WEB_APP_HTML)

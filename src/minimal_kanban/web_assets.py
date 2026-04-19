@@ -185,11 +185,13 @@ BOARD_WEB_APP_HTML = "".join(
     }
     #repairOrderCloseButton[data-close-available="false"],
     #repairOrderCloseButton[data-close-available="false"]:hover {
-      color: rgba(200, 198, 187, 0.46);
-      border-color: rgba(255,255,255,0.08);
-      background: rgba(0,0,0,0.08);
-      box-shadow: none;
-      cursor: default;
+      display: none;
+    }
+    #repairOrderCloseButton[data-close-available="true"] {
+      border-color: rgba(138, 150, 109, 0.34);
+      background: rgba(16, 21, 17, 0.88);
+      color: #edf0df;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
     }
     .gear-button {
       width: 48px;
@@ -1820,21 +1822,21 @@ BOARD_WEB_APP_HTML = "".join(
       justify-content: center;
       min-height: 24px;
       padding: 4px 10px;
-      border: 1px solid rgba(123, 166, 113, 0.36);
-      background: rgba(81, 122, 72, 0.18);
-      color: #e6f1db;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      border: 1px solid rgba(146, 186, 111, 0.56);
+      background: rgba(88, 138, 70, 0.28);
+      color: #f3f9e9;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(0,0,0,0.08);
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
+      font-size: 10.5px;
+      letter-spacing: 0.1em;
       font-weight: 700;
       text-transform: uppercase;
       white-space: nowrap;
     }
     .repair-order-status[data-status="closed"] {
-      border-color: rgba(181, 109, 97, 0.4);
-      background: rgba(119, 50, 43, 0.18);
-      color: #f4dcd7;
+      border-color: rgba(190, 122, 112, 0.52);
+      background: rgba(132, 58, 50, 0.26);
+      color: #fff0ec;
     }
     .repair-order-section-bar {
       display: flex;
