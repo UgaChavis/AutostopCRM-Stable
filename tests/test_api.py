@@ -2746,7 +2746,12 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("sections", wall["data"])
         self.assertIn("board_content", wall["data"]["sections"])
         self.assertIn("event_log", wall["data"]["sections"])
-        self.assertIn("СТЕНА GPT", wall["data"]["text"])
+        self.assertTrue(wall["data"]["text"].startswith("# AutoStop CRM Board Content"))
+        self.assertEqual(wall["data"]["meta"]["text_format"], "markdown")
+        self.assertEqual(
+            wall["data"]["sections"]["board_content"]["meta"]["text_format"], "markdown"
+        )
+        self.assertEqual(wall["data"]["sections"]["event_log"]["meta"]["text_format"], "markdown")
         self.assertTrue(any(card["id"] == card_id for card in wall["data"]["cards"]))
         wall_card = next(card for card in wall["data"]["cards"] if card["id"] == card_id)
         self.assertIn("vehicle_profile_compact", wall_card)

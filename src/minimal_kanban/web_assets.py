@@ -5172,7 +5172,6 @@ BOARD_WEB_APP_HTML = "".join(
         <button class="btn" id="repairOrdersButton">ЗАКАЗ-НАРЯДЫ</button>
         <button class="btn" id="cashboxesButton">КАССЫ</button>
         <button class="btn" id="employeesButton">СОТРУДНИКИ</button>
-        <button class="btn btn--ghost" id="gptWallButton">СТЕНА</button>
         <button class="btn" id="columnButton">+ СТОЛБЕЦ</button>
         <button class="btn btn--accent" id="cardButton">+ КАРТОЧКА</button>
       </div>
@@ -6307,7 +6306,6 @@ BOARD_WEB_APP_HTML = "".join(
       repairOrdersSearchSpinner: document.getElementById('repairOrdersSearchSpinner'),
       repairOrdersSortBy: document.getElementById('repairOrdersSortBy'),
       repairOrdersSortDir: document.getElementById('repairOrdersSortDir'),
-      gptWallButton: document.getElementById('gptWallButton'),
       columnButton: document.getElementById('columnButton'),
       cardButton: document.getElementById('cardButton'),
       boardSettingsModal: document.getElementById('boardSettingsModal'),
@@ -16267,7 +16265,6 @@ function renderCompactArchiveRows(cards) {
         createCashboxTransaction('income');
       }
     });
-    els.gptWallButton.addEventListener('click', openGptWallModal);
     els.gptWallBoardTab.addEventListener('click', () => setGptWallView('board_content'));
     els.gptWallEventsTab.addEventListener('click', () => setGptWallView('event_log'));
     els.gptWallRefresh.addEventListener('click', refreshGptWallView);

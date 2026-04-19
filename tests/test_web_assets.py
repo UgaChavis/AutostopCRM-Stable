@@ -1654,7 +1654,6 @@ class WebAssetsTests(unittest.TestCase):
         )
         self.assertIn("function applyBoardScalePreference(", BOARD_WEB_APP_HTML)
         self.assertIn("function openBoardSettings()", BOARD_WEB_APP_HTML)
-        self.assertIn("function openGptWallModal()", BOARD_WEB_APP_HTML)
         self.assertIn("function refreshGptWallView()", BOARD_WEB_APP_HTML)
         self.assertIn("async function createColumnFromTopbar()", BOARD_WEB_APP_HTML)
         self.assertIn("function closeNamedModal(closeKey)", BOARD_WEB_APP_HTML)
@@ -1809,7 +1808,12 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn('id="boardControlToggle"', BOARD_WEB_APP_HTML)
         self.assertNotIn('id="boardControlIntervalInput"', BOARD_WEB_APP_HTML)
         self.assertNotIn('id="boardControlCooldownInput"', BOARD_WEB_APP_HTML)
-        self.assertIn(
+        self.assertNotIn('id="gptWallButton"', BOARD_WEB_APP_HTML)
+        self.assertNotIn(
+            '<button class="btn btn--ghost" id="gptWallButton">СТЕНА</button>', BOARD_WEB_APP_HTML
+        )
+        self.assertNotIn("document.getElementById('gptWallButton')", BOARD_WEB_APP_HTML)
+        self.assertNotIn(
             "els.gptWallButton.addEventListener('click', openGptWallModal);", BOARD_WEB_APP_HTML
         )
         self.assertIn(

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from logging import Logger
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -13,7 +14,13 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..config import get_mcp_bearer_token, get_mcp_host, get_mcp_path, get_mcp_port, get_mcp_public_base_url
+from ..config import (
+    get_mcp_bearer_token,
+    get_mcp_host,
+    get_mcp_path,
+    get_mcp_port,
+    get_mcp_public_base_url,
+)
 from ..settings_models import derive_allowed_hosts, derive_allowed_origins
 from .auth import build_auth_settings
 from .client import BoardApiClient, BoardApiTransportError
@@ -65,12 +72,15 @@ class VehicleProfilePayload(BaseModel):
     source_summary: str | None = Field(default=None, max_length=120)
     source_confidence: float | None = Field(default=None, ge=0, le=1)
     source_links_or_refs: list[str] | None = None
-    data_completion_state: Literal[
-        "manually_entered",
-        "partially_autofilled",
-        "mostly_autofilled",
-        "verified",
-    ] | None = None
+    data_completion_state: (
+        Literal[
+            "manually_entered",
+            "partially_autofilled",
+            "mostly_autofilled",
+            "verified",
+        ]
+        | None
+    ) = None
     manual_fields: list[str] | None = None
     autofilled_fields: list[str] | None = None
     tentative_fields: list[str] | None = None
@@ -127,7 +137,9 @@ def _resolved_create_card_deadline(deadline: DeadlinePayload | None) -> dict[str
     if deadline is None:
         return {"days": 1, "hours": 0, "minutes": 0, "seconds": 0}
     payload = deadline.model_dump()
-    if not any(int(payload.get(part, 0) or 0) > 0 for part in ("days", "hours", "minutes", "seconds")):
+    if not any(
+        int(payload.get(part, 0) or 0) > 0 for part in ("days", "hours", "minutes", "seconds")
+    ):
         return {"days": 1, "hours": 0, "minutes": 0, "seconds": 0}
     return payload
 
@@ -326,7 +338,9 @@ def create_mcp_server(
     auth_settings = None
     auth_server_provider = None
     if resolved_token:
-        auth_settings = build_auth_settings(server_base_url, path=resolved_path, resource_url=effective_resource_url)
+        auth_settings = build_auth_settings(
+            server_base_url, path=resolved_path, resource_url=effective_resource_url
+        )
         auth_server_provider = EmbeddedOAuthAuthorizationServerProvider(
             issuer_url=server_base_url,
             resource_url=effective_resource_url,
@@ -344,7 +358,7 @@ def create_mcp_server(
             + " "
             f"{_single_board_rule_text()} "
             "Before any write operation, first call bootstrap_context. "
-            "If bootstrap_context is unavailable, call get_connector_identity, then get_board_context, then get_gpt_wall. "
+            "If bootstrap_context is unavailable, call get_connector_identity, then get_board_content, then get_board_events. "
             "If there is any doubt about tunnels, auth, or runtime state, call get_runtime_status. "
             "After the board and target are confirmed, perform writes strictly by card_id, sticky_id, and column id. "
             "If the user asks about some other kanban product or board, do not use this connector."
@@ -388,13 +402,18 @@ def create_mcp_server(
         payload = dict(meta or {})
         payload.setdefault("tool", tool_name)
         payload.setdefault("request_id", uuid4().hex)
-        payload.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+        payload.setdefault("timestamp", datetime.now(UTC).isoformat())
         payload.setdefault("latency_ms", round(max(perf_counter() - started_at, 0.0) * 1000, 3))
         payload.setdefault("schema_version", CONNECTOR_SCHEMA_VERSION)
         payload.setdefault("connector_version", CONNECTOR_VERSION)
         payload.setdefault("canonical_tool_path", _canonical_tool_path(tool_name))
-        payload.setdefault("normalized_canonical_tool_path", _normalize_tool_path_alias(_canonical_tool_path(tool_name)))
-        payload.setdefault("path_alias_rule", "/AutoStopCRM/link_<alias>/<tool> -> /AutoStopCRM/<tool>")
+        payload.setdefault(
+            "normalized_canonical_tool_path",
+            _normalize_tool_path_alias(_canonical_tool_path(tool_name)),
+        )
+        payload.setdefault(
+            "path_alias_rule", "/AutoStopCRM/link_<alias>/<tool> -> /AutoStopCRM/<tool>"
+        )
         return payload
 
     def _relay_data(
@@ -566,7 +585,9 @@ def create_mcp_server(
             },
         }
 
-    def _safe_board_call(fetcher: Callable[[], dict[str, Any]], *, error_code: str) -> dict[str, Any]:
+    def _safe_board_call(
+        fetcher: Callable[[], dict[str, Any]], *, error_code: str
+    ) -> dict[str, Any]:
         try:
             return fetcher()
         except BoardApiTransportError as exc:
@@ -580,21 +601,33 @@ def create_mcp_server(
 
     def _safe_gpt_wall(*, include_archived: bool, event_limit: int) -> dict[str, Any]:
         return _safe_board_call(
-            lambda: board_api.get_gpt_wall(include_archived=include_archived, event_limit=event_limit),
+            lambda: board_api.get_gpt_wall(
+                include_archived=include_archived, event_limit=event_limit
+            ),
             error_code="gpt_wall_unreachable",
         )
 
     def _runtime_status_payload() -> dict[str, Any]:
         health_response = _safe_health()
         board_context_response = _safe_board_context()
-        board_context_payload = board_context_response.get("data") if board_context_response.get("ok") else None
-        board_context_data = board_context_payload if isinstance(board_context_payload, dict) else {}
-        context = board_context_data.get("context") if isinstance(board_context_data.get("context"), dict) else {}
+        board_context_payload = (
+            board_context_response.get("data") if board_context_response.get("ok") else None
+        )
+        board_context_data = (
+            board_context_payload if isinstance(board_context_payload, dict) else {}
+        )
+        context = (
+            board_context_data.get("context")
+            if isinstance(board_context_data.get("context"), dict)
+            else {}
+        )
         runtime_status = {
             "connector_identity": dict(connector_identity),
             "preferred_bootstrap_tools": list(preferred_bootstrap_tools),
             "api_health": health_response.get("data") if health_response.get("ok") else None,
-            "api_health_error": health_response.get("error") if not health_response.get("ok") else None,
+            "api_health_error": health_response.get("error")
+            if not health_response.get("ok")
+            else None,
             "board_context": board_context_payload,
             "board_context_summary": {
                 "board_name": context.get("board_name", connector_identity["board_name"]),
@@ -604,8 +637,12 @@ def create_mcp_server(
                 "stickies_total": context.get("stickies_total", 0),
             },
             "board_context_available_via": "get_board_context",
-            "board_context_error": board_context_response.get("error") if not board_context_response.get("ok") else None,
-            "resource_visibility": "public_https" if connector_identity["resource_url"].startswith("https://") else "local_only",
+            "board_context_error": board_context_response.get("error")
+            if not board_context_response.get("ok")
+            else None,
+            "resource_visibility": "public_https"
+            if connector_identity["resource_url"].startswith("https://")
+            else "local_only",
             "resource_configured": bool(connector_identity["resource_url"]),
         }
         return runtime_status
@@ -730,7 +767,9 @@ def create_mcp_server(
                 "tags": card.get("tags"),
             }
             preview_cards.append(preview)
-            if card.get("status") in {"warning", "critical", "expired"} or card.get("indicator") in {"yellow", "red"}:
+            if card.get("status") in {"warning", "critical", "expired"} or card.get(
+                "indicator"
+            ) in {"yellow", "red"}:
                 attention_cards.append(preview)
 
         preview_events: list[dict[str, Any]] = []
@@ -807,21 +846,31 @@ def create_mcp_server(
                 if isinstance(item, dict)
             )
             lines.append(f"columns: {rendered_columns}")
-        attention_cards = wall_preview.get("attention_cards") if isinstance(wall_preview.get("attention_cards"), list) else []
+        attention_cards = (
+            wall_preview.get("attention_cards")
+            if isinstance(wall_preview.get("attention_cards"), list)
+            else []
+        )
         if attention_cards:
             lines.append("attention_cards:")
             for card in attention_cards[:5]:
                 lines.append(
                     f"- {card.get('short_id') or card.get('id')}: {card.get('vehicle') or '-'} / {card.get('title') or '-'} | {card.get('column_label') or card.get('column') or '-'} | {card.get('status') or '-'} | {card.get('indicator') or '-'}"
                 )
-        preview_events = wall_preview.get("events_preview") if isinstance(wall_preview.get("events_preview"), list) else []
+        preview_events = (
+            wall_preview.get("events_preview")
+            if isinstance(wall_preview.get("events_preview"), list)
+            else []
+        )
         if preview_events:
             lines.append("recent_events:")
             for event in preview_events[:8]:
                 lines.append(
                     f"- {event.get('timestamp') or '-'} | {event.get('actor_name') or '-'} | {event.get('card_short_id') or '-'} | {event.get('message') or '-'}"
                 )
-        lines.append("next_step: call review_board for an operational summary, get_board_content for card text, get_board_events for the event journal, or get_gpt_wall for both")
+        lines.append(
+            "next_step: call get_board_content for the full hidden machine wall card state in Markdown, get_board_events(event_limit=100) for the latest Markdown event journal, or get_gpt_wall for both sections"
+        )
         return "\n".join(lines) + "\n"
 
     @server.tool(
@@ -878,7 +927,7 @@ def create_mcp_server(
         annotations=_read_tool_annotations("Bootstrap Context"),
         structured_output=True,
     )
-    def bootstrap_context(include_archived: bool = False, event_limit: int = 25) -> JsonEnvelope:
+    def bootstrap_context(include_archived: bool = True, event_limit: int = 100) -> JsonEnvelope:
         started_at = perf_counter()
         wall_response = _safe_gpt_wall(include_archived=include_archived, event_limit=event_limit)
         board_context_response = _safe_board_context()
@@ -897,16 +946,23 @@ def create_mcp_server(
                     "bootstrap_context",
                     started_at,
                     meta={
-                        "applied_params": {"include_archived": include_archived, "event_limit": event_limit},
+                        "applied_params": {
+                            "include_archived": include_archived,
+                            "event_limit": event_limit,
+                        },
                         "response_mode": "summary_bootstrap",
                     },
                 ),
             )
 
         board_context_payload = None
-        if board_context_response.get("ok") and isinstance(board_context_response.get("data"), dict):
+        if board_context_response.get("ok") and isinstance(
+            board_context_response.get("data"), dict
+        ):
             board_context_payload = dict(board_context_response["data"])
-        elif isinstance(wall_response.get("data"), dict) and isinstance(wall_response["data"].get("board_context"), dict):
+        elif isinstance(wall_response.get("data"), dict) and isinstance(
+            wall_response["data"].get("board_context"), dict
+        ):
             board_context_payload = dict(wall_response["data"]["board_context"])
 
         wall_data = dict(wall_response.get("data") or {})
@@ -939,8 +995,9 @@ def create_mcp_server(
                 "recommended_write_flow": [
                     "bootstrap_context",
                     "confirm board_name and scope_rule",
-                    "for broad board scans prefer get_cards(compact=true) and switch to get_card_context only for cards that need full detail",
-                    "call get_gpt_wall only when full card text or long event history is needed",
+                    "call get_board_content for the full Markdown state of all cards, including archived cards by default",
+                    "call get_board_events(event_limit=100) for the newest-first Markdown journal of the latest board changes",
+                    "call get_gpt_wall only when both hidden machine wall sections are needed in one response",
                     "for mass column migrations prefer bulk_move_cards over many sequential move_card calls",
                     "perform write tools by card_id, sticky_id, and column id only",
                 ],
@@ -950,7 +1007,10 @@ def create_mcp_server(
                 "bootstrap_context",
                 started_at,
                 meta={
-                    "applied_params": {"include_archived": include_archived, "event_limit": event_limit},
+                    "applied_params": {
+                        "include_archived": include_archived,
+                        "event_limit": event_limit,
+                    },
                     "response_mode": "summary_bootstrap",
                 },
             ),
@@ -979,7 +1039,9 @@ def create_mcp_server(
                 "full_board_context_tool": "get_board_context",
                 "text": _runtime_status_text(runtime_status),
             },
-            meta=_timed_meta("get_runtime_status", started_at, meta={"response_mode": "diagnostics"}),
+            meta=_timed_meta(
+                "get_runtime_status", started_at, meta={"response_mode": "diagnostics"}
+            ),
         )
 
     @server.tool(
@@ -1062,7 +1124,9 @@ def create_mcp_server(
     ) -> JsonEnvelope:
         return _relay_board_call(
             "create_sticky",
-            lambda: board_api.create_sticky(text=text, x=x, y=y, deadline=deadline.model_dump(), actor_name=actor_name),
+            lambda: board_api.create_sticky(
+                text=text, x=x, y=y, deadline=deadline.model_dump(), actor_name=actor_name
+            ),
         )
 
     @server.tool(
@@ -1261,7 +1325,9 @@ def create_mcp_server(
 
     @server.tool(
         name="create_cashbox",
-        description=_scoped_description("Create a new cashbox for money inflow and outflow tracking."),
+        description=_scoped_description(
+            "Create a new cashbox for money inflow and outflow tracking."
+        ),
         annotations=_write_tool_annotations("Create Cashbox"),
         structured_output=True,
     )
@@ -1318,7 +1384,9 @@ def create_mcp_server(
 
     @server.tool(
         name="update_board_settings",
-        description=_scoped_description("Update board-wide settings for the current Minimal Kanban board. Currently supports board_scale."),
+        description=_scoped_description(
+            "Update board-wide settings for the current Minimal Kanban board. Currently supports board_scale."
+        ),
         annotations=_write_tool_annotations("Update Board Settings"),
         structured_output=True,
     )
@@ -1331,7 +1399,7 @@ def create_mcp_server(
     @server.tool(
         name="get_board_content",
         description=_scoped_description(
-            "Return the current textual board content for the current Minimal Kanban board only: card content, optional archived card content, sticky notes, and board context, without the event journal. "
+            "Return the hidden machine wall board-content section as Markdown for the current Minimal Kanban board only: columns, card content, archived card content by default, sticky notes, compact vehicle profiles, and board context, without the event journal. "
             "Use view_mode=agent for a lighter GPT-oriented read and view_mode=full for a broader export-style dump."
         ),
         annotations=_read_tool_annotations("Board Content"),
@@ -1345,7 +1413,9 @@ def create_mcp_server(
         return _relay_board_call(
             "get_board_content",
             lambda: _extract_gpt_wall_section_response(
-                board_api.get_gpt_wall(include_archived=include_archived, event_limit=wall_event_limit),
+                board_api.get_gpt_wall(
+                    include_archived=include_archived, event_limit=wall_event_limit
+                ),
                 section_key="board_content",
             ),
             error_code="board_content_unreachable",
@@ -1360,6 +1430,7 @@ def create_mcp_server(
                 view_mode=view_mode,
                 extra={
                     "include_archived": include_archived,
+                    "text_format": "markdown",
                     "section_kind": "board_content",
                 },
             ),
@@ -1368,8 +1439,8 @@ def create_mcp_server(
     @server.tool(
         name="get_board_events",
         description=_scoped_description(
-            "Return the chronological event journal of the current Minimal Kanban board only: what happened, when, by whom, and which card it affected when available. "
-            "Use include_archived to control whether archived-card events stay in the journal slice."
+            "Return the hidden machine wall event-log section as Markdown for the current Minimal Kanban board only: newest-first events, what happened, when, by whom, and which card it affected when available. "
+            "The default event_limit is 100. Use include_archived to control whether archived-card events stay in the journal slice."
         ),
         annotations=_read_tool_annotations("Board Events"),
         structured_output=True,
@@ -1398,6 +1469,7 @@ def create_mcp_server(
                 extra={
                     "event_limit": event_limit,
                     "include_archived": include_archived,
+                    "text_format": "markdown",
                     "section_kind": "event_log",
                     "event_order": "newest_first",
                 },
@@ -1407,7 +1479,7 @@ def create_mcp_server(
     @server.tool(
         name="get_gpt_wall",
         description=_scoped_description(
-            "Return the hidden GPT wall for the current Minimal Kanban board: full card text, structured board state, recent events, compact 1.1 vehicle profile summaries for each card, and separated board_content / event_log sections. "
+            "Return the compatible hidden machine wall aggregate for the current Minimal Kanban board as Markdown: full card text, structured board state, newest-first recent events, compact 1.1 vehicle profile summaries for each card, and separated board_content / event_log sections. "
             "Use view_mode=agent for the normal GPT context flow and view_mode=full for wide diagnostics or exports."
         ),
         annotations=_read_tool_annotations("GPT Wall"),
@@ -1436,7 +1508,9 @@ def create_mcp_server(
                 extra={
                     "include_archived": include_archived,
                     "event_limit": event_limit,
+                    "text_format": "markdown",
                     "section_kind": "gpt_wall",
+                    "event_order": "newest_first",
                 },
             ),
         )
@@ -1531,7 +1605,9 @@ def create_mcp_server(
 
     @server.tool(
         name="list_archived_cards",
-        description=_scoped_description("List archived cards from the current Minimal Kanban board."),
+        description=_scoped_description(
+            "List archived cards from the current Minimal Kanban board."
+        ),
         annotations=_read_tool_annotations("Archived Cards"),
         structured_output=True,
     )
@@ -1620,7 +1696,9 @@ def create_mcp_server(
                 image_base64=image_base64,
                 image_filename=image_filename,
                 image_mime_type=image_mime_type,
-                vehicle_profile=vehicle_profile.model_dump(exclude_none=True) if vehicle_profile is not None else None,
+                vehicle_profile=vehicle_profile.model_dump(exclude_none=True)
+                if vehicle_profile is not None
+                else None,
                 vehicle=vehicle,
                 title=title,
                 description=description,
@@ -1657,7 +1735,9 @@ def create_mcp_server(
                 column=column,
                 tags=[tag.model_dump() for tag in tags] if tags is not None else None,
                 deadline=_resolved_create_card_deadline(deadline),
-                vehicle_profile=vehicle_profile.model_dump(exclude_none=True) if vehicle_profile is not None else None,
+                vehicle_profile=vehicle_profile.model_dump(exclude_none=True)
+                if vehicle_profile is not None
+                else None,
                 actor_name=actor_name,
             ),
         )
@@ -1691,7 +1771,9 @@ def create_mcp_server(
                 description=description,
                 tags=[tag.model_dump() for tag in tags] if tags is not None else None,
                 deadline=deadline.model_dump() if deadline is not None else None,
-                vehicle_profile=vehicle_profile.model_dump(exclude_none=True) if vehicle_profile is not None else None,
+                vehicle_profile=vehicle_profile.model_dump(exclude_none=True)
+                if vehicle_profile is not None
+                else None,
                 actor_name=actor_name,
             ),
         )
@@ -1733,7 +1815,9 @@ def create_mcp_server(
     ) -> JsonEnvelope:
         return _relay_board_call(
             "set_repair_order_status",
-            lambda: board_api.set_repair_order_status(card_id=card_id, status=status, actor_name=actor_name),
+            lambda: board_api.set_repair_order_status(
+                card_id=card_id, status=status, actor_name=actor_name
+            ),
         )
 
     @server.tool(
@@ -1795,12 +1879,16 @@ def create_mcp_server(
     ) -> JsonEnvelope:
         return _relay_board_call(
             "autofill_repair_order",
-            lambda: board_api.autofill_repair_order(card_id=card_id, overwrite=overwrite, actor_name=actor_name),
+            lambda: board_api.autofill_repair_order(
+                card_id=card_id, overwrite=overwrite, actor_name=actor_name
+            ),
         )
 
     @server.tool(
         name="update_sticky",
-        description=_scoped_description("Update the text or deadline of a sticky note on the current Minimal Kanban board."),
+        description=_scoped_description(
+            "Update the text or deadline of a sticky note on the current Minimal Kanban board."
+        ),
         annotations=_write_tool_annotations("Update Sticky"),
         structured_output=True,
     )
@@ -1822,7 +1910,9 @@ def create_mcp_server(
 
     @server.tool(
         name="move_sticky",
-        description=_scoped_description("Move a sticky note on the current Minimal Kanban board to a new x/y position."),
+        description=_scoped_description(
+            "Move a sticky note on the current Minimal Kanban board to a new x/y position."
+        ),
         annotations=_write_tool_annotations("Move Sticky"),
         structured_output=True,
     )
@@ -1834,7 +1924,9 @@ def create_mcp_server(
 
     @server.tool(
         name="delete_sticky",
-        description=_scoped_description("Delete a sticky note from the current Minimal Kanban board."),
+        description=_scoped_description(
+            "Delete a sticky note from the current Minimal Kanban board."
+        ),
         annotations=_write_tool_annotations("Delete Sticky", destructive=True),
         structured_output=True,
     )
@@ -1846,14 +1938,20 @@ def create_mcp_server(
 
     @server.tool(
         name="set_card_deadline",
-        description=_scoped_description("Change only the deadline of a card on the current Minimal Kanban board."),
+        description=_scoped_description(
+            "Change only the deadline of a card on the current Minimal Kanban board."
+        ),
         annotations=_write_tool_annotations("Set Card Deadline"),
         structured_output=True,
     )
-    def set_card_deadline(card_id: str, deadline: DeadlinePayload, actor_name: str | None = None) -> JsonEnvelope:
+    def set_card_deadline(
+        card_id: str, deadline: DeadlinePayload, actor_name: str | None = None
+    ) -> JsonEnvelope:
         return _relay_board_call(
             "set_card_deadline",
-            lambda: board_api.set_card_deadline(card_id=card_id, deadline=deadline.model_dump(), actor_name=actor_name),
+            lambda: board_api.set_card_deadline(
+                card_id=card_id, deadline=deadline.model_dump(), actor_name=actor_name
+            ),
         )
 
     @server.tool(
@@ -1871,7 +1969,9 @@ def create_mcp_server(
     ) -> JsonEnvelope:
         return _relay_board_call(
             "set_card_indicator",
-            lambda: board_api.set_card_indicator(card_id=card_id, indicator=indicator, actor_name=actor_name),
+            lambda: board_api.set_card_indicator(
+                card_id=card_id, indicator=indicator, actor_name=actor_name
+            ),
         )
 
     @server.tool(
@@ -1907,10 +2007,14 @@ def create_mcp_server(
         annotations=_write_tool_annotations("Bulk Move Cards", idempotent=True),
         structured_output=True,
     )
-    def bulk_move_cards(card_ids: list[str], column: str, actor_name: str | None = None) -> JsonEnvelope:
+    def bulk_move_cards(
+        card_ids: list[str], column: str, actor_name: str | None = None
+    ) -> JsonEnvelope:
         return _relay_board_call(
             "bulk_move_cards",
-            lambda: board_api.bulk_move_cards(card_ids=card_ids, column=column, actor_name=actor_name),
+            lambda: board_api.bulk_move_cards(
+                card_ids=card_ids, column=column, actor_name=actor_name
+            ),
         )
 
     @server.tool(
@@ -1927,11 +2031,15 @@ def create_mcp_server(
 
     @server.tool(
         name="restore_card",
-        description=_scoped_description("Restore an archived card back onto the current Minimal Kanban board."),
+        description=_scoped_description(
+            "Restore an archived card back onto the current Minimal Kanban board."
+        ),
         annotations=_write_tool_annotations("Restore Card"),
         structured_output=True,
     )
-    def restore_card(card_id: str, column: str | None = None, actor_name: str | None = None) -> JsonEnvelope:
+    def restore_card(
+        card_id: str, column: str | None = None, actor_name: str | None = None
+    ) -> JsonEnvelope:
         return _relay_board_call(
             "restore_card",
             lambda: board_api.restore_card(card_id=card_id, column=column, actor_name=actor_name),
@@ -1939,7 +2047,9 @@ def create_mcp_server(
 
     @server.tool(
         name="list_overdue_cards",
-        description=_scoped_description("List overdue cards from the current Minimal Kanban board. Archived cards are excluded by default."),
+        description=_scoped_description(
+            "List overdue cards from the current Minimal Kanban board. Archived cards are excluded by default."
+        ),
         annotations=_read_tool_annotations("Overdue Cards"),
         structured_output=True,
     )

@@ -7,13 +7,24 @@ from datetime import datetime
 from threading import RLock
 from typing import Any
 
-from ..models import ARCHIVE_PREVIEW_LIMIT, AuditEvent, Card, Column, StickyNote, parse_datetime, short_entity_id, utc_now, utc_now_iso
+from ..models import (
+    ARCHIVE_PREVIEW_LIMIT,
+    AuditEvent,
+    Card,
+    Column,
+    StickyNote,
+    parse_datetime,
+    short_entity_id,
+    utc_now,
+    utc_now_iso,
+)
 from ..storage.json_store import JsonStore
 
 REVIEW_BOARD_STALE_HOURS_DEFAULT = 48
 REVIEW_BOARD_OVERLOAD_THRESHOLD_DEFAULT = 5
 REVIEW_BOARD_PRIORITY_LIMIT_DEFAULT = 5
 REVIEW_BOARD_EVENT_LIMIT_DEFAULT = 10
+GPT_WALL_MARKDOWN_LINE_LIMIT = 3000
 
 GPT_WALL_EVENTS_HEADER = "[ЛЕНТА СОБЫТИЙ]"
 
@@ -162,15 +173,161 @@ class SnapshotService:
             "include_archive": include_archive,
             "archive_limit": archive_limit,
         }
-        serialized = json.dumps(revision_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        serialized = json.dumps(
+            revision_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
         return hashlib.sha1(serialized.encode("utf-8")).hexdigest()
 
-    def _extract_board_content_text(self, full_text: str) -> str:
-        normalized = str(full_text or "").strip()
-        marker = f"\n{GPT_WALL_EVENTS_HEADER}\n"
-        if marker in normalized:
-            return normalized.split(marker, 1)[0].rstrip()
-        return normalized
+    def _markdown_value(self, value: Any) -> str:
+        if value is None or value == "":
+            return "null"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return str(value).replace("\r", " ").replace("\n", " / ").strip() or "null"
+
+    def _append_markdown_block(self, lines: list[str], key: str, value: Any) -> None:
+        text = str(value or "").replace("\r", "").strip()
+        if not text:
+            lines.append(f"{key}: null")
+            return
+        lines.append(f"{key}: |")
+        for raw_line in text.splitlines():
+            lines.append(f"  {raw_line.rstrip()}")
+
+    def _limit_markdown_wall_text(self, text: str) -> str:
+        lines = text.splitlines()
+        if len(lines) <= GPT_WALL_MARKDOWN_LINE_LIMIT:
+            return text
+        kept = max(GPT_WALL_MARKDOWN_LINE_LIMIT - 3, 0)
+        return "\n".join(
+            [
+                *lines[:kept],
+                "",
+                f"> [WALL TRUNCATED] Reached {GPT_WALL_MARKDOWN_LINE_LIMIT} lines. Use get_board_content or get_board_events for section-specific reads.",
+            ]
+        )
+
+    def _append_markdown_card(self, lines: list[str], card: dict, *, index: int) -> None:
+        short_id = card.get("short_id") or short_entity_id(str(card.get("id") or ""), prefix="C")
+        title = card.get("heading") or card.get("title") or card.get("vehicle") or "Без названия"
+        lines.append(f"#### Card {index}: {self._markdown_value(short_id)}")
+        for key in (
+            "id",
+            "short_id",
+            "column",
+            "column_label",
+            "archived",
+            "position",
+            "vehicle",
+            "title",
+            "heading",
+            "status",
+            "indicator",
+            "remaining_display",
+            "deadline_timestamp",
+            "created_at",
+            "updated_at",
+            "attachment_count",
+            "events_count",
+        ):
+            output_key = "card_id" if key == "id" else key
+            lines.append(f"{output_key}: {self._markdown_value(card.get(key))}")
+        lines.append(f"display_title: {self._markdown_value(title)}")
+        lines.append(f"tags: {self._markdown_value(card.get('tags') or [])}")
+        if isinstance(card.get("vehicle_profile"), dict):
+            lines.append(
+                "vehicle_profile: " + self._markdown_value(card.get("vehicle_profile") or {})
+            )
+        lines.append(
+            "vehicle_profile_compact: "
+            + self._markdown_value(card.get("vehicle_profile_compact") or {})
+        )
+        self._append_markdown_block(lines, "description", card.get("description"))
+        lines.append("")
+
+    def _build_board_content_markdown(
+        self,
+        columns: list[Column],
+        cards: list[dict],
+        stickies: list[dict],
+        meta: dict[str, Any],
+    ) -> str:
+        active_cards = [card for card in cards if not card.get("archived")]
+        archived_cards = [card for card in cards if card.get("archived")]
+        active_by_column: dict[str, list[dict]] = {column.id: [] for column in columns}
+        for card in active_cards:
+            active_by_column.setdefault(str(card.get("column") or ""), []).append(card)
+
+        lines = [
+            "# AutoStop CRM Board Content",
+            "",
+            "## Metadata",
+            f"generated_at: {self._markdown_value(meta.get('generated_at'))}",
+            "text_format: markdown",
+            "section_kind: board_content",
+            f"include_archived: {self._markdown_value(meta.get('include_archived'))}",
+            f"columns_total: {self._markdown_value(meta.get('columns'))}",
+            f"active_cards_total: {self._markdown_value(meta.get('active_cards'))}",
+            f"archived_cards_total: {self._markdown_value(meta.get('archived_cards'))}",
+            f"cards_returned: {self._markdown_value(meta.get('cards_returned'))}",
+            f"stickies_returned: {self._markdown_value(meta.get('stickies_returned'))}",
+            "",
+            "## Columns",
+        ]
+        if not columns:
+            lines.append("columns: []")
+        for column in columns:
+            lines.extend(
+                [
+                    f"### Column: {self._markdown_value(column.label)}",
+                    f"column_id: {self._markdown_value(column.id)}",
+                    f"position: {self._markdown_value(column.position)}",
+                    f"active_cards: {len(active_by_column.get(column.id, []))}",
+                    "",
+                ]
+            )
+
+        lines.append("## Cards By Column")
+        if not active_cards:
+            lines.append("cards: []")
+            lines.append("")
+        for column in columns:
+            column_cards = active_by_column.get(column.id, [])
+            lines.append(f"### Column: {self._markdown_value(column.label)}")
+            lines.append(f"column_id: {self._markdown_value(column.id)}")
+            if not column_cards:
+                lines.append("cards: []")
+                lines.append("")
+                continue
+            for index, card in enumerate(column_cards, start=1):
+                self._append_markdown_card(lines, card, index=index)
+
+        lines.append("## Archived Cards")
+        if not archived_cards:
+            lines.append("cards: []")
+            lines.append("")
+        for index, card in enumerate(archived_cards, start=1):
+            self._append_markdown_card(lines, card, index=index)
+
+        lines.append("## Stickies")
+        if not stickies:
+            lines.append("stickies: []")
+        for index, sticky in enumerate(stickies, start=1):
+            lines.extend(
+                [
+                    f"### Sticky {index}: {self._markdown_value(sticky.get('short_id') or sticky.get('id'))}",
+                    f"sticky_id: {self._markdown_value(sticky.get('id'))}",
+                    f"short_id: {self._markdown_value(sticky.get('short_id'))}",
+                    f"x: {self._markdown_value(sticky.get('x'))}",
+                    f"y: {self._markdown_value(sticky.get('y'))}",
+                    f"remaining_seconds: {self._markdown_value(sticky.get('remaining_seconds'))}",
+                ]
+            )
+            self._append_markdown_block(lines, "text", sticky.get("text"))
+            lines.append("")
+        return "\n".join(lines).rstrip()
 
     def _build_event_log_text(self, events: list[dict], meta: dict[str, Any]) -> str:
         lines = [
@@ -212,12 +369,19 @@ class SnapshotService:
 
     def _build_structured_event_log_text(self, events: list[dict], meta: dict[str, Any]) -> str:
         lines = [
-            "[Р–РЈР РќРђР› РЎРћР‘Р«РўРР™ Р”РћРЎРљР]",
-            f"generated_at: {meta.get('generated_at') or 'вЂ”'}",
-            f"shown: {meta.get('events_returned') or len(events)}",
-            f"total: {meta.get('events_total') or len(events)}",
-            f"limit: {meta.get('event_limit') or len(events)}",
+            "# AutoStop CRM Event Log",
             "",
+            "## Metadata",
+            f"generated_at: {self._markdown_value(meta.get('generated_at'))}",
+            "text_format: markdown",
+            "section_kind: event_log",
+            "event_order: newest_first",
+            f"include_archived: {self._markdown_value(meta.get('include_archived'))}",
+            f"events_returned: {self._markdown_value(meta.get('events_returned') or len(events))}",
+            f"events_total: {self._markdown_value(meta.get('events_total') or len(events))}",
+            f"event_limit: {self._markdown_value(meta.get('event_limit') or len(events))}",
+            "",
+            "## Events",
         ]
         if not events:
             lines.append("events: none")
@@ -226,30 +390,35 @@ class SnapshotService:
         for index, event in enumerate(events, start=1):
             card_ref = str(event.get("card_short_id") or event.get("card_id") or "").strip()
             heading = str(event.get("card_heading") or "").strip()
-            details = str(event.get("details_text") or "").strip().replace("\r", "").replace("\n", " / ")
+            details = (
+                str(event.get("details_text") or "").strip().replace("\r", "").replace("\n", " / ")
+            )
             lines.extend(
                 [
-                    f"[event {index}]",
-                    f"time: {event.get('timestamp') or 'вЂ”'}",
-                    f"actor: {event.get('actor_name') or 'вЂ”'}",
-                    f"source: {event.get('source') or 'вЂ”'}",
-                    f"action: {event.get('action') or 'вЂ”'}",
-                    f"message: {event.get('message') or 'вЂ”'}",
+                    f"### Event {index}",
+                    f"event_id: {self._markdown_value(event.get('id'))}",
+                    f"time: {self._markdown_value(event.get('timestamp'))}",
+                    f"actor: {self._markdown_value(event.get('actor_name'))}",
+                    f"source: {self._markdown_value(event.get('source'))}",
+                    f"action: {self._markdown_value(event.get('action'))}",
+                    f"message: {self._markdown_value(event.get('message'))}",
                 ]
             )
             if card_ref:
                 lines.append(f"card: {card_ref}")
             if heading:
-                lines.append(f"heading: {heading}")
+                lines.append(f"heading: {self._markdown_value(heading)}")
             if details:
-                lines.append(f"details: {details}")
+                lines.append(f"details: {self._markdown_value(details)}")
             lines.append("")
         return "\n".join(lines).rstrip()
 
     def get_cards(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
-            include_archived = self._validated_optional_bool(payload, "include_archived", default=False)
+            include_archived = self._validated_optional_bool(
+                payload, "include_archived", default=False
+            )
             compact_cards = self._validated_optional_bool(payload, "compact", default=False)
             bundle = self._store.read_bundle()
             cards = self._visible_cards(bundle["cards"], include_archived=include_archived)
@@ -281,13 +450,21 @@ class SnapshotService:
     def get_board_snapshot(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
-            archive_limit = self._validated_limit(payload.get("archive_limit"), default=ARCHIVE_PREVIEW_LIMIT, maximum=50)
+            archive_limit = self._validated_limit(
+                payload.get("archive_limit"), default=ARCHIVE_PREVIEW_LIMIT, maximum=50
+            )
             compact_cards = self._validated_optional_bool(payload, "compact", default=False)
-            include_archive = self._validated_optional_bool(payload, "include_archive", default=True)
+            include_archive = self._validated_optional_bool(
+                payload, "include_archive", default=True
+            )
             bundle = self._store.read_bundle()
             cards = self._visible_cards(bundle["cards"], include_archived=False)
             archived_cards_total = sum(1 for card in bundle["cards"] if card.archived)
-            archive = self._archived_cards(bundle["cards"], limit=archive_limit) if include_archive else []
+            archive = (
+                self._archived_cards(bundle["cards"], limit=archive_limit)
+                if include_archive
+                else []
+            )
             stickies = self._stickies(bundle["stickies"])
             viewer_username = self._viewer_username(payload)
             column_labels, event_counts = self._card_serialization_context(
@@ -340,7 +517,8 @@ class SnapshotService:
                     "archived_cards_total": archived_cards_total,
                     "cards_returned": len(serialized_cards),
                     "archive_returned": len(serialized_archive),
-                    "has_more_archive": include_archive and archived_cards_total > len(serialized_archive),
+                    "has_more_archive": include_archive
+                    and archived_cards_total > len(serialized_archive),
                     "stickies_returned": len(serialized_stickies),
                     "stickies_total": len(stickies),
                     "revision": revision,
@@ -441,8 +619,12 @@ class SnapshotService:
                 if item["count"] >= overload_threshold:
                     alerts.append(f"Колонка {item['label']} перегружена")
             if summary["stale_cards"]:
-                alerts.append(f"{summary['stale_cards']} карточек без движения более {stale_hours} ч")
-            critical_stale_cards = [item for item in card_states if item["critical"] and item["stale"]]
+                alerts.append(
+                    f"{summary['stale_cards']} карточек без движения более {stale_hours} ч"
+                )
+            critical_stale_cards = [
+                item for item in card_states if item["critical"] and item["stale"]
+            ]
             if critical_stale_cards:
                 alerts.append(f"{len(critical_stale_cards)} критичных карточек без обновлений")
 
@@ -498,8 +680,12 @@ class SnapshotService:
     def get_gpt_wall(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
-            include_archived = self._validated_optional_bool(payload, "include_archived", default=True)
-            event_limit = self._validated_limit(payload.get("event_limit"), default=100, maximum=5000)
+            include_archived = self._validated_optional_bool(
+                payload, "include_archived", default=True
+            )
+            event_limit = self._validated_limit(
+                payload.get("event_limit"), default=100, maximum=5000
+            )
             bundle = self._store.read_bundle()
             columns = bundle["columns"]
             cards = bundle["cards"]
@@ -519,10 +705,15 @@ class SnapshotService:
             )
             wall_stickies = [self._serialize_sticky(sticky) for sticky in self._stickies(stickies)]
             wall_events = self._wall_events(events, cards_by_id, column_labels, limit=event_limit)
-            board_context = self._build_board_context_payload(columns, cards, stickies, bundle["settings"])
+            board_context = self._build_board_context_payload(
+                columns, cards, stickies, bundle["settings"]
+            )
             board_context_counts = board_context["context"]
             meta = {
                 "generated_at": utc_now_iso(),
+                "text_format": "markdown",
+                "section_kind": "gpt_wall",
+                "event_order": "newest_first",
                 "columns": len(columns),
                 "active_cards": board_context_counts["active_cards_total"],
                 "archived_cards": board_context_counts["archived_cards_total"],
@@ -535,23 +726,33 @@ class SnapshotService:
                 "event_limit": event_limit,
                 "include_archived": include_archived,
             }
-            wall_text = self._build_gpt_wall_text(columns, wall_cards, wall_stickies, wall_events, meta)
             board_content_meta = {
                 "generated_at": meta["generated_at"],
+                "text_format": "markdown",
+                "section_kind": "board_content",
                 "columns": meta["columns"],
                 "active_cards": meta["active_cards"],
                 "archived_cards": meta["archived_cards"],
                 "stickies": meta["stickies"],
+                "cards_returned": meta["cards_returned"],
+                "stickies_returned": meta["stickies_returned"],
                 "include_archived": meta["include_archived"],
             }
             event_log_meta = {
                 "generated_at": meta["generated_at"],
+                "text_format": "markdown",
+                "section_kind": "event_log",
+                "event_order": "newest_first",
+                "include_archived": meta["include_archived"],
                 "events_total": meta["events_total"],
                 "events_returned": meta["events_returned"],
                 "event_limit": meta["event_limit"],
             }
-            board_content_text = self._extract_board_content_text(wall_text)
+            board_content_text = self._build_board_content_markdown(
+                columns, wall_cards, wall_stickies, meta
+            )
             event_log_text = self._build_structured_event_log_text(wall_events, meta)
+            wall_text = self._limit_markdown_wall_text(f"{board_content_text}\n\n{event_log_text}")
             return {
                 "meta": meta,
                 "columns": [column.to_dict() for column in columns],
@@ -579,7 +780,9 @@ class SnapshotService:
     def list_archived_cards(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
-            limit = self._validated_limit(payload.get("limit"), default=ARCHIVE_PREVIEW_LIMIT, maximum=100)
+            limit = self._validated_limit(
+                payload.get("limit"), default=ARCHIVE_PREVIEW_LIMIT, maximum=100
+            )
             compact_cards = self._validated_optional_bool(payload, "compact", default=False)
             bundle = self._store.read_bundle()
             archived_total = sum(1 for card in bundle["cards"] if card.archived)
@@ -611,7 +814,9 @@ class SnapshotService:
     def search_cards(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
-            include_archived = self._validated_optional_bool(payload, "include_archived", default=False)
+            include_archived = self._validated_optional_bool(
+                payload, "include_archived", default=False
+            )
             limit = self._validated_limit(payload.get("limit"), default=20, maximum=100)
             bundle = self._store.read_bundle()
             columns = bundle["columns"]
@@ -695,7 +900,9 @@ class SnapshotService:
     def list_overdue_cards(self, payload: dict | None = None) -> dict:
         with self._lock:
             payload = payload or {}
-            include_archived = self._validated_optional_bool(payload, "include_archived", default=False)
+            include_archived = self._validated_optional_bool(
+                payload, "include_archived", default=False
+            )
             bundle = self._store.read_bundle()
             viewer_username = self._viewer_username(payload)
             overdue_cards = [
@@ -750,7 +957,10 @@ class SnapshotService:
             card = self._find_card(bundle["cards"], payload.get("card_id"))
             _ = card
             card_events = self._events_for_card(bundle["events"], card.id)
-            events = [event.to_dict() for event in (card_events[:limit] if limit is not None else card_events)]
+            events = [
+                event.to_dict()
+                for event in (card_events[:limit] if limit is not None else card_events)
+            ]
             return {
                 "events": events,
                 "meta": {
@@ -781,7 +991,9 @@ class SnapshotService:
         latest_event: AuditEvent | None,
     ) -> dict[str, Any]:
         updated_at = parse_datetime(card.updated_at) or parse_datetime(card.created_at) or now
-        latest_event_at = parse_datetime(latest_event.timestamp) if latest_event is not None else None
+        latest_event_at = (
+            parse_datetime(latest_event.timestamp) if latest_event is not None else None
+        )
         last_activity = updated_at
         if latest_event_at is not None and latest_event_at > last_activity:
             last_activity = latest_event_at
@@ -855,7 +1067,9 @@ class SnapshotService:
         column_labels: dict[str, str],
         limit: int,
     ) -> list[dict[str, Any]]:
-        reviewable = self._wall_events(events, cards_by_id, column_labels, limit=max(limit * 4, limit))
+        reviewable = self._wall_events(
+            events, cards_by_id, column_labels, limit=max(limit * 4, limit)
+        )
         result: list[dict[str, Any]] = []
         for event in reviewable:
             if not self._is_review_relevant_event(event):

@@ -4140,10 +4140,26 @@ class CardServiceTests(unittest.TestCase):
         )
 
         self.assertIn("text", wall)
+        self.assertTrue(wall["text"].startswith("# AutoStop CRM Board Content"))
+        self.assertEqual(wall["meta"]["text_format"], "markdown")
+        self.assertEqual(wall["meta"]["section_kind"], "gpt_wall")
+        self.assertEqual(wall["meta"]["event_order"], "newest_first")
+        self.assertTrue(wall["meta"]["include_archived"])
         self.assertIn("board_context", wall)
         self.assertIn("sections", wall)
         self.assertIn("board_content", wall["sections"])
         self.assertIn("event_log", wall["sections"])
+        self.assertTrue(
+            wall["sections"]["board_content"]["text"].startswith("# AutoStop CRM Board Content")
+        )
+        self.assertTrue(
+            wall["sections"]["event_log"]["text"].startswith("# AutoStop CRM Event Log")
+        )
+        self.assertEqual(wall["sections"]["board_content"]["meta"]["text_format"], "markdown")
+        self.assertEqual(wall["sections"]["board_content"]["meta"]["section_kind"], "board_content")
+        self.assertEqual(wall["sections"]["event_log"]["meta"]["text_format"], "markdown")
+        self.assertEqual(wall["sections"]["event_log"]["meta"]["section_kind"], "event_log")
+        self.assertEqual(wall["sections"]["event_log"]["meta"]["event_order"], "newest_first")
         self.assertIn(card_short_id, wall["text"])
         self.assertTrue(any(card["id"] == card_id for card in wall["cards"]))
         wall_card = next(card for card in wall["cards"] if card["id"] == card_id)
@@ -4166,9 +4182,39 @@ class CardServiceTests(unittest.TestCase):
         self.assertEqual(searched["cards"][0]["id"], card_id)
         self.assertIn("short_id: " + card_short_id, wall["text"])
         self.assertIn(card_short_id, wall["sections"]["event_log"]["text"])
-        self.assertIn("СТЕНА GPT", wall["text"])
-        self.assertIn("KIA RIO / ПЛАВАЕТ ХОЛОСТОЙ ХОД", wall["text"])
+        self.assertIn("## Cards By Column", wall["sections"]["board_content"]["text"])
+        self.assertIn("## Archived Cards", wall["sections"]["board_content"]["text"])
+        self.assertIn("card_id: " + card_id, wall["sections"]["board_content"]["text"])
+        self.assertIn("status:", wall["sections"]["board_content"]["text"])
+        self.assertIn("KIA RIO", wall["text"])
+        self.assertIn("ПЛАВАЕТ ХОЛОСТОЙ ХОД", wall["text"])
         self.assertIn("МАСТЕР", wall["text"])
+
+    def test_gpt_wall_defaults_to_markdown_and_archived_cards(self) -> None:
+        created = self.service.create_card(
+            {
+                "vehicle": "ARCHIVE DEFAULT",
+                "title": "DEFAULT WALL INCLUDE",
+                "description": "Архивная карточка должна входить в машинный снимок",
+                "deadline": {"hours": 1},
+                "actor_name": "MASTER",
+                "source": "api",
+            }
+        )
+        card_id = created["card"]["id"]
+        card_short_id = created["card"]["short_id"]
+        self.service.archive_card({"card_id": card_id, "actor_name": "MASTER", "source": "api"})
+
+        wall = self.service.get_gpt_wall({})
+
+        self.assertEqual(wall["meta"]["text_format"], "markdown")
+        self.assertEqual(wall["meta"]["event_limit"], 100)
+        self.assertTrue(wall["meta"]["include_archived"])
+        self.assertEqual(wall["sections"]["event_log"]["meta"]["event_limit"], 100)
+        self.assertTrue(any(card["id"] == card_id for card in wall["cards"]))
+        self.assertIn("## Archived Cards", wall["sections"]["board_content"]["text"])
+        self.assertIn("card_id: " + card_id, wall["sections"]["board_content"]["text"])
+        self.assertIn("short_id: " + card_short_id, wall["sections"]["board_content"]["text"])
 
     def test_gpt_wall_event_log_uses_structured_lines(self) -> None:
         created = self.service.create_card(
@@ -4184,7 +4230,13 @@ class CardServiceTests(unittest.TestCase):
         wall = self.service.get_gpt_wall({"include_archived": True, "event_limit": 20})
         event_text = wall["sections"]["event_log"]["text"]
 
-        self.assertIn("[event 1]", event_text)
+        self.assertTrue(event_text.startswith("# AutoStop CRM Event Log"))
+        self.assertIn("## Metadata", event_text)
+        self.assertIn("text_format: markdown", event_text)
+        self.assertIn("section_kind: event_log", event_text)
+        self.assertIn("event_order: newest_first", event_text)
+        self.assertIn("## Events", event_text)
+        self.assertIn("### Event 1", event_text)
         self.assertIn("time:", event_text)
         self.assertIn("actor:", event_text)
         self.assertIn("source:", event_text)
@@ -4252,8 +4304,8 @@ class CardServiceTests(unittest.TestCase):
 
         wall = self.service.get_gpt_wall({"include_archived": True, "event_limit": 20})
 
-        self.assertIn("клиент / телефон: +7 900 123-45-67", wall["text"])
-        self.assertIn("клиент / ФИО: Иван Иванов", wall["text"])
+        self.assertIn('"customer_phone":"+7 900 123-45-67"', wall["text"])
+        self.assertIn('"customer_name":"Иван Иванов"', wall["text"])
 
     def test_gpt_wall_text_is_limited_to_3000_lines(self) -> None:
         created = self.service.create_card(
@@ -4291,11 +4343,11 @@ class CardServiceTests(unittest.TestCase):
         wall = self.service.get_gpt_wall({"include_archived": True, "event_limit": 5000})
 
         self.assertLessEqual(len(wall["text"].splitlines()), 3000)
-        self.assertIn("[СТЕНА УСЕЧЕНА]", wall["text"])
-        self.assertIn("СОБЫТИЕ 1", wall["text"])
-        self.assertIn("  время:", wall["text"])
-        self.assertIn("  пользователь:", wall["text"])
-        self.assertIn("  действие:", wall["text"])
+        self.assertIn("[WALL TRUNCATED]", wall["text"])
+        self.assertIn("### Event 1", wall["text"])
+        self.assertIn("time:", wall["text"])
+        self.assertIn("actor:", wall["text"])
+        self.assertIn("action:", wall["text"])
 
     def test_board_context_describes_current_board_only(self) -> None:
         created_column = self.service.create_column({"label": "КУЗОВНОЙ ЦЕХ"})
