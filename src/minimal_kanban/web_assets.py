@@ -185,7 +185,13 @@ BOARD_WEB_APP_HTML = "".join(
     }
     #repairOrderCloseButton[data-close-available="false"],
     #repairOrderCloseButton[data-close-available="false"]:hover {
-      display: none;
+      opacity: 0.42;
+      color: rgba(200, 198, 187, 0.56);
+      border-color: rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.08);
+      box-shadow: none;
+      cursor: default;
+      transform: none;
     }
     #repairOrderCloseButton[data-close-available="true"] {
       border-color: rgba(138, 150, 109, 0.34);

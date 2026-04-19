@@ -1416,7 +1416,7 @@ class WebAssetsTests(unittest.TestCase):
             BOARD_WEB_APP_HTML,
         )
         self.assertIn('#repairOrderCloseButton[data-close-available="false"],', BOARD_WEB_APP_HTML)
-        self.assertIn("display: none;", BOARD_WEB_APP_HTML)
+        self.assertIn("opacity: 0.42;", BOARD_WEB_APP_HTML)
         self.assertIn('#repairOrderCloseButton[data-close-available="true"] {', BOARD_WEB_APP_HTML)
         self.assertIn("border-color: rgba(138, 150, 109, 0.34);", BOARD_WEB_APP_HTML)
         self.assertIn(
