@@ -859,7 +859,6 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("localStorage.removeItem(ACTOR_STORAGE_KEY", BOARD_WEB_APP_HTML)
         self.assertIn("'X-Operator-Session'", BOARD_WEB_APP_HTML)
         self.assertIn('id="operatorProfileModal"', BOARD_WEB_APP_HTML)
-        self.assertIn('id="operatorSecurityNotice"', BOARD_WEB_APP_HTML)
         self.assertIn('id="operatorAdminModal"', BOARD_WEB_APP_HTML)
         self.assertIn('id="identityPassword"', BOARD_WEB_APP_HTML)
         self.assertIn('id="adminUserLogin"', BOARD_WEB_APP_HTML)
@@ -887,11 +886,6 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("async function deleteOperatorUser(username)", BOARD_WEB_APP_HTML)
         self.assertIn("async function openOperatorUserReport(username)", BOARD_WEB_APP_HTML)
         self.assertIn("function handleAdminUsersListClick(event)", BOARD_WEB_APP_HTML)
-        self.assertIn("data?.security?.warning || ''", BOARD_WEB_APP_HTML)
-        self.assertIn(
-            "els.operatorSecurityNotice.classList.toggle('hidden', !securityWarning);",
-            BOARD_WEB_APP_HTML,
-        )
         self.assertIn(
             "els.operatorButton.addEventListener('click', openOperatorWorkspace);",
             BOARD_WEB_APP_HTML,

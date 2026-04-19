@@ -5177,7 +5177,6 @@ BOARD_WEB_APP_HTML = "".join(
         </div>
       </div>
       <div class="wall-meta" id="operatorProfileMeta">ЗАГРУЗКА ПРОФИЛЯ...</div>
-      <div class="message hidden" id="operatorSecurityNotice"></div>
       <div class="operator-stats-grid" id="operatorStatsGrid"></div>
       <div class="subpanel">
         <div class="panel-title">ПОСЛЕДНИЕ ДЕЙСТВИЯ</div>
@@ -8089,8 +8088,6 @@ BOARD_WEB_APP_HTML = "".join(
       updateOperatorButton();
       els.operatorProfileModal.classList.remove('is-open');
       els.operatorAdminModal.classList.remove('is-open');
-      els.operatorSecurityNotice.classList.add('hidden');
-      els.operatorSecurityNotice.textContent = '';
       if (!preserveStatus) setStatus('Нужен вход оператора.', true);
       if (openLogin) openOperatorLoginModal();
     }
@@ -8123,9 +8120,6 @@ BOARD_WEB_APP_HTML = "".join(
         'ПОЛЬЗОВАТЕЛЬ: ' + (data?.user?.username || '-') +
         ' | РОЛЬ: ' + (data?.user?.is_admin ? 'АДМИНИСТРАТОР' : 'ОПЕРАТОР') +
         ' | ОБНОВЛЕНО: ' + formatDate(data?.user?.updated_at);
-      const securityWarning = data?.security?.warning || '';
-      els.operatorSecurityNotice.classList.toggle('hidden', !securityWarning);
-      els.operatorSecurityNotice.textContent = securityWarning;
       els.operatorStatsGrid.innerHTML = [
         operatorStatHtml('ОТКРЫТО КАРТОЧЕК', stats.cards_opened ?? 0),
         operatorStatHtml('СОЗДАНО', stats.cards_created ?? 0),
