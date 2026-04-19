@@ -15,7 +15,7 @@ The repository still contains legacy technical names from the earlier `Minimal K
 - kanban board with cards, custom columns, sticky notes, archive, unread and updated markers
 - local HTTP API for the UI, reverse proxy, and automation
 - MCP server for ChatGPT / OpenAI tools / connector workflows
-- local card cleanup action available from the card indicator
+- background card enrichment action available from the card indicator
 - vehicle profiles and card autofill
 - repair orders with works, materials, payments, status flow, and text export
 - print module for repair-order documents and inspection sheets

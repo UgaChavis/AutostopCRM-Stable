@@ -15,7 +15,7 @@ It should answer four questions fast:
 
 ## 1. Product Snapshot
 
-AutoStop CRM is a production-oriented CRM for an auto workshop built around a kanban board, local API, MCP surface, and one narrow local card-cleanup action.
+AutoStop CRM is a production-oriented CRM for an auto workshop built around a kanban board, local API, MCP surface, and one narrow background card-enrichment action.
 
 Current product scope:
 
@@ -26,7 +26,7 @@ Current product scope:
 - operator authentication and admin user management
 - cashboxes, cash transactions, employees, and payroll reports
 - MCP server for ChatGPT / OpenAI tool access
-- lower-right card indicator that launches the bounded agent-driven card enrichment flow
+- lower-right card indicator that enqueues the bounded agent-driven card enrichment flow without opening the agent modal
 
 Legacy names still exist and are expected:
 
@@ -144,7 +144,7 @@ Core rule:
 
 - old server-agent modules now remain only as internal compatibility code
 - they are no longer part of active startup, deploy, or visible UI flows
-- current product behavior keeps only local card cleanup through `CardService`
+- current product behavior keeps only the background card-enrichment trigger through `CardService`
 
 ### Printing
 
@@ -166,16 +166,17 @@ Current visible AI behavior:
 - click -> `/api/run_full_card_enrichment`
 - CRM enqueues the task into the shared agent control storage
 - the separate agent process is expected to consume the task and write back the patch
-- the agent surface remains available for task visibility and progress
+- the card view stays open while the task runs in the background
 - local deterministic cleanup still exists as a fallback route, but it is no longer the visible card-button path
 
 Hard guarantees of the current flow:
 
 - no embedded worker is started by default in CRM startup
 - the queue is shared with the separate agent runtime
-- the agent modal is the visible progress surface
+- the agent modal is no longer auto-opened by the green button
 - the lower-right indicator no longer behaves like the retired local-only cleanup action
 - internet lookup happens in the separate agent process, not in the CRM UI thread
+- the production deploy target in this repo is only the CRM checkout at `/opt/autostopcrm`; AI worker and VPN helpers are separate repositories and are not part of this deploy path
 
 ## 6. Most Recent Development State
 

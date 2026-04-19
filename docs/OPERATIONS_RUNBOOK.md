@@ -8,6 +8,7 @@ This is the compact operational guide for local work, GitHub sync, and productio
 - MCP: `https://crm.autostopcrm.ru/mcp`
 - production server: `vps26457.mnogoweb.in`
 - production repo path: `/opt/autostopcrm`
+- this deploy path covers only the CRM repo; AI worker and VPN helpers are separate repositories with separate deploy targets
 
 ## Branch Rule
 

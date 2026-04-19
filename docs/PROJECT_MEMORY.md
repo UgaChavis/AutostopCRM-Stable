@@ -11,9 +11,9 @@ Use this file for durable notes that should not be rediscovered every session.
 - production verification is not optional after meaningful deployment work
 - live UI smoke checks catch issues that unit tests can miss
 - server sync is a separate step from local green tests
-- the card modal's lower-right `cardAgentButton` now launches the full card enrichment flow and opens the agent surface for progress
+- the card modal's lower-right `cardAgentButton` now launches the full card enrichment flow in the background and does not auto-open the agent modal
 - `run_full_card_enrichment` is the active card-button entrypoint again, backed by `/api/run_full_card_enrichment`
-- the agent surface routes in `api/server.py` are active again; status/tasks/actions/scheduled-task routes are wired to `CardService`
+- the agent surface routes in `api/server.py` are active again; status/tasks/actions/scheduled-task routes are wired to `CardService`, but the green card button itself stays on the card view
 - `CardService` now attaches an agent controller through the shared embedded-agent bootstrap used by both `app.py` and `mcp.main`; the old local-cleanup path still remains only as fallback when no controller is attached
 - VIN enrichment is now bounded but multi-step: `decode_vin` runs first, then sparse VIN results trigger `search_web` and `fetch_page_excerpt` for the same VIN only, and the card patch merges only confirmed vehicle facts
 - VIN web parsing has a known trap: prepending `explicit_vehicle` with a year can suppress model detection, so model parsing should prefer the raw web text first; the web follow-up also needs to skip 403 pages and continue to later results instead of stopping early
@@ -31,6 +31,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - a dead helper alias `_extract_autofill_symptom_query_legacy_unused` was removed from `agent/runner.py`; the canonical helper is `_extract_autofill_symptom_query`
 - the green-button flow no longer calls `agent_status()` just to set `server_available`; the button path now treats an attached agent control as available and skips that extra hot-path status probe
 - the green card button now only enqueues background work and updates the indicator; it no longer opens the agent modal surface on click
+- the CRM deploy path in this repo only targets `/opt/autostopcrm`; the AI worker and VPN helpers are separate repositories and need their own deploy targets
 - `agent/remodel.py` now uses `StrEnum` for its AI enum sets, and the surrounding `agent/*` modules were reformatted so import blocks stay canonical without touching behavior
 
 ## Current Known Cautions

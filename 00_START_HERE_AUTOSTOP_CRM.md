@@ -25,7 +25,7 @@ AutoStop CRM is an auto-workshop CRM built around:
 - operator authentication and admin users
 - cashboxes, employees, payroll
 - MCP server for external tool access
-- local card cleanup action from the card indicator
+- background card enrichment action from the card indicator
 
 ## First Read Order
 
@@ -73,7 +73,7 @@ The active in-product AI behavior is now the card enrichment trigger on the lowe
 
 - click the card indicator
 - enqueue `run_full_card_enrichment` through `CardService`
-- open the agent surface so the operator can watch the task
+- stay on the card while the task runs in the background
 - patch card data through the agent control / shared task storage flow
 - refresh the card when the task completes
 
@@ -93,6 +93,7 @@ There is still no embedded worker started by default in CRM startup; the separat
 - latest targeted `service + api + web_assets + MCP` runs are green
 - production site: `200 OK`
 - production MCP: verify current tool count from live runtime before assuming a stale number
+- this deployment path covers only the CRM repo at `/opt/autostopcrm`; the AI worker and VPN helpers are separate repos and are not part of this deploy target
 
 ## Documentation Layout
 
