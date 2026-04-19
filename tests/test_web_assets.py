@@ -300,11 +300,9 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn('id="employeesSearchInput"', BOARD_WEB_APP_HTML)
         self.assertNotIn('id="employeesVisibilityFilters"', BOARD_WEB_APP_HTML)
         self.assertNotIn('id="employeesListMeta"', BOARD_WEB_APP_HTML)
-        self.assertIn('id="employeeToggleButton"', BOARD_WEB_APP_HTML)
         self.assertIn("function openEmployeesModal()", BOARD_WEB_APP_HTML)
         self.assertIn("function saveEmployee()", BOARD_WEB_APP_HTML)
         self.assertIn("function deleteEmployee()", BOARD_WEB_APP_HTML)
-        self.assertIn("function toggleEmployee()", BOARD_WEB_APP_HTML)
         self.assertIn("function filteredEmployeesList()", BOARD_WEB_APP_HTML)
         self.assertIn("function renderEmployeesListPanel()", BOARD_WEB_APP_HTML)
         self.assertNotIn("function handleEmployeesSearchInput(event)", BOARD_WEB_APP_HTML)
@@ -335,7 +333,8 @@ class WebAssetsTests(unittest.TestCase):
             'class="employees-filterbar" id="employeesVisibilityFilters"', BOARD_WEB_APP_HTML
         )
         self.assertNotIn('class="employees-list-meta" id="employeesListMeta"', BOARD_WEB_APP_HTML)
-        self.assertIn('class="btn btn--ghost" id="employeeToggleButton"', BOARD_WEB_APP_HTML)
+        self.assertNotIn('id="employeeToggleButton"', BOARD_WEB_APP_HTML)
+        self.assertNotIn('id="employeeSaveButton"', BOARD_WEB_APP_HTML)
         self.assertIn(".employees-layout {", BOARD_WEB_APP_HTML)
         self.assertIn(
             "grid-template-columns: minmax(360px, 390px) minmax(0, 1fr);", BOARD_WEB_APP_HTML
@@ -393,7 +392,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('id="employeesCreateButton"', BOARD_WEB_APP_HTML)
         self.assertIn(">ДОБАВИТЬ<", BOARD_WEB_APP_HTML)
         self.assertIn('id="employeeDeleteButton"', BOARD_WEB_APP_HTML)
-        self.assertIn(
+        self.assertNotIn(
             "els.employeeToggleButton?.addEventListener('click', toggleEmployee);",
             BOARD_WEB_APP_HTML,
         )
@@ -430,7 +429,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("if (!confirmDiscardEmployeeChanges()) return;", BOARD_WEB_APP_HTML)
         self.assertIn("renderEmployeesWorkspace();", BOARD_WEB_APP_HTML)
         self.assertIn("els.employeeNameInput.focus();", BOARD_WEB_APP_HTML)
-        self.assertNotIn("await saveEmployee();", BOARD_WEB_APP_HTML)
+        self.assertIn("await saveEmployee();", BOARD_WEB_APP_HTML)
         self.assertIn('data-repair-order-cell="executor_id"', BOARD_WEB_APP_HTML)
         self.assertIn("function repairOrderExecutorOptionsHtml", BOARD_WEB_APP_HTML)
         self.assertIn(

@@ -6213,8 +6213,6 @@ BOARD_WEB_APP_HTML = "".join(
                       + '</div>'
                       + '<div class="employees-card-actions">'
                         + '<button class="btn btn--ghost" id="employeesCreateButton" type="button">ДОБАВИТЬ</button>'
-                        + '<button class="btn btn--ghost" id="employeeToggleButton" type="button">ВЫКЛЮЧИТЬ</button>'
-                        + '<button class="btn" id="employeeSaveButton" type="button">СОХРАНИТЬ</button>'
                         + '<button class="btn btn--ghost" id="employeeDeleteButton" type="button">УДАЛИТЬ</button>'
                       + '</div>'
                     + '</div>'
@@ -6366,9 +6364,7 @@ BOARD_WEB_APP_HTML = "".join(
       employeeNoteDetails: document.getElementById('employeeNoteDetails'),
       employeeNoteInput: document.getElementById('employeeNoteInput'),
       employeeActiveInput: document.getElementById('employeeActiveInput'),
-      employeeSaveButton: document.getElementById('employeeSaveButton'),
       employeeDeleteButton: document.getElementById('employeeDeleteButton'),
-      employeeToggleButton: document.getElementById('employeeToggleButton'),
       employeeSalaryTitle: document.getElementById('employeeSalaryTitle'),
       employeeSalaryBalance: document.getElementById('employeeSalaryBalance'),
       employeeSalarySummary: document.getElementById('employeeSalarySummary'),
@@ -6575,9 +6571,7 @@ BOARD_WEB_APP_HTML = "".join(
       els.employeeNoteDetails = document.getElementById('employeeNoteDetails');
       els.employeeNoteInput = document.getElementById('employeeNoteInput');
       els.employeeActiveInput = document.getElementById('employeeActiveInput');
-      els.employeeSaveButton = document.getElementById('employeeSaveButton');
       els.employeeDeleteButton = document.getElementById('employeeDeleteButton');
-      els.employeeToggleButton = document.getElementById('employeeToggleButton');
       els.employeeSalaryTitle = document.getElementById('employeeSalaryTitle');
       els.employeeSalaryBalance = document.getElementById('employeeSalaryBalance');
       els.employeeSalarySummary = document.getElementById('employeeSalarySummary');
@@ -7875,9 +7869,7 @@ BOARD_WEB_APP_HTML = "".join(
       if (state.employeesUiBound) return;
       hydrateEmployeesUiRefs();
       els.employeesCreateButton?.addEventListener('click', addEmployeeFromForm);
-      els.employeeSaveButton?.addEventListener('click', saveEmployee);
       els.employeeDeleteButton?.addEventListener('click', deleteEmployee);
-      els.employeeToggleButton?.addEventListener('click', toggleEmployee);
       els.employeeSalaryModeInput?.addEventListener('change', syncEmployeeSalaryModeUi);
       els.employeesMonthInput?.addEventListener('change', handleEmployeesMonthChange);
       els.employeesList?.addEventListener('click', handleEmployeesListClick);
@@ -8488,10 +8480,6 @@ BOARD_WEB_APP_HTML = "".join(
       if (els.employeeDeleteButton) {
         els.employeeDeleteButton.disabled = !current;
       }
-      if (els.employeeToggleButton) {
-        els.employeeToggleButton.disabled = !current;
-        els.employeeToggleButton.textContent = current && current.is_active ? 'ВЫКЛЮЧИТЬ' : 'ВКЛЮЧИТЬ';
-      }
       state.employeeFormBaseline = employeeComparableSnapshot(current);
       syncEmployeeSalaryModeUi();
     }
@@ -8846,6 +8834,10 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     async function addEmployeeFromForm() {
+      if (employeeFormHasUnsavedChanges()) {
+        await saveEmployee();
+        return;
+      }
       if (!confirmDiscardEmployeeChanges()) return;
       state.employeeCreateMode = true;
       state.activeEmployeeId = '';
