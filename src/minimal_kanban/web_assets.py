@@ -1710,15 +1710,15 @@ BOARD_WEB_APP_HTML = "".join(
         var(--bg-panel);
     }
     .dialog--repair-order .dialog__head {
-      padding: 13px 15px 10px;
+      padding: 11px 13px 8px;
       margin: 0;
       border-bottom: 1px solid rgba(115, 126, 105, 0.2);
       background: rgba(0, 0, 0, 0.08);
     }
     .repair-order-shell {
       display: grid;
-      gap: 7px;
-      padding: 9px 11px 11px;
+      gap: 6px;
+      padding: 7px 9px 9px;
       overflow: auto;
       min-height: 0;
       align-content: start;
@@ -1727,7 +1727,7 @@ BOARD_WEB_APP_HTML = "".join(
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
     }
     .repair-order-toolbar .btn {
@@ -1737,14 +1737,14 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-groups {
       display: grid;
       grid-template-columns: minmax(168px, 0.56fr) minmax(324px, 1.08fr) minmax(520px, 1.78fr);
-      gap: 8px;
+      gap: 6px;
       align-items: stretch;
     }
     .repair-order-card,
     .repair-order-table-card {
       display: grid;
-      gap: 6px;
-      padding: 8px;
+      gap: 5px;
+      padding: 6px;
       border: 1px solid rgba(116, 126, 106, 0.15);
       background:
         linear-gradient(180deg, rgba(255,255,255,0.02), transparent 24%),
@@ -1753,7 +1753,7 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-card__grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 6px;
+      gap: 5px;
     }
     .repair-order-card__grid--document {
       grid-template-columns: 46px repeat(3, minmax(0, 1fr));
@@ -1880,6 +1880,14 @@ BOARD_WEB_APP_HTML = "".join(
     .repair-order-table__numeric {
       text-align: right;
     }
+    .repair-order-cell-total {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
     .repair-order-table__action {
       width: 44px;
       text-align: center;
@@ -1949,7 +1957,7 @@ BOARD_WEB_APP_HTML = "".join(
       min-width: 124px;
       text-align: right;
       color: var(--text);
-      font-size: 14px;
+      font-size: 15px;
       letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
     }
@@ -11995,6 +12003,15 @@ BOARD_WEB_APP_HTML = "".join(
       }).format(safeValue);
     }
 
+    function repairOrderFormatRubles(value) {
+      const normalized = typeof value === 'number' ? value : repairOrderParseNumber(value);
+      const safeValue = normalized === null ? 0 : normalized;
+      return new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(Math.round(safeValue)) + ' ₽';
+    }
+
     function normalizeRepairOrderPaymentMethod(value) {
       const normalized = String(value ?? '').trim().toLowerCase();
       if (['cashless', 'wire', 'bank', 'безнал', 'безналичный'].includes(normalized)) return 'cashless';
@@ -12594,7 +12611,7 @@ BOARD_WEB_APP_HTML = "".join(
         executorCell +
         '<td class="repair-order-table__numeric">' + repairOrderRowInputHtml('quantity', normalized.quantity, '1') + '</td>' +
         '<td class="repair-order-table__numeric">' + repairOrderRowInputHtml('price', normalized.price, '0') + '</td>' +
-        '<td class="repair-order-table__numeric"><div class="repair-order-cell-total" data-repair-order-row-total data-empty="' + (hasDisplayTotal ? 'false' : 'true') + '">' + escapeHtml(hasDisplayTotal ? repairOrderFormatMoney(totalValue ?? normalized.total) : '-') + '</div></td>' +
+        '<td class="repair-order-table__numeric"><div class="repair-order-cell-total" data-repair-order-row-total data-empty="' + (hasDisplayTotal ? 'false' : 'true') + '">' + escapeHtml(hasDisplayTotal ? repairOrderFormatRubles(totalValue ?? normalized.total) : '-') + '</div></td>' +
         '<td class="repair-order-table__action"><button class="btn btn--ghost repair-order-row-remove" type="button" data-remove-repair-order-row="' + escapeHtml(section) + '" data-row-index="' + escapeHtml(index) + '">&times;</button></td>' +
         '</tr>';
     }
@@ -12639,14 +12656,14 @@ BOARD_WEB_APP_HTML = "".join(
         row.dataset.repairOrderTotalRaw = normalized.total;
         const totalCell = row.querySelector('[data-repair-order-row-total]');
         if (totalCell) {
-          totalCell.textContent = hasDisplayTotal ? repairOrderFormatMoney(totalValue ?? normalized.total) : '-';
+          totalCell.textContent = hasDisplayTotal ? repairOrderFormatRubles(totalValue ?? normalized.total) : '-';
           totalCell.dataset.empty = hasDisplayTotal ? 'false' : 'true';
         }
         subtotal += totalValue ?? (repairOrderParseNumber(normalized.total) ?? 0);
       });
       const roundedSubtotal = repairOrderRoundMoney(subtotal);
       document.querySelectorAll('[data-repair-order-total="' + section + '"]').forEach((node) => {
-        node.textContent = repairOrderFormatMoney(roundedSubtotal);
+        node.textContent = repairOrderFormatRubles(roundedSubtotal);
       });
       return roundedSubtotal;
     }

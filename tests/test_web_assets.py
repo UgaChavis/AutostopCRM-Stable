@@ -967,6 +967,8 @@ class WebAssetsTests(unittest.TestCase):
             "grid-template-columns: minmax(168px, 0.56fr) minmax(324px, 1.08fr) minmax(520px, 1.78fr);",
             BOARD_WEB_APP_HTML,
         )
+        self.assertIn("padding: 11px 13px 8px;", BOARD_WEB_APP_HTML)
+        self.assertIn("padding: 7px 9px 9px;", BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderClient"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderPhone"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderVehicle"', BOARD_WEB_APP_HTML)
@@ -986,6 +988,11 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn('.repair-order-field--phone input[type="text"] {', BOARD_WEB_APP_HTML)
         self.assertIn("font-size: 15px;", BOARD_WEB_APP_HTML)
         self.assertIn("font-weight: 700;", BOARD_WEB_APP_HTML)
+        self.assertIn(".repair-order-cell-total {", BOARD_WEB_APP_HTML)
+        self.assertIn("font-size: 16px;", BOARD_WEB_APP_HTML)
+        self.assertIn("repairOrderFormatRubles", BOARD_WEB_APP_HTML)
+        self.assertIn("minimumFractionDigits: 0,", BOARD_WEB_APP_HTML)
+        self.assertIn("+ ' ₽';", BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderAddWorkRowButton"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderAddMaterialRowButton"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderAutofillButton"', BOARD_WEB_APP_HTML)
