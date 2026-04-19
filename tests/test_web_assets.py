@@ -269,6 +269,9 @@ class WebAssetsTests(unittest.TestCase):
             BOARD_WEB_APP_HTML,
         )
         self.assertIn("state.cardCleanupState = 'running';", BOARD_WEB_APP_HTML)
+        self.assertIn("function stopCardCleanupPolling()", BOARD_WEB_APP_HTML)
+        self.assertIn("function scheduleCardCleanupPolling(", BOARD_WEB_APP_HTML)
+        self.assertIn("async function refreshCardCleanupState()", BOARD_WEB_APP_HTML)
         self.assertNotIn("Карточка приведена в порядок.", BOARD_WEB_APP_HTML)
         self.assertNotIn("Явных изменений для карточки не найдено.", BOARD_WEB_APP_HTML)
 

@@ -5895,6 +5895,7 @@ BOARD_WEB_APP_HTML = "".join(
       agentTaskId: '',
       agentTaskStatus: '',
       agentSyncedTaskId: '',
+      cardCleanupPollTimer: null,
       agentStatusPayload: null,
       agentLatestTasks: [],
       agentLatestActions: [],
@@ -9540,6 +9541,7 @@ BOARD_WEB_APP_HTML = "".join(
         if (taskId) {
           state.agentTaskId = taskId;
           state.agentTaskStatus = 'pending';
+          scheduleCardCleanupPolling(1200);
         }
       } catch (error) {
         state.cardCleanupState = 'error';
@@ -13083,6 +13085,74 @@ BOARD_WEB_APP_HTML = "".join(
       els.cardAgentButton.disabled = currentState === 'running' || !state.activeCard?.id;
     }
 
+    function stopCardCleanupPolling() {
+      if (state.cardCleanupPollTimer) {
+        window.clearTimeout(state.cardCleanupPollTimer);
+        state.cardCleanupPollTimer = null;
+      }
+    }
+
+    function scheduleCardCleanupPolling(delay = 1500) {
+      stopCardCleanupPolling();
+      if (!state.agentTaskId) return;
+      state.cardCleanupPollTimer = window.setTimeout(refreshCardCleanupState, delay);
+    }
+
+    async function refreshCardCleanupState() {
+      stopCardCleanupPolling();
+      const card = state.activeCard && typeof state.activeCard === 'object'
+        ? state.activeCard
+        : currentAgentContextCard();
+      const cardId = String(card?.id || '').trim();
+      const taskId = String(state.agentTaskId || '').trim();
+      if (!cardId || !taskId) {
+        state.cardCleanupState = cardId ? 'idle' : 'idle';
+        renderCardCleanupIndicator();
+        return;
+      }
+      try {
+        const data = await api('/api/agent_tasks?limit=20');
+        const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+        const task = tasks.find((item) => String(item?.id || '').trim() === taskId)
+          || tasks.find((item) => {
+            const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+            const context = metadata.context && typeof metadata.context === 'object' ? metadata.context : {};
+            return String(metadata.purpose || '').trim().toLowerCase() === 'card_enrichment'
+              && String(context.card_id || '').trim() === cardId;
+          })
+          || null;
+        if (!task) {
+          state.cardCleanupState = 'running';
+          renderCardCleanupIndicator();
+          scheduleCardCleanupPolling(1500);
+          return;
+        }
+        const status = String(task.status || '').trim().toLowerCase();
+        state.agentTaskStatus = status;
+        if (status === 'pending' || status === 'running') {
+          state.cardCleanupState = 'running';
+          renderCardCleanupIndicator();
+          scheduleCardCleanupPolling(1500);
+          return;
+        }
+        if (status === 'completed') {
+          state.cardCleanupState = 'idle';
+          renderCardCleanupIndicator();
+          await syncAgentTaskEffects(task);
+          return;
+        }
+        state.cardCleanupState = 'error';
+        state.cardCleanupError = task.error || task.result || task.summary || 'AI-обогащение завершилось с ошибкой.';
+        renderCardCleanupIndicator();
+        await syncAgentTaskEffects(task);
+      } catch (error) {
+        state.cardCleanupState = 'error';
+        state.cardCleanupError = error.message;
+        renderCardCleanupIndicator();
+        scheduleCardCleanupPolling(3000);
+      }
+    }
+
     function applyCardModalState(card) {
       const currentCard = card || null;
       state.activeCard = currentCard;
@@ -13113,6 +13183,7 @@ BOARD_WEB_APP_HTML = "".join(
         state.cardCleanupState = currentCard?.id ? 'idle' : 'idle';
         state.cardCleanupError = '';
       }
+      if (!String(state.agentTaskId || '').trim()) stopCardCleanupPolling();
       renderCardCleanupIndicator();
     }
 
@@ -13126,6 +13197,7 @@ BOARD_WEB_APP_HTML = "".join(
       state.draftTagColor = 'green';
       state.cardCleanupState = 'idle';
       state.cardCleanupError = '';
+      stopCardCleanupPolling();
       refreshRepairOrderEntry(null);
       els.fileInput.value = '';
       clearFilePreview({ sync: false });
@@ -14379,6 +14451,7 @@ function renderCompactArchiveRows(cards) {
       closeRepairOrderModal();
       els.cardModal.classList.remove('is-open');
       resetCardModalState();
+      stopCardCleanupPolling();
     }
     window.__closeCardModal = closeCardModal;
 
