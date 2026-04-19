@@ -474,6 +474,15 @@ class VinEnrichmentScenarioExecutor:
             vehicle_profile_patch["source_links_or_refs"] = [
                 str(item or "").strip() for item in source_links if str(item or "").strip()
             ]
+        if not vehicle_profile_patch:
+            if source_summary:
+                vehicle_profile_patch["source_summary"] = source_summary
+            if source_confidence not in (None, ""):
+                vehicle_profile_patch["source_confidence"] = source_confidence
+            if isinstance(source_links, list) and source_links:
+                vehicle_profile_patch["source_links_or_refs"] = [
+                    str(item or "").strip() for item in source_links if str(item or "").strip()
+                ]
         if vehicle_profile_patch:
             vehicle_profile_patch["autofilled_fields"] = [
                 key
@@ -534,4 +543,13 @@ class VinEnrichmentScenarioExecutor:
                 if description_line.endswith((".", "!", "?"))
                 else f"{description_line}."
             )
+        if not patch:
+            if source_summary:
+                patch["description"] = f"VIN research: {source_summary[:220].rstrip()}"
+            else:
+                patch["description"] = (
+                    "VIN research completed; source output was sparse."
+                    if vin_status == "success"
+                    else "VIN research completed in best-effort mode."
+                )
         return patch
