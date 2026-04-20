@@ -25,7 +25,7 @@ PRINTING_WEB_MODULE_STYLE = r"""
     .repair-order-print-layout {
       min-height: 0;
       display: grid;
-      grid-template-columns: clamp(132px, 10vw, 156px) minmax(0, 1fr) 340px;
+      grid-template-columns: clamp(224px, 16vw, 280px) minmax(0, 1fr) 340px;
       gap: 14px;
       padding: 14px;
       background: rgba(0, 0, 0, 0.08);
@@ -57,33 +57,33 @@ PRINTING_WEB_MODULE_STYLE = r"""
     .repair-order-print-documents {
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      flex: 0 0 auto;
-      overflow: visible;
-      padding: 2px 0;
+      gap: 6px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding: 2px 2px 0 0;
     }
     .repair-order-print-doc {
       appearance: none;
-      border: 0;
-      border-radius: 9px;
-      padding: 7px 8px 7px 6px;
-      min-height: 32px;
-      display: grid;
-      grid-template-columns: 3px minmax(0, 1fr);
+      border: 1px solid rgba(116, 128, 111, 0.28);
+      border-radius: 10px;
+      padding: 8px 10px;
+      min-height: 40px;
+      display: flex;
       gap: 8px;
       align-items: center;
       cursor: pointer;
-      background: transparent;
+      background: rgba(255, 255, 255, 0.02);
       color: inherit;
       text-align: left;
       width: 100%;
       transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
     }
     .repair-order-print-doc:hover { background: rgba(167, 178, 132, 0.08); transform: translateX(1px); }
-    .repair-order-print-doc.is-active { background: rgba(167, 178, 132, 0.14); box-shadow: inset 2px 0 0 rgba(211, 220, 164, 0.96); }
+    .repair-order-print-doc.is-active { background: rgba(167, 178, 132, 0.14); border-color: rgba(211, 220, 164, 0.7); box-shadow: inset 0 0 0 1px rgba(211, 220, 164, 0.16); }
     .repair-order-print-doc__meta { min-width: 0; display: flex; flex: 1 1 auto; align-items: center; gap: 8px; }
     .repair-order-print-doc__title {
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
       line-height: 1.25;
       color: var(--text);
@@ -94,8 +94,8 @@ PRINTING_WEB_MODULE_STYLE = r"""
     }
     .repair-order-print-doc__state {
       flex: 0 0 auto;
-      width: 3px;
-      height: 18px;
+      width: 4px;
+      height: 20px;
       border-radius: 999px;
       background: rgba(167, 178, 132, 0.28);
     }
@@ -230,7 +230,7 @@ PRINTING_WEB_MODULE_STYLE = r"""
       .inspection-sheet-form__row { grid-template-columns: 1fr; }
     }
     @media (max-width: 1500px) {
-      .repair-order-print-layout { grid-template-columns: clamp(128px, 12vw, 154px) minmax(0, 1fr); grid-template-areas: "docs preview" "settings settings"; }
+      .repair-order-print-layout { grid-template-columns: clamp(200px, 16vw, 240px) minmax(0, 1fr); grid-template-areas: "docs preview" "settings settings"; }
       .repair-order-print-layout > .repair-order-print-panel:first-child { grid-area: docs; }
       .repair-order-print-layout > .repair-order-print-panel:nth-child(2) { grid-area: preview; }
       .repair-order-print-layout > .repair-order-print-panel:nth-child(3) { grid-area: settings; }
@@ -244,6 +244,7 @@ PRINTING_WEB_MODULE_STYLE = r"""
       .dialog--print-template-editor { width: min(100%, calc(100% - 12px)); height: min(100vh, 100%); }
       .repair-order-print-layout,
       .print-template-editor { grid-template-columns: 1fr; grid-template-areas: none; }
+      .repair-order-print-documents { max-height: 240px; }
       .repair-order-print-settings__row { grid-template-columns: 1fr; }
       .repair-order-print-preview-frame,
       .print-template-editor__preview-frame { width: 760px; }
