@@ -442,6 +442,7 @@ _PRINTING_SCRIPT_PART1 = r"""
       inspectionSheetForm: null,
       templateEditor: { documentType: 'repair_order', templateId: '' },
     };
+    let printTemplatePreviewTimer = null;
 
     const printEls = {
       modal: document.getElementById('repairOrderPrintModal'),
@@ -578,9 +579,32 @@ _PRINTING_SCRIPT_PART1 = r"""
         + '<\/script></body></html>';
     }
 
+    function buildPrintTemplateEditorFallbackHtml(title, message, detail = '') {
+      return '<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">'
+        + '<style>body{margin:0;padding:32px;font-family:Segoe UI,Arial,sans-serif;background:#fff;color:#1b1b1b;}'
+        + '.wrap{max-width:760px;margin:0 auto;}'
+        + '.title{font-size:22px;font-weight:700;line-height:1.15;margin:0 0 10px;}'
+        + '.message{font-size:14px;line-height:1.55;margin:0 0 12px;color:#444;}'
+        + '.detail{white-space:pre-wrap;padding:12px 14px;border:1px solid #d7d7d7;border-radius:12px;background:#f7f7f7;font:12px/1.5 Consolas,monospace;color:#2f2f2f;}</style>'
+        + '</head><body><div class=\"wrap\"><div class=\"title\">' + escapeHtml(title || 'Предпросмотр') + '</div>'
+        + '<p class=\"message\">' + escapeHtml(message || 'Не удалось построить предпросмотр.') + '</p>'
+        + (detail ? '<div class=\"detail\">' + escapeHtml(detail) + '</div>' : '')
+        + '</div></body></html>';
+    }
+
     function renderPrintTemplateVisualEditor(content) {
       if (!printEls.templateVisualEditorFrame) return;
       printEls.templateVisualEditorFrame.srcdoc = buildPrintTemplateVisualEditorHtml(content);
+    }
+
+    function schedulePrintTemplatePreview() {
+      if (printTemplatePreviewTimer) {
+        window.clearTimeout(printTemplatePreviewTimer);
+      }
+      printTemplatePreviewTimer = window.setTimeout(() => {
+        printTemplatePreviewTimer = null;
+        previewCurrentPrintTemplate();
+      }, 220);
     }
 
     function syncPrintTemplateSourceFromVisualEditor() {
@@ -597,6 +621,7 @@ _PRINTING_SCRIPT_PART1 = r"""
         printEls.templateContent.dataset.dirty = '0';
       }
       renderPrintTemplateVisualEditor(content);
+      schedulePrintTemplatePreview();
     }
 
     function readPrintTemplateEditorContent() {
@@ -613,6 +638,7 @@ _PRINTING_SCRIPT_PART1 = r"""
           printEls.templateContent.value = editor.innerHTML;
           printEls.templateContent.dataset.dirty = '0';
         }
+        schedulePrintTemplatePreview();
       });
     }
 
@@ -1338,7 +1364,6 @@ _PRINTING_SCRIPT_PART3 = r"""
       renderPrintTemplateDocumentTypeOptions();
       renderPrintTemplateList();
       printEls.templateModal.classList.add('is-open');
-      previewCurrentPrintTemplate();
     }
 
     function closePrintTemplateEditor() {
@@ -1348,25 +1373,49 @@ _PRINTING_SCRIPT_PART3 = r"""
     function selectPrintTemplateRecord(templateId) {
       repairOrderPrintState.templateEditor.templateId = templateId;
       renderPrintTemplateList();
-      previewCurrentPrintTemplate();
     }
 
     async function previewCurrentPrintTemplate() {
       const documentType = repairOrderPrintState.templateEditor.documentType || 'repair_order';
+      const draftContent = readPrintTemplateEditorContent();
+      if (printEls.templatePreviewMeta) {
+        printEls.templatePreviewMeta.textContent = 'Обновляем предпросмотр...';
+      }
+      if (printEls.templatePreviewFrame) {
+        printEls.templatePreviewFrame.srcdoc = buildPrintTemplateEditorFallbackHtml(
+          'Предпросмотр шаблона',
+          'Построение предпросмотра...',
+        );
+      }
       try {
         const data = await api('/api/preview_repair_order_print_documents', {
           method: 'POST',
           body: repairOrderPrintRequestPayload({
             selected_document_ids: [documentType],
             active_document_id: documentType,
-            template_overrides: { [documentType]: readPrintTemplateEditorContent() },
+            template_overrides: { [documentType]: draftContent },
           }),
         });
         const documentPreview = data?.documents?.[0] || null;
-        printEls.templatePreviewFrame.srcdoc = documentPreview?.pages?.[0]?.html || '<!doctype html><html><body style="font-family:Segoe UI;padding:32px">Нет данных для предпросмотра.</body></html>';
-        printEls.templatePreviewMeta.textContent = documentPreview ? ('Страниц в предпросмотре: ' + Math.max(1, documentPreview.page_count || documentPreview.pages?.length || 1)) : 'Предпросмотр недоступен.';
+        const previewHtml = documentPreview?.pages?.[0]?.html || '';
+        if (previewHtml) {
+          printEls.templatePreviewFrame.srcdoc = previewHtml;
+          printEls.templatePreviewMeta.textContent = 'Страниц в предпросмотре: ' + Math.max(1, documentPreview.page_count || documentPreview.pages?.length || 1);
+          return;
+        }
+        printEls.templatePreviewFrame.srcdoc = buildPrintTemplateEditorFallbackHtml(
+          'Предпросмотр шаблона',
+          'Сервер не вернул HTML для предпросмотра.',
+        );
+        printEls.templatePreviewMeta.textContent = 'Предпросмотр недоступен.';
       } catch (error) {
-        printEls.templatePreviewMeta.textContent = error.message || 'Не удалось построить предпросмотр шаблона.';
+        const message = error.message || 'Не удалось построить предпросмотр шаблона.';
+        printEls.templatePreviewFrame.srcdoc = buildPrintTemplateEditorFallbackHtml(
+          'Предпросмотр шаблона',
+          'Не удалось построить предпросмотр шаблона.',
+          message,
+        );
+        printEls.templatePreviewMeta.textContent = message;
       }
     }
 
@@ -1466,7 +1515,6 @@ _PRINTING_SCRIPT_PART3 = r"""
         printEls.templateName.value = (file.name || 'uploaded-template').replace(/\.[^.]+$/, '');
         loadPrintTemplateEditorContent(await file.text());
         repairOrderPrintState.templateEditor.templateId = '';
-        previewCurrentPrintTemplate();
       } catch (_) {
         setStatus('Не удалось прочитать файл шаблона.', true);
       } finally {
@@ -1560,8 +1608,10 @@ _PRINTING_SCRIPT_PART3 = r"""
       if (printEls.templateContent.dataset.dirty === '1') {
         renderPrintTemplateVisualEditor(printEls.templateContent.value || '');
         printEls.templateContent.dataset.dirty = '0';
+        schedulePrintTemplatePreview();
       }
     });
+    if (printEls.templateContent) printEls.templateContent.addEventListener('input', schedulePrintTemplatePreview);
     document.addEventListener('click', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;

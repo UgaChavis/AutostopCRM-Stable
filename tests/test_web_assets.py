@@ -1200,6 +1200,11 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("frame.onload = null;", BOARD_WEB_APP_HTML)
         self.assertIn("if (repairOrderPrintState.isPrintRunning) return;", BOARD_WEB_APP_HTML)
         self.assertIn("function buildPrintTemplateVisualEditorHtml(content)", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "function buildPrintTemplateEditorFallbackHtml(title, message, detail = '')",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn("function schedulePrintTemplatePreview()", BOARD_WEB_APP_HTML)
         self.assertIn("'/api/get_repair_order_print_workspace'", BOARD_WEB_APP_HTML)
         self.assertIn("'/api/get_inspection_sheet_form'", BOARD_WEB_APP_HTML)
         self.assertIn("'/api/save_inspection_sheet_form'", BOARD_WEB_APP_HTML)
@@ -1243,6 +1248,11 @@ class WebAssetsTests(unittest.TestCase):
         )
         self.assertIn(
             "printEls.templateVisualEditorFrame.addEventListener('load', handlePrintTemplateVisualEditorLoad);",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn("schedulePrintTemplatePreview();", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "printEls.templatePreviewFrame.srcdoc = buildPrintTemplateEditorFallbackHtml(",
             BOARD_WEB_APP_HTML,
         )
         self.assertIn("win.print();", BOARD_WEB_APP_HTML)
