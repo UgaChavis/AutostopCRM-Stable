@@ -43,7 +43,9 @@ class ColumnService:
             columns = bundle["columns"]
             events = bundle["events"]
             actor_name, source = self._audit_identity(payload, "api")
-            label = self._validated_column_label(payload.get("label"), columns)
+            label = self._validated_column_label(
+                payload.get("label") or payload.get("name"), columns
+            )
             column = Column(id=self._next_column_id(columns), label=label, position=len(columns))
             columns.append(column)
             self._append_event(
@@ -56,7 +58,13 @@ class ColumnService:
                 details={"column_id": column.id, "label": column.label},
             )
             self._save_bundle(bundle, columns=columns, cards=bundle["cards"], events=events)
-            self._logger.info("create_column id=%s label=%s actor=%s source=%s", column.id, column.label, actor_name, source)
+            self._logger.info(
+                "create_column id=%s label=%s actor=%s source=%s",
+                column.id,
+                column.label,
+                actor_name,
+                source,
+            )
             return {
                 "column": column.to_dict(),
                 "columns": [item.to_dict() for item in columns],
@@ -68,12 +76,21 @@ class ColumnService:
             columns = bundle["columns"]
             events = bundle["events"]
             actor_name, source = self._audit_identity(payload, "api")
-            column_id = self._validated_column(payload.get("column_id") or payload.get("column"), columns)
+            column_id = self._validated_column(
+                payload.get("column_id") or payload.get("column"), columns
+            )
             column = next((item for item in columns if item.id == column_id), None)
             if column is None:
-                self._fail("not_found", "Указанный столбец не найден.", status_code=404, details={"column_id": column_id})
+                self._fail(
+                    "not_found",
+                    "Указанный столбец не найден.",
+                    status_code=404,
+                    details={"column_id": column_id},
+                )
             previous_label = column.label
-            label = self._validated_column_label(payload.get("label"), columns, exclude_column_id=column_id)
+            label = self._validated_column_label(
+                payload.get("label"), columns, exclude_column_id=column_id
+            )
             if label == previous_label:
                 return {
                     "column": column.to_dict(),
@@ -118,13 +135,24 @@ class ColumnService:
             cards = bundle["cards"]
             events = bundle["events"]
             actor_name, source = self._audit_identity(payload, "api")
-            column_id = self._validated_column(payload.get("column_id") or payload.get("column"), columns)
-            before_column_id = str(payload.get("before_column_id") or payload.get("before_column") or "").strip()
+            column_id = self._validated_column(
+                payload.get("column_id") or payload.get("column"), columns
+            )
+            before_column_id = str(
+                payload.get("before_column_id") or payload.get("before_column") or ""
+            ).strip()
             column = next((item for item in columns if item.id == column_id), None)
             if column is None:
-                self._fail("not_found", "Указанный столбец не найден.", status_code=404, details={"column_id": column_id})
+                self._fail(
+                    "not_found",
+                    "Указанный столбец не найден.",
+                    status_code=404,
+                    details={"column_id": column_id},
+                )
             if before_column_id:
-                before_column = next((item for item in columns if item.id == before_column_id), None)
+                before_column = next(
+                    (item for item in columns if item.id == before_column_id), None
+                )
                 if before_column is None:
                     self._fail(
                         "not_found",
@@ -134,14 +162,25 @@ class ColumnService:
                     )
                 if before_column_id == column_id:
                     before_column_id = ""
-            previous_position = next((index for index, item in enumerate(columns) if item.id == column_id), 0)
+            previous_position = next(
+                (index for index, item in enumerate(columns) if item.id == column_id), 0
+            )
             reordered_columns = [item for item in columns if item.id != column_id]
             if before_column_id:
-                insert_at = next((index for index, item in enumerate(reordered_columns) if item.id == before_column_id), len(reordered_columns))
+                insert_at = next(
+                    (
+                        index
+                        for index, item in enumerate(reordered_columns)
+                        if item.id == before_column_id
+                    ),
+                    len(reordered_columns),
+                )
                 reordered_columns.insert(insert_at, column)
             else:
                 reordered_columns.append(column)
-            changed = any(item.id != columns[index].id for index, item in enumerate(reordered_columns))
+            changed = any(
+                item.id != columns[index].id for index, item in enumerate(reordered_columns)
+            )
             for position, item in enumerate(reordered_columns):
                 item.position = position
             if not changed:
@@ -154,7 +193,10 @@ class ColumnService:
                         "next_position": previous_position,
                     },
                 }
-            next_position = next((index for index, item in enumerate(reordered_columns) if item.id == column_id), previous_position)
+            next_position = next(
+                (index for index, item in enumerate(reordered_columns) if item.id == column_id),
+                previous_position,
+            )
             self._append_event(
                 events,
                 actor_name=actor_name,
@@ -197,10 +239,17 @@ class ColumnService:
             cards = bundle["cards"]
             events = bundle["events"]
             actor_name, source = self._audit_identity(payload, "api")
-            column_id = self._validated_column(payload.get("column_id") or payload.get("column"), columns)
+            column_id = self._validated_column(
+                payload.get("column_id") or payload.get("column"), columns
+            )
             column = next((item for item in columns if item.id == column_id), None)
             if column is None:
-                self._fail("not_found", "Указанный столбец не найден.", status_code=404, details={"column_id": column_id})
+                self._fail(
+                    "not_found",
+                    "Указанный столбец не найден.",
+                    status_code=404,
+                    details={"column_id": column_id},
+                )
             if len(columns) <= 1:
                 self._fail(
                     "last_column",
@@ -234,7 +283,13 @@ class ColumnService:
                 details={"column_id": column.id, "label": column.label},
             )
             self._save_bundle(bundle, columns=remaining_columns, cards=cards, events=events)
-            self._logger.info("delete_column id=%s label=%s actor=%s source=%s", column.id, column.label, actor_name, source)
+            self._logger.info(
+                "delete_column id=%s label=%s actor=%s source=%s",
+                column.id,
+                column.label,
+                actor_name,
+                source,
+            )
             return {
                 "deleted_column": deleted_column,
                 "columns": [item.to_dict() for item in remaining_columns],
@@ -251,14 +306,14 @@ class ColumnService:
         if not label:
             self._fail(
                 "validation_error",
-                "Нужно передать непустой label для столбца.",
-                details={"field": "label"},
+                "Нужно передать непустой label или name для столбца.",
+                details={"field": "label", "aliases": ["name"]},
             )
         if len(label) > COLUMN_LABEL_LIMIT:
             self._fail(
                 "validation_error",
                 f"Поле label не должно превышать {COLUMN_LABEL_LIMIT} символов.",
-                details={"field": "label"},
+                details={"field": "label", "aliases": ["name"]},
             )
         existing_labels = {
             column.label.casefold()

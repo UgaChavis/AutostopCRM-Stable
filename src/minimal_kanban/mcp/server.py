@@ -1073,10 +1073,18 @@ def create_mcp_server(
         annotations=_write_tool_annotations("Create Column"),
         structured_output=True,
     )
-    def create_column(label: str, actor_name: str | None = None) -> JsonEnvelope:
+    def create_column(
+        label: str | None = None,
+        name: str | None = None,
+        actor_name: str | None = None,
+    ) -> JsonEnvelope:
         return _relay_board_call(
             "create_column",
-            lambda: board_api.create_column(label, actor_name=actor_name),
+            lambda: board_api.create_column(
+                label,
+                name=name,
+                actor_name=actor_name,
+            ),
         )
 
     @server.tool(

@@ -213,6 +213,7 @@ def build_chatgpt_connect_payload(
         "12. The compact 1.1 vehicle profile for GPT should focus on make_display, model_display, production_year, vin, engine_model, gearbox_model, drivetrain, and oem_notes.",
         "13. Do not ask GPT to edit cards until it confirms connector_name, resource_url, board_name, and scope_rule.",
         "14. For mass column migrations, use bulk_move_cards instead of many sequential move_card calls.",
+        "14a. create_column accepts label, and the name alias is also supported for compatibility.",
         "15. rename_column changes only the label and keeps the same column id.",
         "16. delete_column can remove only an empty column; if cards still point to it, clear that column first.",
     ]

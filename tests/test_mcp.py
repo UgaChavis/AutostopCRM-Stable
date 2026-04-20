@@ -432,7 +432,7 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("latency_ms", runtime_status.structuredContent["meta"])
 
                 created_column = await session.call_tool(
-                    "create_column", {"label": "ChatGPT", "actor_name": "РћРџР•Р РђРўРћР "}
+                    "create_column", {"name": "ChatGPT", "actor_name": "РћРџР•Р РђРўРћР "}
                 )
                 self.assertFalse(created_column.isError)
                 self.assertTrue(created_column.structuredContent["ok"])

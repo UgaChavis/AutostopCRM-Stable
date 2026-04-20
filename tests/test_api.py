@@ -758,6 +758,12 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(any(card["id"] == card_id for card in overdue["data"]["cards"]))
 
+    def test_create_column_accepts_name_alias(self) -> None:
+        status, created_column = self.request("/api/create_column", {"name": "Этап по имени"})
+        self.assertEqual(status, 200)
+        self.assertTrue(created_column["ok"])
+        self.assertEqual(created_column["data"]["column"]["label"], "Этап по имени")
+
     def test_move_card_route_can_reorder_within_column(self) -> None:
         status, first = self.request(
             "/api/create_card", {"title": "First", "column": "inbox", "deadline": {"hours": 2}}

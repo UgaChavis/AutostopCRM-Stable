@@ -18,9 +18,13 @@ def candidate_api_urls() -> list[str]:
     return [f"http://127.0.0.1:{port}" for port in range(start_port, start_port + fallback_limit)]
 
 
-def discover_board_api(*, bearer_token: str | None = None, timeout_seconds: float = 1.0) -> str | None:
+def discover_board_api(
+    *, bearer_token: str | None = None, timeout_seconds: float = 1.0
+) -> str | None:
     for base_url in candidate_api_urls():
-        client = BoardApiClient(base_url, bearer_token=bearer_token, timeout_seconds=timeout_seconds)
+        client = BoardApiClient(
+            base_url, bearer_token=bearer_token, timeout_seconds=timeout_seconds
+        )
         try:
             response = client.health()
         except BoardApiTransportError:
@@ -52,8 +56,19 @@ class BoardApiClient:
     def list_columns(self) -> dict:
         return self._request("/api/list_columns", method="GET")
 
-    def create_column(self, label: str, *, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/create_column", {"label": label}, actor_name=actor_name)
+    def create_column(
+        self,
+        label: str | None = None,
+        *,
+        name: str | None = None,
+        actor_name: str | None = None,
+    ) -> dict:
+        payload: dict[str, object] = {}
+        if label is not None:
+            payload["label"] = label
+        if name is not None:
+            payload["name"] = name
+        return self._request_with_identity("/api/create_column", payload, actor_name=actor_name)
 
     def rename_column(self, column_id: str, label: str, *, actor_name: str | None = None) -> dict:
         return self._request_with_identity(
@@ -63,7 +78,9 @@ class BoardApiClient:
         )
 
     def delete_column(self, column_id: str, *, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/delete_column", {"column_id": column_id}, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/delete_column", {"column_id": column_id}, actor_name=actor_name
+        )
 
     def create_sticky(
         self,
@@ -78,7 +95,9 @@ class BoardApiClient:
         return self._request_with_identity("/api/create_sticky", payload, actor_name=actor_name)
 
     def get_cards(self, *, include_archived: bool = False, compact: bool = False) -> dict:
-        return self._request("/api/get_cards", {"include_archived": include_archived, "compact": compact})
+        return self._request(
+            "/api/get_cards", {"include_archived": include_archived, "compact": compact}
+        )
 
     def get_card(self, card_id: str) -> dict:
         return self._request("/api/get_card", {"card_id": card_id})
@@ -151,10 +170,14 @@ class BoardApiClient:
         return self._request("/api/get_cashbox", payload)
 
     def create_cashbox(self, name: str, *, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/create_cashbox", {"name": name}, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/create_cashbox", {"name": name}, actor_name=actor_name
+        )
 
     def delete_cashbox(self, cashbox_id: str, *, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/delete_cashbox", {"cashbox_id": cashbox_id}, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/delete_cashbox", {"cashbox_id": cashbox_id}, actor_name=actor_name
+        )
 
     def create_cash_transaction(
         self,
@@ -175,20 +198,28 @@ class BoardApiClient:
             payload["amount_minor"] = amount_minor
         elif amount is not None:
             payload["amount"] = amount
-        return self._request_with_identity("/api/create_cash_transaction", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/create_cash_transaction", payload, actor_name=actor_name
+        )
 
     def update_board_settings(self, *, board_scale: float, actor_name: str | None = None) -> dict:
         payload: dict[str, object] = {"board_scale": board_scale}
-        return self._request_with_identity("/api/update_board_settings", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/update_board_settings", payload, actor_name=actor_name
+        )
 
-    def get_gpt_wall(self, *, include_archived: bool = True, event_limit: int | None = None) -> dict:
+    def get_gpt_wall(
+        self, *, include_archived: bool = True, event_limit: int | None = None
+    ) -> dict:
         payload: dict[str, object] = {"include_archived": include_archived}
         if event_limit is not None:
             payload["event_limit"] = event_limit
         return self._request("/api/get_gpt_wall", payload, method="POST")
 
     def cleanup_card_content(self, *, card_id: str, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/cleanup_card_content", {"card_id": card_id}, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/cleanup_card_content", {"card_id": card_id}, actor_name=actor_name
+        )
 
     def autofill_vehicle_data(
         self,
@@ -227,7 +258,9 @@ class BoardApiClient:
         actor_name: str | None = None,
     ) -> dict:
         payload: dict[str, object] = {"card_id": card_id, "overwrite": overwrite}
-        return self._request_with_identity("/api/autofill_repair_order", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/autofill_repair_order", payload, actor_name=actor_name
+        )
 
     def get_card_log(self, card_id: str, *, limit: int | None = None) -> dict:
         payload: dict[str, object] = {"card_id": card_id}
@@ -362,7 +395,9 @@ class BoardApiClient:
         actor_name: str | None = None,
     ) -> dict:
         payload: dict[str, object] = {"card_id": card_id, "repair_order": repair_order}
-        return self._request_with_identity("/api/update_repair_order", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/update_repair_order", payload, actor_name=actor_name
+        )
 
     def set_repair_order_status(
         self,
@@ -372,7 +407,9 @@ class BoardApiClient:
         actor_name: str | None = None,
     ) -> dict:
         payload: dict[str, object] = {"card_id": card_id, "status": status}
-        return self._request_with_identity("/api/set_repair_order_status", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/set_repair_order_status", payload, actor_name=actor_name
+        )
 
     def replace_repair_order_works(
         self,
@@ -382,7 +419,9 @@ class BoardApiClient:
         actor_name: str | None = None,
     ) -> dict:
         payload: dict[str, object] = {"card_id": card_id, "rows": rows}
-        return self._request_with_identity("/api/replace_repair_order_works", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/replace_repair_order_works", payload, actor_name=actor_name
+        )
 
     def replace_repair_order_materials(
         self,
@@ -392,7 +431,9 @@ class BoardApiClient:
         actor_name: str | None = None,
     ) -> dict:
         payload: dict[str, object] = {"card_id": card_id, "rows": rows}
-        return self._request_with_identity("/api/replace_repair_order_materials", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/replace_repair_order_materials", payload, actor_name=actor_name
+        )
 
     def update_sticky(
         self,
@@ -414,15 +455,23 @@ class BoardApiClient:
         return self._request_with_identity("/api/move_sticky", payload, actor_name=actor_name)
 
     def delete_sticky(self, *, sticky_id: str, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/delete_sticky", {"sticky_id": sticky_id}, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/delete_sticky", {"sticky_id": sticky_id}, actor_name=actor_name
+        )
 
-    def set_card_deadline(self, *, card_id: str, deadline: dict, actor_name: str | None = None) -> dict:
+    def set_card_deadline(
+        self, *, card_id: str, deadline: dict, actor_name: str | None = None
+    ) -> dict:
         payload = {"card_id": card_id, "deadline": deadline}
         return self._request_with_identity("/api/set_card_deadline", payload, actor_name=actor_name)
 
-    def set_card_indicator(self, *, card_id: str, indicator: str, actor_name: str | None = None) -> dict:
+    def set_card_indicator(
+        self, *, card_id: str, indicator: str, actor_name: str | None = None
+    ) -> dict:
         payload = {"card_id": card_id, "indicator": indicator}
-        return self._request_with_identity("/api/set_card_indicator", payload, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/set_card_indicator", payload, actor_name=actor_name
+        )
 
     def move_card(
         self,
@@ -437,23 +486,33 @@ class BoardApiClient:
             payload["before_card_id"] = before_card_id
         return self._request_with_identity("/api/move_card", payload, actor_name=actor_name)
 
-    def bulk_move_cards(self, *, card_ids: list[str], column: str, actor_name: str | None = None) -> dict:
+    def bulk_move_cards(
+        self, *, card_ids: list[str], column: str, actor_name: str | None = None
+    ) -> dict:
         payload: dict[str, object] = {"card_ids": card_ids, "column": column}
         return self._request_with_identity("/api/bulk_move_cards", payload, actor_name=actor_name)
 
     def archive_card(self, *, card_id: str, actor_name: str | None = None) -> dict:
-        return self._request_with_identity("/api/archive_card", {"card_id": card_id}, actor_name=actor_name)
+        return self._request_with_identity(
+            "/api/archive_card", {"card_id": card_id}, actor_name=actor_name
+        )
 
-    def restore_card(self, *, card_id: str, column: str | None = None, actor_name: str | None = None) -> dict:
+    def restore_card(
+        self, *, card_id: str, column: str | None = None, actor_name: str | None = None
+    ) -> dict:
         payload: dict[str, object] = {"card_id": card_id}
         if column:
             payload["column"] = column
         return self._request_with_identity("/api/restore_card", payload, actor_name=actor_name)
 
     def list_overdue_cards(self, *, include_archived: bool = False) -> dict:
-        return self._request("/api/list_overdue_cards", {"include_archived": include_archived}, method="POST")
+        return self._request(
+            "/api/list_overdue_cards", {"include_archived": include_archived}, method="POST"
+        )
 
-    def _with_identity(self, payload: dict[str, object], *, actor_name: str | None = None) -> dict[str, object]:
+    def _with_identity(
+        self, payload: dict[str, object], *, actor_name: str | None = None
+    ) -> dict[str, object]:
         enriched = dict(payload)
         enriched["source"] = self._default_source
         if actor_name:
@@ -465,7 +524,9 @@ class BoardApiClient:
             return self._request(path, method="GET")
         return self._request(path, {key: value}, method="POST")
 
-    def _request_with_identity(self, path: str, payload: dict[str, object], *, actor_name: str | None = None) -> dict:
+    def _request_with_identity(
+        self, path: str, payload: dict[str, object], *, actor_name: str | None = None
+    ) -> dict:
         return self._request(path, self._with_identity(payload, actor_name=actor_name))
 
     def _normalize_card_deadline(self, deadline: dict | None) -> dict[str, int]:
@@ -481,7 +542,14 @@ class BoardApiClient:
             return {"days": 1, "hours": 0, "minutes": 0, "seconds": 0}
         return normalized
 
-    def _request(self, path: str, payload: dict | None = None, *, method: str = "POST", _allow_retry: bool = True) -> dict:
+    def _request(
+        self,
+        path: str,
+        payload: dict | None = None,
+        *,
+        method: str = "POST",
+        _allow_retry: bool = True,
+    ) -> dict:
         data = None
         if payload is not None:
             data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -502,7 +570,12 @@ class BoardApiClient:
         except urllib.error.HTTPError as exc:
             try:
                 payload = self._parse_json_payload(exc.read(), path=path)
-                self._log("board_api_request path=%s status=%s error=%s", path, exc.code, payload.get("error"))
+                self._log(
+                    "board_api_request path=%s status=%s error=%s",
+                    path,
+                    exc.code,
+                    payload.get("error"),
+                )
                 return payload
             finally:
                 exc.close()

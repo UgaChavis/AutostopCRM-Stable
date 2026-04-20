@@ -1712,6 +1712,12 @@ class CardServiceTests(unittest.TestCase):
             self.service.create_column({"label": "новый этап"})
         self.assertEqual(duplicate_column.exception.code, "validation_error")
 
+    def test_create_column_accepts_name_alias(self) -> None:
+        created = self.service.create_column({"name": "Этап по имени"})
+
+        self.assertEqual(created["column"]["label"], "Этап по имени")
+        self.assertEqual(created["column"]["position"], 4)
+
     def test_archived_card_cannot_be_modified(self) -> None:
         created = self.service.create_card({"title": "Архив", "deadline": {"days": 1, "hours": 0}})
         card_id = created["card"]["id"]
