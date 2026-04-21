@@ -5,6 +5,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - primary branch truth is now `autostopcrm-v1`
 - `autostopCRM` is legacy and should be treated as historical until it is removed
 - the local working clone now tracks `autostop-v1/autostopcrm-v1`
+- production deploy must not pull the legacy `autostopCRM` branch; `deploy.sh` defaults to `origin/autostopcrm-v1`
 
 ## Recurring Themes
 

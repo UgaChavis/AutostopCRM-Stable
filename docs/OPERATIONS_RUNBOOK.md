@@ -46,8 +46,13 @@ ssh -i C:\Users\User\.ssh\codex_autostopcrm root@vps26457.mnogoweb.in "cd /opt/a
 1. Commit the intended change.
 2. Push to `autostop-v1/autostopcrm-v1`.
 3. On the server, fetch and reset to `origin/autostopcrm-v1`.
-4. Run `./deploy.sh`.
+4. Run `./deploy.sh`; by default it syncs `origin/autostopcrm-v1` before rebuilding.
 5. Confirm the smoke check passes.
+
+`deploy.sh` can be overridden with `AUTOSTOP_DEPLOY_REMOTE` and
+`AUTOSTOP_DEPLOY_BRANCH`, but the normal production path must stay on
+`autostopcrm-v1`. Do not deploy the legacy `autostopCRM` branch unless the
+active branch rule is intentionally changed first.
 
 ## Production Cautions
 

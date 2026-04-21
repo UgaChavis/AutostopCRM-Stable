@@ -11,14 +11,22 @@ DESKTOP_INSTRUCTION_PATH="${AUTOSTOP_DESKTOP_INSTRUCTION_PATH:-/root/Desktop/AUT
 PUBLIC_SITE_URL="${AUTOSTOP_PUBLIC_SITE_URL:-}"
 PUBLIC_MCP_URL="${AUTOSTOP_PUBLIC_MCP_URL:-}"
 VERIFY_PUBLIC_HTTPS="${AUTOSTOP_VERIFY_PUBLIC_HTTPS:-0}"
+DEPLOY_REMOTE="${AUTOSTOP_DEPLOY_REMOTE:-origin}"
+DEPLOY_BRANCH="${AUTOSTOP_DEPLOY_BRANCH:-autostopcrm-v1}"
+SKIP_GIT_SYNC="${AUTOSTOP_SKIP_GIT_SYNC:-0}"
 
 cd "$ROOT_DIR"
 
-if git ls-remote --exit-code origin autostopCRM >/dev/null 2>&1; then
-  git fetch origin autostopCRM
-  git reset --hard origin/autostopCRM
+if [[ "$SKIP_GIT_SYNC" != "1" ]]; then
+  if git ls-remote --exit-code "$DEPLOY_REMOTE" "refs/heads/$DEPLOY_BRANCH" >/dev/null 2>&1; then
+    echo "Syncing deployment checkout from $DEPLOY_REMOTE/$DEPLOY_BRANCH..."
+    git fetch "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"
+    git reset --hard FETCH_HEAD
+  else
+    echo "WARN: git remote $DEPLOY_REMOTE branch $DEPLOY_BRANCH is not reachable; rebuilding current working tree." >&2
+  fi
 else
-  echo "WARN: git origin is not reachable from this server; skipping git pull and rebuilding current working tree." >&2
+  echo "Skipping git sync because AUTOSTOP_SKIP_GIT_SYNC=1."
 fi
 
 docker compose up -d --build --remove-orphans

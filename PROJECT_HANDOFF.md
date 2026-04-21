@@ -66,9 +66,9 @@ Important operational note:
 - production still currently accepts the default admin account
 - this is a real risk, but it has not been rotated in the current line yet
 
-Latest verified synchronized head:
+Most recent pre-pass synchronized head:
 
-- `0b0b5dc` `Fix release verification for markdown wall`
+- `0b9adbe` `Refresh docs for autostopcrm-v1`
 
 Current alignment at handoff update time:
 
@@ -236,9 +236,10 @@ Operational reality:
 Current post-sync note for the active stabilization pass:
 
 - local regression is green
-- local/GitHub/production are synchronized on `0b0b5dc`
+- local/GitHub/production were synchronized on `0b9adbe` before the current quality pass
 - connector and MCP live checks passed after deploy
 - separate `check_agent_runtime.py` still expects `/api/agent_status`, while the current production API surface does not expose that route on the deployed app container
+- `deploy.sh` must sync `autostopcrm-v1`, not the legacy `autostopCRM` branch
 
 ## 8. Test And Verification Baseline
 
@@ -254,8 +255,8 @@ Current known verification baseline:
 - latest targeted regressions for `tests.test_service`, `tests.test_api`, and `tests.test_web_assets` are green
 - latest targeted `tests.test_service`, `tests.test_api`, `tests.test_web_assets`, `tests.test_mcp`, and `tests.test_mcp_main` runs are green
 - import smoke for `main.py` and `main_mcp.py` is green
-- latest full-suite validation on the current local stabilization pass: `386/386 OK`
-- latest portable release verifier: passed on `0b0b5dc`
+- latest full-suite validation on the current local stabilization pass: `388/388 OK`
+- latest portable release verifier: passed during the current `autostopcrm-v1` quality pass
 
 Main test areas:
 
