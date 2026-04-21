@@ -926,6 +926,12 @@ class WebAssetsTests(unittest.TestCase):
             "els.tagInput.addEventListener('keydown', handleTagInputKeydown);", BOARD_WEB_APP_HTML
         )
 
+    def test_tag_editor_shows_updated_suggested_tags(self) -> None:
+        self.assertIn("{ label: 'ждет очереди', color: 'green' }", BOARD_WEB_APP_HTML)
+        self.assertIn("{ label: 'В работе', color: 'yellow' }", BOARD_WEB_APP_HTML)
+        self.assertIn("{ label: 'надо что то сделать', color: 'red' }", BOARD_WEB_APP_HTML)
+        self.assertNotIn("{ label: 'ЗАКАЗАТЬ', color: 'green' }", BOARD_WEB_APP_HTML)
+
     def test_tag_editor_limits_cards_to_three_tags(self) -> None:
         self.assertIn("const CARD_TAG_LIMIT = 3;", BOARD_WEB_APP_HTML)
         self.assertIn("slice(0, CARD_TAG_LIMIT)", BOARD_WEB_APP_HTML)

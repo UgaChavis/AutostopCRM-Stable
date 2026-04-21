@@ -5960,11 +5960,9 @@ BOARD_WEB_APP_HTML = "".join(
       { tint: 'rgba(40, 44, 39, 0.95)', head: 'rgba(110, 122, 96, 0.16)', edge: '#76806f', empty: 'rgba(160, 174, 135, 0.05)' },
     ];
     const SUGGESTED_TAGS = [
-      { label: 'СРОЧНО', color: 'red' },
-      { label: 'ГОРИТ СРОК', color: 'yellow' },
-      { label: 'ЖДЁМ', color: 'yellow' },
-      { label: 'СОГЛАСОВАТЬ', color: 'green' },
-      { label: 'ЗАКАЗАТЬ', color: 'green' },
+      { label: 'ждет очереди', color: 'green' },
+      { label: 'В работе', color: 'yellow' },
+      { label: 'надо что то сделать', color: 'red' },
     ];
     const CARD_TAG_LIMIT = 3;
     const REPAIR_ORDER_TAG_LIMIT = 5;
