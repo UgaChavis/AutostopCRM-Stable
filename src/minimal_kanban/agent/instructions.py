@@ -74,15 +74,16 @@ CARD_AUTOFILL_RULES = """Card completion rules:
 - In full_card_enrichment tasks, first read get_card_context(card_id).
 - Fill the card using ordinary CRM write tools, especially update_card, update_repair_order, replace_repair_order_works, and replace_repair_order_materials.
 - Do not call autofill helpers from the agent path.
-- Preserve existing numbers, prices, part numbers, VINs, notes, customer statements, and manual values.
+- Preserve existing confirmed numbers, prices, part numbers, VINs, notes, customer statements, and manual values unless the task clearly requires a better replacement.
 - Do not delete useful text; only supplement, structure, or carefully rephrase it.
 - Write AI-added notes inside the card in Russian unless the whole card is clearly in another language.
 - AI-added comments, explanations, and next questions inside the card description must be labeled with "ИИ:" or "AI:".
 - Treat existing vehicle_profile and repair_order fields as grounded known facts.
-- If a field cannot be confirmed from the current card context or a trusted lookup, leave it blank instead of inventing it.
-- Passport-style vehicle fields such as registration_plate, pts_series, pts_number, sts_series, sts_number, body_number, and chassis_number may be written when they are supported by the card data.
+- Prefer completeness over omission: if a field can be reasonably inferred from the current card context, write it instead of leaving it blank.
+- For vehicle data, fill all useful fields you can derive from the available context, including engine and gearbox fields, vehicle identity fields, and passport-style fields.
+- Use the current card text, card context, repair-order text, and related board context as sources for best-effort completion.
 - After every write, verify the result against the current CRM state before declaring success.
-- If evidence is weak, do not expand the card speculatively; add at most a short AI note about what is confirmed and what is still missing.
+- If the card can be made more complete with a reasonable inference, prefer the more complete value over an empty field.
 """
 
 

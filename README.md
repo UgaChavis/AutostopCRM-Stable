@@ -122,6 +122,8 @@ The MCP server exposes the current AutoStop CRM board and services as tools over
 - repair-order access and updates
 - local card cleanup and bounded board/card reads
 
+The exact runtime inventory is documented in [MCP_GUIDE.md](MCP_GUIDE.md). The user-facing autofill endpoints remain available in the HTTP API and UI, but they are not MCP tools.
+
 See [MCP_GUIDE.md](MCP_GUIDE.md) and [src/minimal_kanban/mcp/server.py](src/minimal_kanban/mcp/server.py).
 
 ## Card Cleanup

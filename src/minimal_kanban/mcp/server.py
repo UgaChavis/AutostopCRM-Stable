@@ -367,7 +367,7 @@ def create_mcp_server(
             "Before any write operation, first call bootstrap_context. "
             "If bootstrap_context is unavailable, call get_connector_identity, then get_board_content, then get_board_events. "
             "If there is any doubt about tunnels, auth, or runtime state, call get_runtime_status. "
-            "After the board and target are confirmed, perform writes strictly by card_id, sticky_id, and column id. "
+            "After the board and target are known, perform writes by card_id, sticky_id, and column id. "
             "If the user asks about some other kanban product or board, do not use this connector."
         ),
         host=resolved_host,
@@ -693,7 +693,7 @@ def create_mcp_server(
             lines.append(f"board_context_error: {error.get('message', 'unknown')}")
         lines.append("full_board_context_tool: get_board_context")
         lines.append(
-            "recommended_bootstrap: bootstrap_context -> get_runtime_status (only if diagnostics are needed) -> writes"
+            "recommended_bootstrap: bootstrap_context -> get_runtime_status -> writes"
         )
         return "\n".join(lines) + "\n"
 
@@ -929,7 +929,7 @@ def create_mcp_server(
     @server.tool(
         name="bootstrap_context",
         description=_scoped_description(
-            "Return the recommended lightweight startup bundle for GPT: connector identity, board context, a compact wall preview, and the preferred write flow for this board."
+            "Return the lightweight startup bundle for GPT: connector identity, board context, a compact wall preview, and the write flow for this board."
         ),
         annotations=_read_tool_annotations("Bootstrap Context"),
         structured_output=True,
@@ -1004,7 +1004,7 @@ def create_mcp_server(
                     "confirm board_name and scope_rule",
                     "call get_board_content for the full Markdown state of all cards, including archived cards by default",
                     "call get_board_events(event_limit=100) for the newest-first Markdown journal of the latest board changes",
-                    "call get_gpt_wall only when both hidden machine wall sections are needed in one response",
+                    "call get_gpt_wall to return both hidden machine wall sections in one response",
                     "for mass column migrations prefer bulk_move_cards over many sequential move_card calls",
                     "perform write tools by card_id, sticky_id, and column id only",
                 ],
@@ -1148,7 +1148,7 @@ def create_mcp_server(
         name="get_cards",
         description=_scoped_description(
             "Return cards from the current Minimal Kanban board. Archived cards are excluded by default. "
-            "Use compact=true for MCP-safe board scans with lighter payloads and reduced sensitive fields; set compact=false only when full vehicle_profile, repair_order, attachments, and ai_autofill_log are explicitly needed."
+            "Use compact=true for board scans with lighter payloads; set compact=false when full vehicle_profile, repair_order, attachments, and ai_autofill_log are needed."
         ),
         annotations=_read_tool_annotations("List Cards"),
         structured_output=True,
@@ -1414,7 +1414,7 @@ def create_mcp_server(
     @server.tool(
         name="get_board_content",
         description=_scoped_description(
-            "Return the hidden machine wall board-content section as Markdown for the current Minimal Kanban board only: columns, card content, archived card content by default, sticky notes, compact vehicle profiles, and board context, without the event journal. "
+            "Return the hidden machine wall board-content section as Markdown for the current Minimal Kanban board: columns, card content, archived card content by default, sticky notes, compact vehicle profiles, and board context, without the event journal. "
             "Use view_mode=agent for a lighter GPT-oriented read and view_mode=full for a broader export-style dump."
         ),
         annotations=_read_tool_annotations("Board Content"),
@@ -1454,7 +1454,7 @@ def create_mcp_server(
     @server.tool(
         name="get_board_events",
         description=_scoped_description(
-            "Return the hidden machine wall event-log section as Markdown for the current Minimal Kanban board only: newest-first events, what happened, when, by whom, and which card it affected when available. "
+            "Return the hidden machine wall event-log section as Markdown for the current Minimal Kanban board: newest-first events, what happened, when, by whom, and which card it affected when available. "
             "The default event_limit is 100. Use include_archived to control whether archived-card events stay in the journal slice."
         ),
         annotations=_read_tool_annotations("Board Events"),
@@ -1494,7 +1494,7 @@ def create_mcp_server(
     @server.tool(
         name="get_gpt_wall",
         description=_scoped_description(
-            "Return the compatible hidden machine wall aggregate for the current Minimal Kanban board as Markdown: full card text, structured board state, newest-first recent events, compact 1.1 vehicle profile summaries for each card, and separated board_content / event_log sections. "
+            "Return the hidden machine wall aggregate for the current Minimal Kanban board as Markdown: full card text, structured board state, newest-first recent events, compact 1.1 vehicle profile summaries for each card, and separated board_content / event_log sections. "
             "Use view_mode=agent for the normal GPT context flow and view_mode=full for wide diagnostics or exports."
         ),
         annotations=_read_tool_annotations("GPT Wall"),
@@ -1688,7 +1688,7 @@ def create_mcp_server(
         description=_scoped_description(
             "Create a card on the current Minimal Kanban board with vehicle, title, description, optional tags, optional target column, optional vehicle_profile, and a deadline. "
             "vehicle must contain make/model only, and title must contain the short essence of the issue, task, or result. "
-            "If deadline is omitted or all-zero, the connector uses a safe default of one day instead of failing the ChatGPT flow. "
+            "If deadline is omitted or all-zero, the connector uses a default of one day. "
             "For the 1.1 vehicle card flow, prefer the compact vehicle fields: make_display, model_display, production_year, vin, engine_model, gearbox_model, drivetrain, and oem_notes."
         ),
         annotations=_write_tool_annotations("Create Card"),

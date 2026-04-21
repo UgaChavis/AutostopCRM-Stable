@@ -4,7 +4,7 @@
 
 ## Зачем нужен MCP server
 
-MCP server нужен для безопасного и предсказуемого tool-based доступа к доске из:
+MCP server нужен для прямого tool-based доступа к доске из:
 
 - ChatGPT app / Developer mode
 - Responses API
@@ -40,17 +40,78 @@ JsonStore
 
 ## Доступные MCP tools
 
+Текущий runtime-tool inventory: `47` tools.
+
+### Служебные и диагностические
+
+- `ping_connector`
+- `get_connector_identity`
+- `bootstrap_context`
+- `get_runtime_status`
+
+### Доска и карточки
+
 - `list_columns`
 - `create_column`
+- `rename_column`
+- `delete_column`
 - `get_cards`
 - `get_card`
+- `get_card_context`
+- `get_board_snapshot`
+- `get_board_context`
+- `review_board`
+- `get_board_content`
+- `get_board_events`
+- `get_gpt_wall`
+- `get_card_log`
+- `list_archived_cards`
+- `search_cards`
+- `list_overdue_cards`
 - `create_card`
 - `update_card`
-- `move_card`
-- `archive_card`
-- `set_card_indicator`
 - `set_card_deadline`
-- `list_overdue_cards`
+- `set_card_indicator`
+- `move_card`
+- `bulk_move_cards`
+- `archive_card`
+- `restore_card`
+
+### Sticky notes
+
+- `create_sticky`
+- `update_sticky`
+- `move_sticky`
+- `delete_sticky`
+
+### Repair orders
+
+- `list_repair_orders`
+- `get_repair_order`
+- `get_repair_order_text`
+- `update_repair_order`
+- `set_repair_order_status`
+- `replace_repair_order_works`
+- `replace_repair_order_materials`
+
+### Cashboxes
+
+- `list_cashboxes`
+- `get_cashbox`
+- `create_cashbox`
+- `delete_cashbox`
+- `create_cash_transaction`
+
+### Board settings
+
+- `update_board_settings`
+
+### Что не входит в MCP runtime
+
+- `autofill_vehicle_data`
+- `autofill_repair_order`
+
+Эти автозаполнения остаются API/UI-only surface и не регистрируются в MCP runtime.
 
 ## Как MCP server выбирает backend
 
@@ -196,6 +257,8 @@ python -m unittest discover -s .\tests -v
 - `archive_card`
 - `list_overdue_cards`
 - структурированные ошибки для невалидных случаев
+
+Полная проверка current runtime tool surface должна опираться на `tools/list` в живом MCP runtime и на `tests/test_mcp.py`.
 
 ## Ограничения текущей реализации
 
