@@ -68,12 +68,12 @@ Important operational note:
 
 Most recent pre-pass synchronized head:
 
-- `0b9adbe` `Refresh docs for autostopcrm-v1`
+- `8d4cba8` `Relax MCP wording for agent workflows`
 
 Current alignment at handoff update time:
 
 - local `autostopcrm-v1`, GitHub `autostopcrm-v1`, and production `/opt/autostopcrm` are aligned on the same commit
-- local worktree is clean after synchronization
+- local worktree now contains the current documentation edits until they are committed
 
 ## 3. Runtime Architecture
 
@@ -166,7 +166,7 @@ Current visible AI behavior:
 - the card indicator now launches `run_full_card_enrichment`
 - click -> `/api/run_full_card_enrichment`
 - CRM enqueues the task into the shared agent control storage
-- the separate agent process is expected to consume the task and write back the patch
+- when an agent controller is attached, it consumes the task and writes back the patch; local fallback handling remains available when it is not
 - the card view stays open while the task runs in the background
 - local deterministic cleanup still exists as a fallback route, but it is no longer the visible card-button path
 
@@ -236,9 +236,9 @@ Operational reality:
 Current post-sync note for the active stabilization pass:
 
 - local regression is green
-- local/GitHub/production were synchronized on `0b9adbe` before the current quality pass
+- local/GitHub/production were synchronized on `8d4cba8` before the current documentation pass
 - connector and MCP live checks passed after deploy
-- separate `check_agent_runtime.py` still expects `/api/agent_status`, while the current production API surface does not expose that route on the deployed app container
+- the active API surface includes `/api/agent_status`, `/api/agent_tasks`, `/api/agent_actions`, `/api/agent_scheduled_tasks`, and `/api/agent_enqueue_task`
 - `deploy.sh` must sync `autostopcrm-v1`, not the legacy `autostopCRM` branch
 
 ## 8. Test And Verification Baseline

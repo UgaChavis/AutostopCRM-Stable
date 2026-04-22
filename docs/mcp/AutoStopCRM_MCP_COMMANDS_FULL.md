@@ -2,7 +2,7 @@
 
 Дата: 19.04.2026
 
-Полный справочник MCP-команд AutoStop CRM. Всего команд: 49.
+Полный справочник MCP-команд AutoStop CRM. Всего команд: 47.
 
 ## Контекст и диагностика
 
@@ -23,7 +23,7 @@
 | `get_board_content` | read | Hidden machine wall в Markdown: карточки по столбцам, архивные карточки, стикеры, vehicle profile compact. |
 | `get_board_events` | read | Markdown-журнал событий, по умолчанию последние 100, порядок `newest_first`. |
 | `get_gpt_wall` | read | Совместимый агрегатор `board_content` + `event_log` в Markdown. |
-| `search_cards` | read | Поиск карточек по query и фильтрам: column, tag, indicator, status, include_archived. |
+| `search_cards` | read | Поиск карточек по query и фильтрам: column, tag, indicator, status, include_archived. Лучше работает с русско-латинскими вариантами названий и маркеров. |
 | `update_board_settings` | write | Обновляет настройки доски; сейчас используется для `board_scale`. |
 
 ## Карточки
@@ -63,15 +63,18 @@
 
 | Команда | Тип | Что дает |
 | --- | --- | --- |
-| `autofill_vehicle_data` | read | Строит draft нормализованного vehicle profile из текста карточки и/или raw text. |
-| `autofill_repair_order` | write | Заполняет заказ-наряд из текста карточки и vehicle profile, по умолчанию только пустые поля. |
 | `list_repair_orders` | read | Список заказ-нарядов с фильтром status, поиском, сортировкой, card links. |
 | `get_repair_order` | read | Структурированный заказ-наряд одной карточки. |
 | `get_repair_order_text` | read | Текстовая версия заказ-наряда и file metadata. |
-| `update_repair_order` | write | Патчит header/client/payment/status-информацию заказ-наряда без удаления прочих полей. |
+| `update_repair_order` | write | Патчит header/client/payment/status-информацию заказ-наряда. Используй короткий структурный patch. |
 | `replace_repair_order_works` | write | Полностью заменяет таблицу работ. |
 | `replace_repair_order_materials` | write | Полностью заменяет таблицу материалов. |
 | `set_repair_order_status` | write | Ставит заказ-наряду `open` или `closed`; закрытие требует корректной оплаты. |
+
+## Что не входит в MCP runtime
+
+- `autofill_vehicle_data` и `autofill_repair_order` остаются в HTTP API и UI, но не являются MCP tools.
+- Для автозаполнения через ИИ агент должен читать контекст и писать обычными `update_*` командами.
 
 ## Кассы
 

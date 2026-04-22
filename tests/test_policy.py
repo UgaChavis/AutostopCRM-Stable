@@ -296,6 +296,9 @@ class ToolPolicyEngineTests(unittest.TestCase):
         self.assertIn("replace_repair_order_materials", prompt)
         self.assertIn("decode_vin", prompt)
         self.assertIn("search_cards", prompt)
+        self.assertIn("get_board_content", prompt)
+        self.assertIn("get_board_events", prompt)
+        self.assertIn("get_gpt_wall", prompt)
         self.assertNotIn("create_cashbox", prompt)
         self.assertNotIn("delete_column", prompt)
 

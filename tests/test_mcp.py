@@ -1841,6 +1841,53 @@ class BoardApiClientTests(unittest.TestCase):
             ],
         )
 
+    def test_wall_helpers_call_expected_api_endpoints(self) -> None:
+        client = BoardApiClient("https://board.example/api", bearer_token="secret")
+
+        with patch.object(client, "_request", return_value={"ok": True}) as request:
+            client.get_board_content()
+            client.get_board_content(include_archived=False, view_mode="full")
+            client.get_board_events()
+            client.get_board_events(event_limit=25, include_archived=False)
+            client.get_gpt_wall()
+            client.get_gpt_wall(include_archived=False, event_limit=15)
+
+        self.assertEqual(
+            request.call_args_list,
+            [
+                unittest.mock.call(
+                    "/api/get_board_content",
+                    {"include_archived": True, "view_mode": "agent"},
+                    method="POST",
+                ),
+                unittest.mock.call(
+                    "/api/get_board_content",
+                    {"include_archived": False, "view_mode": "full"},
+                    method="POST",
+                ),
+                unittest.mock.call(
+                    "/api/get_board_events",
+                    {"event_limit": 100, "include_archived": True},
+                    method="POST",
+                ),
+                unittest.mock.call(
+                    "/api/get_board_events",
+                    {"event_limit": 25, "include_archived": False},
+                    method="POST",
+                ),
+                unittest.mock.call(
+                    "/api/get_gpt_wall",
+                    {"include_archived": True},
+                    method="POST",
+                ),
+                unittest.mock.call(
+                    "/api/get_gpt_wall",
+                    {"include_archived": False, "event_limit": 15},
+                    method="POST",
+                ),
+            ],
+        )
+
 
 class McpServerRuntimeTests(unittest.TestCase):
     def _runtime(self, host: str, *, port: int = 41831, path: str = "/mcp") -> McpServerRuntime:

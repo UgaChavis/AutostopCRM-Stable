@@ -30,7 +30,7 @@
 
 ## Что должно быть настроено в приложении
 
-1. Запустите [Start Kanban.exe](C:/Users/User/Desktop/Codex/minimal-kanban/release/Start%20Kanban.exe).
+1. Запустите приложение AutoStop CRM или portable build `release/Start Kanban.exe`, если используете локальную сборку из этого репозитория.
 2. Откройте настройки интеграции через шестерёнку.
 3. Убедитесь, что включены:
 - интеграция;
@@ -64,7 +64,7 @@
 
 ## Как подключать через Responses API
 
-Используйте JSON с MCP tool. Пример можно собрать прямо из настроек приложения или взять шаблон из [mcp-tools-example.json](C:/Users/User/Desktop/Codex/minimal-kanban/mcp-tools-example.json).
+Используйте JSON с MCP tool. Пример можно взять из [mcp-tools-example.json](mcp-tools-example.json) или собрать прямо из текущего каталога MCP-команд в [MCP_GUIDE.md](MCP_GUIDE.md).
 
 Если MCP работает в `Bearer token` режиме, в tool payload можно передавать `authorization`.
 

@@ -8,7 +8,7 @@ This is the first file a new developer or agent should read in branch `autostopc
 - current synced HEAD must be verified before work with `git rev-parse --short HEAD`
 - local, GitHub, and production should be kept aligned on the same `autostopcrm-v1` HEAD
 - `autostopCRM` is now a legacy line and should only be treated as historical context
-- the local working clone is currently aligned to `autostop-v1/autostopcrm-v1`
+- the local working clone is currently aligned to `origin/autostopcrm-v1`
 - production CRM: `https://crm.autostopcrm.ru`
 - production MCP: `https://crm.autostopcrm.ru/mcp`
 - production server IP at last verification: `46.8.254.243`

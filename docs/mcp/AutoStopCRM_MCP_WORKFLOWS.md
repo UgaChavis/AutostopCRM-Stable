@@ -15,28 +15,27 @@
 
 ## 2. Найти и отредактировать карточку
 
-1. `search_cards(query="...")` или `get_board_content`.
+1. `search_cards(query="...")` или `get_board_snapshot(compact=true)` / `get_board_content`.
 2. `get_card_context(card_id, event_limit=20, include_repair_order_text=true)`.
 3. Сформировать точечный patch.
 4. `update_card(card_id, ...)`.
-5. Проверить результат через `get_card` или `get_card_context`.
+5. Проверить результат через `get_card_context`.
 
-Правило: не менять карточку по названию. Сначала получить точный `card_id`.
+Правило: не менять карточку по названию. Сначала получить точный `card_id`. Если `search_cards` не нашёл очевидное совпадение, переходить к `get_board_snapshot` и `get_board_content`, а не останавливаться.
 
 ## 3. Заполнить автомобиль
 
 1. `get_card_context(card_id)`.
-2. `autofill_vehicle_data(raw_text=..., vehicle=..., title=..., description=..., vehicle_profile=...)`.
-3. Проверить draft: `make_display`, `model_display`, `production_year`, `vin`, `engine_model`, `gearbox_model`, `drivetrain`, `oem_notes`.
-4. `update_card(card_id, vehicle_profile=draft)`.
-5. Проверить `vehicle_profile_compact` через `get_card`.
+2. Сформировать карточку и `vehicle_profile` через обычные write-команды.
+3. `update_card(card_id, vehicle_profile=...)`.
+4. Проверить `vehicle_profile_compact` через `get_card_context` или `get_card`.
 
 Правило: ручные поля клиента не перезаписывать без прямого запроса.
 
 ## 4. Заполнить заказ-наряд
 
 1. `get_card_context(card_id, include_repair_order_text=true)`.
-2. `autofill_repair_order(card_id, overwrite=false)`.
+2. Сформировать короткий структурный patch для шапки заказ-наряда.
 3. `update_repair_order(card_id, repair_order={...})` для клиента, телефона, госномера, формы оплаты и примечаний.
 4. `replace_repair_order_works(card_id, rows=[...])`.
 5. `replace_repair_order_materials(card_id, rows=[...])`.
@@ -44,6 +43,7 @@
 7. `set_repair_order_status(card_id, status="closed")` только когда оплата закрыта.
 
 Правило: replace-команды полностью заменяют таблицу, поэтому GPT должен передавать весь новый список строк.
+Правило: `update_repair_order` должен оставаться коротким и структурным. Длинный текст лучше держать в `description`, `note` или отдельном комментарии карточки.
 
 ## 5. Работа с кассами
 

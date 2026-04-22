@@ -1,24 +1,43 @@
 {
   "responses_api_remote_mcp": {
     "model": "gpt-5",
-    "input": "Покажи просроченные карточки и создай новую карточку \"Позвонить клиенту\" на 4 часа.",
+    "input": "Покажи просроченные карточки и открой контекст одной найденной карточки.",
     "tools": [
       {
         "type": "mcp",
         "server_label": "minimal_kanban",
         "server_url": "https://YOUR-TUNNEL.example/mcp",
         "allowed_tools": [
-          "list_columns",
-          "create_column",
+          "bootstrap_context",
+          "get_board_context",
           "get_cards",
           "get_card",
+          "get_card_context",
+          "get_board_content",
+          "get_board_events",
+          "search_cards",
+          "list_overdue_cards",
           "create_card",
           "update_card",
           "move_card",
           "archive_card",
           "set_card_indicator",
           "set_card_deadline",
-          "list_overdue_cards"
+          "create_sticky",
+          "update_sticky",
+          "move_sticky",
+          "delete_sticky",
+          "list_repair_orders",
+          "get_repair_order",
+          "update_repair_order",
+          "set_repair_order_status",
+          "replace_repair_order_works",
+          "replace_repair_order_materials",
+          "list_cashboxes",
+          "get_cashbox",
+          "create_cashbox",
+          "create_cash_transaction",
+          "update_board_settings"
         ],
         "require_approval": "never"
       }
@@ -26,7 +45,7 @@
   },
   "responses_api_remote_mcp_with_authorization": {
     "model": "gpt-5",
-    "input": "Создай карточку \"Подготовить демо\" на 1 день и покажи все карточки.",
+    "input": "Создай карточку \"Подготовить демо\" на 1 день и покажи карточки во входящих.",
     "tools": [
       {
         "type": "mcp",
@@ -34,8 +53,11 @@
         "server_url": "https://YOUR-TUNNEL.example/mcp",
         "authorization": "YOUR_MCP_BEARER_TOKEN",
         "allowed_tools": [
+          "bootstrap_context",
+          "get_cards",
+          "get_card_context",
           "create_card",
-          "get_cards"
+          "update_card"
         ],
         "require_approval": "never"
       }
@@ -47,6 +69,7 @@
     "Создай карточку Позвонить клиенту на 4 часа.",
     "Перемести карточку Позвонить клиенту в done.",
     "Сделай этой карточке красный индикатор.",
-    "Покажи только просроченные карточки."
+    "Покажи только просроченные карточки.",
+    "Открой контекст карточки и обнови ее описание."
   ]
 }

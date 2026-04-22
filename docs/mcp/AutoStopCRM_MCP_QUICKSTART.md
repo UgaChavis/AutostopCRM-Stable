@@ -15,6 +15,7 @@
 3. Для полного состояния доски вызвать `get_board_content`.
 4. Для последних изменений вызвать `get_board_events` с `event_limit=100`.
 5. Для конкретной карточки вызвать `get_card_context`, затем делать точечные изменения.
+6. Если `search_cards` не находит очевидное совпадение или `get_card_context` не добирается до цели, проверить `get_cards(compact=true)`, затем `get_board_snapshot(compact=true)`, и только потом `get_board_content`.
 
 ## Основные команды для GPT
 
@@ -28,8 +29,8 @@
 | Прочитать карточку | `get_card_context` |
 | Создать карточку | `create_card` |
 | Обновить карточку | `update_card` |
-| Заполнить данные автомобиля | `autofill_vehicle_data`, затем `update_card` |
-| Заполнить заказ-наряд | `autofill_repair_order`, `update_repair_order`, `replace_repair_order_works`, `replace_repair_order_materials` |
+| Заполнить данные автомобиля | `update_card` с `vehicle_profile` |
+| Заполнить заказ-наряд | `update_repair_order` как короткий patch, затем `replace_repair_order_works`, `replace_repair_order_materials` |
 | Двигать карточку | `move_card` или `bulk_move_cards` |
 | Смотреть кассы | `list_cashboxes`, `get_cashbox` |
 | Смотреть заказ-наряды | `list_repair_orders`, `get_repair_order`, `get_repair_order_text` |
@@ -43,13 +44,15 @@
 Не меняй данные, пока не определишь точные card_id/column_id/cashbox_id.
 Основная задача: помогать редактировать карточки, нормализовать описание автомобиля,
 заполнять vehicle_profile и заказ-наряд.
+Работай через MCP tool names напрямую, а не через resource URL-пути.
 ```
 
 ## Безопасность изменений
 
-- Не угадывать `card_id`: сначала искать карточку через `search_cards`, `get_cards` или `get_board_content`.
+- Не угадывать `card_id`: сначала искать карточку через `search_cards`, `get_cards`, `get_board_snapshot` или `get_board_content`.
 - Для массового переноса карточек использовать `bulk_move_cards`, а не длинную цепочку `move_card`.
 - Перед закрытием заказ-наряда проверять оплату через `get_repair_order`.
+- `update_repair_order` держать коротким и структурным: только шапка и минимально нужные поля.
 - Destructive-команды (`delete_column`, `delete_sticky`, `delete_cashbox`, `archive_card`) применять только после явного подтверждения пользователя.
 
 ## Что читать в первую очередь

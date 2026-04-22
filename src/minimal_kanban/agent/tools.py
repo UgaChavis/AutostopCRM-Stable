@@ -32,6 +32,9 @@ class AgentToolExecutor:
             "review_board": self._review_board,
             "list_columns": self._list_columns,
             "get_board_snapshot": self._get_board_snapshot,
+            "get_board_content": self._get_board_content,
+            "get_board_events": self._get_board_events,
+            "get_gpt_wall": self._get_gpt_wall,
             "search_cards": self._search_cards,
             "get_card": self._get_card,
             "get_card_context": self._get_card_context,
@@ -80,6 +83,30 @@ class AgentToolExecutor:
             AgentToolDefinition("list_columns", "List board columns.", {}),
             AgentToolDefinition(
                 "get_board_snapshot", "Get board snapshot.", {"archive_limit": "optional int"}
+            ),
+            AgentToolDefinition(
+                "get_board_content",
+                "Get the hidden Markdown board wall with cards and archive.",
+                {
+                    "include_archived": "optional bool",
+                    "view_mode": "optional string",
+                },
+            ),
+            AgentToolDefinition(
+                "get_board_events",
+                "Get the hidden Markdown event log wall.",
+                {
+                    "event_limit": "optional int",
+                    "include_archived": "optional bool",
+                },
+            ),
+            AgentToolDefinition(
+                "get_gpt_wall",
+                "Get board content and event log together.",
+                {
+                    "include_archived": "optional bool",
+                    "event_limit": "optional int",
+                },
             ),
             AgentToolDefinition(
                 "search_cards",
@@ -329,6 +356,24 @@ class AgentToolExecutor:
     def _get_board_snapshot(self, args: dict[str, Any]) -> dict[str, Any]:
         return self._board_api.get_board_snapshot(
             archive_limit=self._maybe_int(args.get("archive_limit"))
+        )
+
+    def _get_board_content(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._board_api.get_board_content(
+            include_archived=bool(args.get("include_archived", True)),
+            view_mode=self._maybe_text(args.get("view_mode")) or "agent",
+        )
+
+    def _get_board_events(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._board_api.get_board_events(
+            event_limit=self._maybe_int(args.get("event_limit")) or 100,
+            include_archived=bool(args.get("include_archived", True)),
+        )
+
+    def _get_gpt_wall(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._board_api.get_gpt_wall(
+            include_archived=bool(args.get("include_archived", True)),
+            event_limit=self._maybe_int(args.get("event_limit")),
         )
 
     def _search_cards(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -600,6 +645,9 @@ class AgentToolExecutor:
             "review_board",
             "list_columns",
             "get_board_snapshot",
+            "get_board_content",
+            "get_board_events",
+            "get_gpt_wall",
             "search_cards",
             "get_card",
             "get_card_context",
@@ -710,5 +758,12 @@ class AgentToolExecutor:
             allowed = all_tools
 
         if normalized_context == "card":
-            allowed |= {"get_card_context", "update_card", "get_repair_order"}
+            allowed |= {
+                "get_card_context",
+                "update_card",
+                "get_repair_order",
+                "get_board_content",
+                "get_board_events",
+                "get_gpt_wall",
+            }
         return tool_name in allowed

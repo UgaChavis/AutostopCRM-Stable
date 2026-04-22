@@ -139,6 +139,30 @@ class BoardApiClient:
     def get_board_context(self) -> dict:
         return self._request("/api/get_board_context", method="GET")
 
+    def get_board_content(
+        self,
+        *,
+        include_archived: bool = True,
+        view_mode: str = "agent",
+    ) -> dict:
+        payload: dict[str, object] = {
+            "include_archived": include_archived,
+            "view_mode": view_mode,
+        }
+        return self._request("/api/get_board_content", payload, method="POST")
+
+    def get_board_events(
+        self,
+        *,
+        event_limit: int = 100,
+        include_archived: bool = True,
+    ) -> dict:
+        payload: dict[str, object] = {
+            "event_limit": event_limit,
+            "include_archived": include_archived,
+        }
+        return self._request("/api/get_board_events", payload, method="POST")
+
     def review_board(
         self,
         *,

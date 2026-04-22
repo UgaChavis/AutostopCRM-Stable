@@ -4,7 +4,7 @@ Use this file for durable notes that should not be rediscovered every session.
 
 - primary branch truth is now `autostopcrm-v1`
 - `autostopCRM` is legacy and should be treated as historical until it is removed
-- the local working clone now tracks `autostop-v1/autostopcrm-v1`
+- the local working clone now tracks `autostopcrm-v1`
 - production deploy must not pull the legacy `autostopCRM` branch; `deploy.sh` defaults to `origin/autostopcrm-v1`
 
 ## Recurring Themes
@@ -32,7 +32,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - the full-card button flow now uses `purpose=card_enrichment` in the agent task metadata, while legacy `card_autofill` remains only for the older autofill path; this keeps the green-button flow distinct from the older followup/autofill routines
 - the full-card button payload now sends the VIN-only instruction through plain `task_text` instead of legacy `ai_autofill_prompt` / `ai_log_tail` fields; that trims noise without changing the bridge contract
 - the full-card button payload no longer forwards `vehicle` or `context_packet`; the worker reads the card context itself, so those hints were removed from the green-button path to keep it minimal
-- dead legacy server-agent compatibility stubs were removed from `card_service.py`; only the live `set_card_ai_autofill` and `run_full_card_enrichment` paths remain in the class body
+- dead legacy server-agent compatibility stubs were removed from `card_service.py`, but the compatibility `set_card_ai_autofill` / `card_autofill` path still remains for older flows; the visible green-button path uses `run_full_card_enrichment`
 - a dead helper alias `_extract_autofill_symptom_query_legacy_unused` was removed from `agent/runner.py`; the canonical helper is `_extract_autofill_symptom_query`
 - the green-button flow no longer calls `agent_status()` just to set `server_available`; the button path now treats an attached agent control as available and skips that extra hot-path status probe
 - the green card button now only enqueues background work and updates the indicator; it no longer opens the agent modal surface on click
