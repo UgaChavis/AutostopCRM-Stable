@@ -5,6 +5,8 @@ services:
     restart: always
     extra_hosts:
       - "crm.autostopcrm.ru:host-gateway"
+    env_file:
+      - .env
     ports:
       - "127.0.0.1:8000:41731"
       - "127.0.0.1:8001:41831"
@@ -39,6 +41,8 @@ services:
     depends_on:
       autostopcrm:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       AUTOSTOP_TELEGRAM_AI_ENABLED: "${AUTOSTOP_TELEGRAM_AI_ENABLED:-0}"
       AUTOSTOP_TELEGRAM_BOT_TOKEN: "${AUTOSTOP_TELEGRAM_BOT_TOKEN:-}"
