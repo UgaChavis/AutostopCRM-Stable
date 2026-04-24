@@ -1176,9 +1176,9 @@ BOARD_WEB_APP_HTML = "".join(
     input[type="number"] { text-align: center; }
     textarea { min-height: 192px; }
     .field--description textarea {
-      min-height: 136px;
-      height: 136px;
-      max-height: clamp(440px, 56vh, 720px);
+      min-height: 180px;
+      height: 180px;
+      max-height: clamp(480px, 62vh, 760px);
       padding: 10px 12px;
       line-height: 1.54;
       resize: vertical;
@@ -11243,9 +11243,9 @@ BOARD_WEB_APP_HTML = "".join(
       const chromeHeight = paddingTop + paddingBottom + borderTop + borderBottom;
       const text = String(textarea.value || '').trim();
       const lineCount = text ? text.split(/\\r?\\n/).length : 0;
-      const minRows = text ? Math.max(6, Math.min(10, lineCount + 1)) : 6;
+      const minRows = text ? Math.max(8, Math.min(18, lineCount + 2)) : 7;
       const minHeight = Math.round(minRows * lineHeight + chromeHeight);
-      const maxHeight = Math.max(minHeight, Math.min(window.innerHeight * 0.56, 720));
+      const maxHeight = Math.max(minHeight, Math.min(window.innerHeight * 0.62, 760));
       textarea.style.height = 'auto';
       textarea.style.height = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight)) + 'px';
     }
@@ -13239,6 +13239,9 @@ BOARD_WEB_APP_HTML = "".join(
       }
       if (!String(state.agentTaskId || '').trim()) stopCardCleanupPolling();
       renderCardCleanupIndicator();
+      if (els.cardModal?.classList.contains('is-open')) {
+        requestAnimationFrame(() => syncCardDescriptionHeight());
+      }
     }
 
     function resetCardModalState() {
@@ -13747,39 +13750,16 @@ function renderCompactArchiveRows(cards) {
     async function openCardWorkspace(cardId, { closeModalEl = null, openCardModalEl = true, openRepairOrder = false, repairOrderParentLayer = '' } = {}) {
       const normalizedCardId = String(cardId || '').trim();
       if (!normalizedCardId) return null;
-      const cachedCard = snapshotCardById(normalizedCardId);
-      const cardRequest = api('/api/open_card', { method: 'POST', body: { card_id: normalizedCardId } });
-      let repairOrderTask = null;
-      if (cachedCard) {
-        if (openCardModalEl) {
-          if (closeModalEl) closeModalEl.classList.remove('is-open');
-          openCardModal(cachedCard);
-        } else {
-          applyCardModalState(cachedCard);
-        }
-      }
-      if (openRepairOrder && cachedCard) {
-        state.repairOrderParentLayer = String(repairOrderParentLayer || (openCardModalEl ? 'card' : '')).trim();
-        repairOrderTask = openRepairOrderModal();
-      }
-      const data = await cardRequest;
-      if (!cachedCard) {
-        if (openCardModalEl) {
-          if (closeModalEl) closeModalEl.classList.remove('is-open');
-          openCardModal(data.card);
-        } else {
-          applyCardModalState(data.card);
-        }
-      } else if (data?.card?.id) {
-        state.activeCard = data.card;
+      const data = await api('/api/open_card', { method: 'POST', body: { card_id: normalizedCardId } });
+      if (openCardModalEl) {
+        if (closeModalEl) closeModalEl.classList.remove('is-open');
+        openCardModal(data.card);
+      } else {
         applyCardModalState(data.card);
       }
-      if (openRepairOrder && !repairOrderTask) {
+      if (openRepairOrder) {
         state.repairOrderParentLayer = String(repairOrderParentLayer || (openCardModalEl ? 'card' : '')).trim();
-        repairOrderTask = openRepairOrderModal();
-      }
-      if (repairOrderTask) {
-        await repairOrderTask;
+        await openRepairOrderModal();
       }
       return data.card;
     }

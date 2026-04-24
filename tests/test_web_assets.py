@@ -450,9 +450,15 @@ class WebAssetsTests(unittest.TestCase):
     def test_card_description_textarea_allows_extended_text(self) -> None:
         self.assertIn('id="cardDescription" maxlength="20000"', BOARD_WEB_APP_HTML)
         self.assertIn(".field--description textarea {", BOARD_WEB_APP_HTML)
-        self.assertIn("min-height: 136px;", BOARD_WEB_APP_HTML)
-        self.assertIn("height: 136px;", BOARD_WEB_APP_HTML)
+        self.assertIn("min-height: 180px;", BOARD_WEB_APP_HTML)
+        self.assertIn("height: 180px;", BOARD_WEB_APP_HTML)
+        self.assertIn("max-height: clamp(480px, 62vh, 760px);", BOARD_WEB_APP_HTML)
         self.assertIn("function syncCardDescriptionHeight()", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "const minRows = text ? Math.max(8, Math.min(18, lineCount + 2)) : 7;",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertIn("window.innerHeight * 0.62", BOARD_WEB_APP_HTML)
         self.assertIn(
             "els.cardDescription.addEventListener('input', syncCardDescriptionHeight);",
             BOARD_WEB_APP_HTML,
@@ -512,8 +518,14 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function applyCardModalState(card)", BOARD_WEB_APP_HTML)
         self.assertIn("function resetCardModalState()", BOARD_WEB_APP_HTML)
         self.assertIn("async function persistCardPayload(payload)", BOARD_WEB_APP_HTML)
-        self.assertIn("const cachedCard = snapshotCardById(normalizedCardId);", BOARD_WEB_APP_HTML)
+        self.assertNotIn("openCardModal(cachedCard);", BOARD_WEB_APP_HTML)
+        self.assertNotIn("applyCardModalState(cachedCard);", BOARD_WEB_APP_HTML)
+        self.assertIn("const data = await api('/api/open_card'", BOARD_WEB_APP_HTML)
         self.assertIn("requestAnimationFrame(() => renderFiles(currentCard));", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "if (els.cardModal?.classList.contains('is-open')) {\n        requestAnimationFrame(() => syncCardDescriptionHeight());\n      }",
+            BOARD_WEB_APP_HTML,
+        )
         self.assertIn(
             "async function openCardWorkspace(cardId, { closeModalEl = null, openCardModalEl = true, openRepairOrder = false, repairOrderParentLayer = '' } = {})",
             BOARD_WEB_APP_HTML,
@@ -530,15 +542,6 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("resetCardModalState();", BOARD_WEB_APP_HTML)
         self.assertIn("await persistCardPayload(payload);", BOARD_WEB_APP_HTML)
         self.assertIn("await openCardWorkspace(cardId);", BOARD_WEB_APP_HTML)
-        self.assertLess(
-            BOARD_WEB_APP_HTML.index("const cachedCard = snapshotCardById(normalizedCardId);"),
-            BOARD_WEB_APP_HTML.index("const data = await cardRequest;"),
-        )
-        self.assertIn("} else if (data?.card?.id) {", BOARD_WEB_APP_HTML)
-        self.assertIn(
-            "state.activeCard = data.card;\n        applyCardModalState(data.card);",
-            BOARD_WEB_APP_HTML,
-        )
         self.assertIn(
             "const createInTrigger = target.closest('[data-create-in]');", BOARD_WEB_APP_HTML
         )
