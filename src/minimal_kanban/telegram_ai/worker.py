@@ -67,14 +67,16 @@ class TelegramAIWorker:
             logger=self._logger,
             default_source="telegram_ai",
         )
+        model_client = TelegramAIOpenAIClient(self._config)
         orchestrator = TelegramAIOrchestrator(
             auth=TelegramAuthService(self._config),
-            model_client=TelegramAIOpenAIClient(self._config),
+            model_client=model_client,
             context_builder=CRMContextBuilder(board_api),
             tool_registry=CRMToolRegistry(
                 board_api,
                 actor_name="TELEGRAM_AI",
                 max_batch_cards=self._config.max_batch_cards,
+                image_analyzer=model_client.analyze_image,
             ),
             audit=audit,
         )

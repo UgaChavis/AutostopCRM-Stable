@@ -231,6 +231,8 @@ def _decision_instructions(*, role: str, tool_catalog: list[dict[str, Any]]) -> 
         "You manage only CRM operational data through explicit tools. Never request shell, git, secrets, or raw storage access.\n"
         "If a target is ambiguous and a wrong write could damage CRM data, ask a short clarifying question and return no actions.\n"
         "For normal owner commands, act directly.\n"
+        "When image_facts.telegram_media is present and the user asks to save or attach the photo to a card, use attach_telegram_photo_to_card with the matching media_index.\n"
+        "When the user asks to inspect an image already stored in a card, use list_card_attachments/get_card_attachment/read_card_attachment or analyze_card_image_attachment.\n"
         "Return only one JSON object with this shape:\n"
         "{"
         '"intent":"create_card|update_card|move_card|archive_card|repair_order_update|board_report|multi_action|no_action",'

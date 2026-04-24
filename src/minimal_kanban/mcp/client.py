@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import urllib.error
 import urllib.request
@@ -102,9 +103,7 @@ class BoardApiClient:
     def get_card(self, card_id: str) -> dict:
         return self._request("/api/get_card", {"card_id": card_id})
 
-    def list_card_attachments(
-        self, card_id: str, *, include_removed: bool = False
-    ) -> dict:
+    def list_card_attachments(self, card_id: str, *, include_removed: bool = False) -> dict:
         return self._request(
             "/api/list_card_attachments",
             {"card_id": card_id, "include_removed": include_removed},
@@ -136,6 +135,35 @@ class BoardApiClient:
                 "include_base64": include_base64,
                 "max_base64_bytes": max_base64_bytes,
             },
+        )
+
+    def add_card_attachment(
+        self,
+        *,
+        card_id: str,
+        file_name: str,
+        mime_type: str,
+        content: bytes,
+        actor_name: str | None = None,
+    ) -> dict:
+        return self._request_with_identity(
+            "/api/add_card_attachment",
+            {
+                "card_id": card_id,
+                "file_name": file_name,
+                "mime_type": mime_type,
+                "content_base64": base64.b64encode(content).decode("ascii"),
+            },
+            actor_name=actor_name,
+        )
+
+    def remove_card_attachment(
+        self, *, card_id: str, attachment_id: str, actor_name: str | None = None
+    ) -> dict:
+        return self._request_with_identity(
+            "/api/remove_card_attachment",
+            {"card_id": card_id, "attachment_id": attachment_id},
+            actor_name=actor_name,
         )
 
     def get_card_context(

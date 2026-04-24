@@ -12,8 +12,13 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+TESTS = ROOT / "tests"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+if str(TESTS) not in sys.path:
+    sys.path.insert(0, str(TESTS))
+
+from attachment_samples import PNG_1X1_BYTES
 
 from minimal_kanban.api.server import ApiServer
 from minimal_kanban.mcp.client import BoardApiClient
@@ -24,9 +29,11 @@ from minimal_kanban.telegram_ai.auth import TelegramAuthService
 from minimal_kanban.telegram_ai.config import TelegramAIConfig
 from minimal_kanban.telegram_ai.context import CRMContextBuilder
 from minimal_kanban.telegram_ai.crm_tools import CRMToolError, CRMToolRegistry
+from minimal_kanban.telegram_ai.models import DownloadedAttachment, TelegramAttachment
 from minimal_kanban.telegram_ai.normalizer import normalize_update
 from minimal_kanban.telegram_ai.openai_client import TelegramAIOpenAIClient
 from minimal_kanban.telegram_ai.orchestrator import TelegramAIOrchestrator
+from minimal_kanban.telegram_ai.response import build_execution_response
 
 
 def reserve_port() -> int:
@@ -326,6 +333,33 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertEqual(result["intent"], "no_action")
 
 
+class TelegramAIResponseTests(unittest.TestCase):
+    def test_image_analysis_result_is_surfaced_in_telegram_reply(self) -> None:
+        response = build_execution_response(
+            model_decision={"telegram_response": "Проверил фото."},
+            tool_results=[
+                {
+                    "tool": "analyze_card_image_attachment",
+                    "verify": {"passed": True},
+                    "result": {
+                        "data": {
+                            "image_facts": {
+                                "vin": "WAUZZZ8V0JA000001",
+                                "license_plate": "А123ВС",
+                                "confidence": "high",
+                            }
+                        }
+                    },
+                }
+            ],
+            status="completed",
+        )
+
+        self.assertIn("Фото:", response)
+        self.assertIn("vin: WAUZZZ8V0JA000001", response)
+        self.assertIn("license_plate: А123ВС", response)
+
+
 class TelegramAICRMToolTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -386,6 +420,81 @@ class TelegramAICRMToolTests(unittest.TestCase):
         self.assertEqual(rollback["tool"], "rollback_move_card")
         rolled_back = self.client.get_card(card_id)
         self.assertNotEqual(rolled_back["data"]["card"]["column"], "in_progress")
+
+    def test_registry_attaches_current_telegram_photo_to_card(self) -> None:
+        registry = CRMToolRegistry(self.client, actor_name="TEST_TELEGRAM_AI")
+        created = registry.execute(
+            {"tool": "create_card", "arguments": {"title": "Photo target"}},
+            role="owner",
+        )
+        card_id = created["result"]["data"]["card"]["id"]
+        registry.set_run_media(
+            [
+                DownloadedAttachment(
+                    attachment=TelegramAttachment(
+                        kind="photo",
+                        file_id="tg-photo",
+                        file_unique_id="unique-photo",
+                        mime_type="image/png",
+                        file_name="client-photo.png",
+                    ),
+                    content=PNG_1X1_BYTES,
+                    file_path="photos/client-photo.png",
+                )
+            ]
+        )
+
+        attached = registry.execute(
+            {
+                "tool": "attach_telegram_photo_to_card",
+                "arguments": {"card_id": card_id, "media_index": 0},
+            },
+            role="owner",
+        )
+
+        self.assertTrue(attached["verify"]["passed"])
+        attachment_id = attached["result"]["data"]["attachment"]["id"]
+        listed = self.client.list_card_attachments(card_id)
+        self.assertEqual(listed["data"]["attachments"][0]["id"], attachment_id)
+        self.assertEqual(listed["data"]["attachments"][0]["content_kind"], "image")
+
+    def test_registry_analyzes_existing_card_image_attachment(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_analyzer(**kwargs):
+            captured.update(kwargs)
+            return {"vin": "WAUZZZ8V0JA000001", "confidence": "high"}
+
+        registry = CRMToolRegistry(
+            self.client,
+            actor_name="TEST_TELEGRAM_AI",
+            image_analyzer=fake_analyzer,
+        )
+        created = registry.execute(
+            {"tool": "create_card", "arguments": {"title": "Image read target"}},
+            role="owner",
+        )
+        card_id = created["result"]["data"]["card"]["id"]
+        upload = self.client.add_card_attachment(
+            card_id=card_id,
+            file_name="existing.png",
+            mime_type="image/png",
+            content=PNG_1X1_BYTES,
+            actor_name="TEST_TELEGRAM_AI",
+        )
+        attachment_id = upload["data"]["attachment"]["id"]
+
+        analyzed = registry.execute(
+            {
+                "tool": "analyze_card_image_attachment",
+                "arguments": {"card_id": card_id, "attachment_id": attachment_id},
+            },
+            role="owner",
+        )
+
+        self.assertEqual(captured["image_bytes"], PNG_1X1_BYTES)
+        self.assertEqual(captured["mime_type"], "image/png")
+        self.assertEqual(analyzed["result"]["data"]["image_facts"]["confidence"], "high")
 
     def test_registry_rejects_unknown_and_non_owner_write(self) -> None:
         registry = CRMToolRegistry(self.client, actor_name="TEST_TELEGRAM_AI")

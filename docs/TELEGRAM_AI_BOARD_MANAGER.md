@@ -95,6 +95,10 @@ Read tools:
 - `get_board_snapshot`
 - `search_cards`
 - `get_card_context`
+- `list_card_attachments`
+- `get_card_attachment`
+- `read_card_attachment`
+- `analyze_card_image_attachment`
 - `list_overdue_cards`
 - `get_repair_order`
 
@@ -104,6 +108,7 @@ Write tools:
 - `update_card`
 - `move_card`
 - `archive_card`
+- `attach_telegram_photo_to_card`
 - `set_card_deadline`
 - `set_card_indicator`
 - `update_repair_order`
@@ -156,7 +161,15 @@ Natural commands go to the model, for example:
 
 Voice messages are transcribed and then processed as normal text.
 
-Photo messages are sent through vision extraction first; extracted facts are passed into the same CRM decision flow.
+Photo messages are sent through vision extraction first; extracted facts are passed into the same CRM decision flow. If the user asks to save the photo to a card, the worker uses `attach_telegram_photo_to_card` and stores the original image as a CRM attachment.
+
+Photo attachment examples:
+
+```text
+Прикрепи это фото к карточке Camry
+Посмотри фото в карточке BMW и скажи, что видно
+Покажи вложения карточки Prado
+```
 
 ## Tests
 

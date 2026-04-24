@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import base64
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from ..mcp.client import BoardApiClient
+from .models import DownloadedAttachment
 
 
 class CRMToolError(RuntimeError):
@@ -36,18 +38,26 @@ class CRMToolRegistry:
         *,
         actor_name: str = "TELEGRAM_AI",
         max_batch_cards: int = 20,
+        image_analyzer: Callable[..., dict[str, Any]] | None = None,
     ) -> None:
         self._board_api = board_api
         self._actor_name = actor_name
         self._max_batch_cards = max(1, int(max_batch_cards))
+        self._image_analyzer = image_analyzer
+        self._run_media: list[DownloadedAttachment] = []
         self._handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
             "get_board_snapshot": self._get_board_snapshot,
             "search_cards": self._search_cards,
             "get_card_context": self._get_card_context,
+            "list_card_attachments": self._list_card_attachments,
+            "get_card_attachment": self._get_card_attachment,
+            "read_card_attachment": self._read_card_attachment,
+            "analyze_card_image_attachment": self._analyze_card_image_attachment,
             "create_card": self._create_card,
             "update_card": self._update_card,
             "move_card": self._move_card,
             "archive_card": self._archive_card,
+            "attach_telegram_photo_to_card": self._attach_telegram_photo_to_card,
             "set_card_deadline": self._set_card_deadline,
             "set_card_indicator": self._set_card_indicator,
             "list_overdue_cards": self._list_overdue_cards,
@@ -71,6 +81,36 @@ class CRMToolRegistry:
             ),
             CRMToolDefinition(
                 "get_card_context", "Read one focused card context.", {"card_id": "required string"}
+            ),
+            CRMToolDefinition(
+                "list_card_attachments",
+                "List card attachments without file bytes.",
+                {"card_id": "required string", "include_removed": "optional bool"},
+            ),
+            CRMToolDefinition(
+                "get_card_attachment",
+                "Read attachment metadata without file bytes.",
+                {"card_id": "required string", "attachment_id": "required string"},
+            ),
+            CRMToolDefinition(
+                "read_card_attachment",
+                "Read bounded attachment content. Images return metadata unless include_base64 is true.",
+                {
+                    "card_id": "required string",
+                    "attachment_id": "required string",
+                    "mode": "optional string",
+                    "include_base64": "optional bool",
+                    "max_chars": "optional int",
+                },
+            ),
+            CRMToolDefinition(
+                "analyze_card_image_attachment",
+                "Read an image attachment from a card and analyze it with vision.",
+                {
+                    "card_id": "required string",
+                    "attachment_id": "required string",
+                    "caption": "optional string",
+                },
             ),
             CRMToolDefinition(
                 "list_overdue_cards", "List overdue cards.", {"include_archived": "optional bool"}
@@ -123,6 +163,16 @@ class CRMToolRegistry:
                 write=True,
             ),
             CRMToolDefinition(
+                "attach_telegram_photo_to_card",
+                "Attach a photo from the current Telegram message to a CRM card.",
+                {
+                    "card_id": "required string",
+                    "media_index": "optional int, default 0",
+                    "file_name": "optional string",
+                },
+                write=True,
+            ),
+            CRMToolDefinition(
                 "set_card_deadline",
                 "Set card deadline.",
                 {"card_id": "required string", "deadline": "required object"},
@@ -162,6 +212,12 @@ class CRMToolRegistry:
 
     def catalog_for_model(self) -> list[dict[str, Any]]:
         return [definition.for_model() for definition in self.definitions]
+
+    def set_run_media(self, media: list[DownloadedAttachment]) -> None:
+        self._run_media = list(media or [])
+
+    def clear_run_media(self) -> None:
+        self._run_media = []
 
     def execute(self, action: dict[str, Any], *, role: str) -> dict[str, Any]:
         tool_name = str(action.get("tool") or "").strip()
@@ -227,6 +283,24 @@ class CRMToolRegistry:
                 actor_name=self._actor_name,
             )
             return {"tool": "rollback_archive_card", "result": rollback_result}
+        if tool_name == "attach_telegram_photo_to_card":
+            data = _api_data(result)
+            attachment = data.get("attachment") if isinstance(data.get("attachment"), dict) else {}
+            arguments = (
+                tool_result.get("arguments")
+                if isinstance(tool_result.get("arguments"), dict)
+                else {}
+            )
+            card_id = str(attachment.get("card_id") or arguments.get("card_id") or "")
+            attachment_id = str(attachment.get("id") or "")
+            if not card_id or not attachment_id:
+                raise CRMToolError("Cannot rollback attachment without card and attachment id.")
+            rollback_result = self._board_api.remove_card_attachment(
+                card_id=card_id,
+                attachment_id=attachment_id,
+                actor_name=self._actor_name,
+            )
+            return {"tool": "rollback_attach_telegram_photo", "result": rollback_result}
         if tool_name in {"update_card", "set_card_deadline", "set_card_indicator"}:
             card = _api_data(before).get("card", {})
             card_id = str(card.get("id") or "")
@@ -299,6 +373,15 @@ class CRMToolRegistry:
             card_payload = self._read_card(str(arguments.get("card_id") or ""))
             card = _api_data(card_payload).get("card", {})
             return {"passed": bool(card.get("archived")), "message": "archived flag checked"}
+        if tool_name == "attach_telegram_photo_to_card":
+            data = _api_data(result)
+            attachment = data.get("attachment") if isinstance(data.get("attachment"), dict) else {}
+            attachment_id = str(attachment.get("id") or "")
+            card_id = str(arguments.get("card_id") or "")
+            if not attachment_id or not card_id:
+                return {"passed": False, "message": "attachment id is missing"}
+            payload = self._board_api.get_card_attachment(card_id, attachment_id)
+            return {"passed": _api_ok(payload), "message": "attachment read-back checked"}
         if tool_name in {
             "update_repair_order",
             "replace_repair_order_works",
@@ -360,6 +443,48 @@ class CRMToolRegistry:
     def _get_card_context(self, arguments: dict[str, Any]) -> dict[str, Any]:
         return self._board_api.get_card_context(str(arguments.get("card_id") or ""))
 
+    def _list_card_attachments(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self._board_api.list_card_attachments(
+            str(arguments.get("card_id") or ""),
+            include_removed=bool(arguments.get("include_removed", False)),
+        )
+
+    def _get_card_attachment(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self._board_api.get_card_attachment(
+            str(arguments.get("card_id") or ""),
+            str(arguments.get("attachment_id") or ""),
+        )
+
+    def _read_card_attachment(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self._board_api.read_card_attachment(
+            str(arguments.get("card_id") or ""),
+            str(arguments.get("attachment_id") or ""),
+            mode=str(arguments.get("mode") or "preview"),
+            max_chars=int(arguments.get("max_chars") or 12_000),
+            include_base64=bool(arguments.get("include_base64", False)),
+        )
+
+    def _analyze_card_image_attachment(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        if self._image_analyzer is None:
+            return {"ok": False, "error": {"message": "image analyzer is not configured"}}
+        payload = self._board_api.read_card_attachment(
+            str(arguments.get("card_id") or ""),
+            str(arguments.get("attachment_id") or ""),
+            mode="preview",
+            include_base64=True,
+        )
+        if not _api_ok(payload):
+            return payload
+        content = _api_data(payload).get("content", {})
+        if not isinstance(content, dict) or not content.get("base64"):
+            return {"ok": False, "error": {"message": "attachment image bytes are unavailable"}}
+        facts = self._image_analyzer(
+            image_bytes=base64.b64decode(str(content.get("base64") or "")),
+            mime_type=_mime_from_attachment_content(content),
+            caption=str(arguments.get("caption") or ""),
+        )
+        return {"ok": True, "data": {"image_facts": facts, "source_attachment": content}}
+
     def _create_card(self, arguments: dict[str, Any]) -> dict[str, Any]:
         return self._board_api.create_card(
             title=str(arguments.get("title") or "").strip(),
@@ -403,6 +528,21 @@ class CRMToolRegistry:
     def _archive_card(self, arguments: dict[str, Any]) -> dict[str, Any]:
         return self._board_api.archive_card(
             card_id=str(arguments.get("card_id") or ""), actor_name=self._actor_name
+        )
+
+    def _attach_telegram_photo_to_card(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        media_index = int(arguments.get("media_index") or 0)
+        photos = [item for item in self._run_media if item.attachment.kind == "photo"]
+        if media_index < 0 or media_index >= len(photos):
+            return {"ok": False, "error": {"message": "telegram photo media_index is invalid"}}
+        item = photos[media_index]
+        file_name = str(arguments.get("file_name") or "").strip() or _telegram_photo_name(item)
+        return self._board_api.add_card_attachment(
+            card_id=str(arguments.get("card_id") or ""),
+            file_name=file_name,
+            mime_type=item.mime_type or "image/jpeg",
+            content=item.content,
+            actor_name=self._actor_name,
         )
 
     def _set_card_deadline(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -483,3 +623,33 @@ def _optional_text(arguments: dict[str, Any], key: str) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _telegram_photo_name(item: DownloadedAttachment) -> str:
+    if item.attachment.file_name:
+        return item.attachment.file_name
+    unique = (item.attachment.file_unique_id or "").strip()
+    suffix = ".jpg"
+    mime_type = (item.mime_type or "").lower()
+    if mime_type == "image/png":
+        suffix = ".png"
+    elif mime_type == "image/webp":
+        suffix = ".webp"
+    elif mime_type == "image/gif":
+        suffix = ".gif"
+    marker = unique[:12] if unique else "photo"
+    return f"telegram-{marker}{suffix}"
+
+
+def _mime_from_attachment_content(content: dict[str, Any]) -> str:
+    data_url = str(content.get("data_url") or "")
+    if data_url.startswith("data:") and ";base64," in data_url:
+        return data_url[5:].split(";base64,", 1)[0] or "image/jpeg"
+    content_type = str(content.get("content_type") or "").lower()
+    if content_type == "png":
+        return "image/png"
+    if content_type == "webp":
+        return "image/webp"
+    if content_type == "gif":
+        return "image/gif"
+    return "image/jpeg"

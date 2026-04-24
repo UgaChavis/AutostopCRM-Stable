@@ -81,6 +81,7 @@ class TelegramAIOrchestrator:
             context.model_decision = decision
             actions = _normalized_actions(decision)
             context.planned_actions = actions
+            self._tool_registry.set_run_media(downloaded_attachments or [])
             for action in actions:
                 context.tool_calls.append(
                     {
@@ -119,6 +120,8 @@ class TelegramAIOrchestrator:
             )
             return context.telegram_response
         finally:
+            if hasattr(self._tool_registry, "clear_run_media"):
+                self._tool_registry.clear_run_media()
             self._audit.write_run(context)
 
     def _enrich_from_media(
@@ -144,6 +147,19 @@ class TelegramAIOrchestrator:
                     caption=context.normalized_input.caption,
                 )
                 context.image_facts = facts
+                context.image_facts.setdefault("telegram_media", [])
+                if isinstance(context.image_facts["telegram_media"], list):
+                    context.image_facts["telegram_media"].append(
+                        {
+                            "media_index": len(context.image_facts["telegram_media"]),
+                            "file_name": item.file_name,
+                            "mime_type": item.mime_type or "image/jpeg",
+                            "size_bytes": len(item.content),
+                            "width": item.attachment.width,
+                            "height": item.attachment.height,
+                            "attach_tool": "attach_telegram_photo_to_card",
+                        }
+                    )
                 text = text or context.normalized_input.caption or "Обработай фото для CRM."
         return text
 
