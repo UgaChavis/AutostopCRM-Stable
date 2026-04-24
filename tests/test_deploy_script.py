@@ -18,8 +18,8 @@ class DeployScriptTests(unittest.TestCase):
 
         self.assertIn("autostopcrm-telegram-ai:", compose)
         self.assertIn('command: ["python", "main_telegram_ai.py"]', compose)
-        self.assertIn("AUTOSTOP_TELEGRAM_AI_ENABLED", compose)
-        self.assertIn("AUTOSTOP_CRM_API_BASE_URL", compose)
+        self.assertIn("env_file:", compose)
+        self.assertIn("AUTOSTOP_DATA_DIR", compose)
 
 
 if __name__ == "__main__":
