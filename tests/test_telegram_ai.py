@@ -321,6 +321,7 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertIsInstance(payload, dict)
             assert isinstance(payload, dict)
             self.assertNotIn("temperature", payload)
+            self.assertIn("json", json.dumps(payload["input"], ensure_ascii=False).lower())
             self.assertEqual(payload["reasoning"], {"effort": "medium"})
             self.assertEqual(result["intent"], "no_action")
 

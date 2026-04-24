@@ -182,7 +182,7 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
         payload: dict[str, Any] = {
             "model": model,
             "instructions": instructions,
-            "input": input_messages,
+            "input": _ensure_json_keyword_in_input(input_messages),
             "text": {"format": {"type": "json_object"}},
             "reasoning": {"effort": self._reasoning_effort},
             "store": False,
@@ -243,6 +243,19 @@ def _decision_instructions(*, role: str, tool_catalog: list[dict[str, Any]]) -> 
         f"{json.dumps(tool_catalog, ensure_ascii=False, sort_keys=True)}\n"
         f"Current role: {role}."
     )
+
+
+def _ensure_json_keyword_in_input(input_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    serialized = json.dumps(input_messages, ensure_ascii=False).lower()
+    if "json" in serialized:
+        return input_messages
+    return [
+        *input_messages,
+        {
+            "role": "user",
+            "content": "Return JSON only.",
+        },
+    ]
 
 
 def _extract_output_text(payload: dict[str, Any]) -> str:
