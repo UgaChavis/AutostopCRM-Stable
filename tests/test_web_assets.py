@@ -579,7 +579,7 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("АНАЛИЗ ПОЛЕЙ КАРТОЧКИ", BOARD_WEB_APP_HTML)
         self.assertIn("const VEHICLE_FIELD_GROUPS = [", BOARD_WEB_APP_HTML)
         self.assertIn("display_name", BOARD_WEB_APP_HTML)
-        self.assertIn("license_plate", BOARD_WEB_APP_HTML)
+        self.assertIn("registration_plate", BOARD_WEB_APP_HTML)
         self.assertIn("production_year", BOARD_WEB_APP_HTML)
         self.assertIn("mileage", BOARD_WEB_APP_HTML)
         self.assertIn("customer_phone", BOARD_WEB_APP_HTML)
@@ -616,7 +616,7 @@ class WebAssetsTests(unittest.TestCase):
     def test_vehicle_panel_places_mileage_before_customer_contact_fields(self) -> None:
         identity_grid_index = BOARD_WEB_APP_HTML.index("vehicle-group--identity")
         display_index = BOARD_WEB_APP_HTML.index("{ name: 'display_name'")
-        plate_index = BOARD_WEB_APP_HTML.index("{ name: 'license_plate'")
+        plate_index = BOARD_WEB_APP_HTML.index("{ name: 'registration_plate'")
         year_index = BOARD_WEB_APP_HTML.index("{ name: 'production_year'")
         mileage_index = BOARD_WEB_APP_HTML.index("{ name: 'mileage'")
         customer_phone_index = BOARD_WEB_APP_HTML.index("{ name: 'customer_phone'")

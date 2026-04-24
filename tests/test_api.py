@@ -1840,6 +1840,40 @@ class ApiServerTests(unittest.TestCase):
             updated["data"]["card"]["vehicle_profile_compact"]["gearbox_model"], "A6GF1"
         )
 
+    def test_vehicle_profile_ui_alias_fields_are_saved_via_api(self) -> None:
+        status, created = self.request(
+            "/api/create_card",
+            {
+                "title": "API vehicle aliases",
+                "deadline": {"hours": 5},
+            },
+        )
+        self.assertEqual(status, 200)
+
+        status, updated = self.request(
+            "/api/update_card",
+            {
+                "card_id": created["data"]["card"]["id"],
+                "vehicle_profile": {
+                    "display_name": "Toyota Camry",
+                    "license_plate": "А111АА124",
+                    "manual_fields": ["display_name", "license_plate"],
+                    "field_sources": {
+                        "display_name": "manual_ui",
+                        "license_plate": "manual_ui",
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(status, 200)
+        profile = updated["data"]["card"]["vehicle_profile"]
+        self.assertEqual(profile["display_name"], "Toyota Camry")
+        self.assertEqual(profile["make_display"], "Toyota")
+        self.assertEqual(profile["model_display"], "Camry")
+        self.assertEqual(profile["registration_plate"], "А111АА124")
+        self.assertIn("registration_plate", profile["manual_fields"])
+
     def test_cards_can_be_marked_seen_via_api(self) -> None:
         status, created = self.request(
             "/api/create_card",

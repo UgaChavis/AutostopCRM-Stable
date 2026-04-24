@@ -2739,6 +2739,41 @@ class CardServiceTests(unittest.TestCase):
         self.assertIn("make_display", created["card"]["vehicle_profile"]["manual_fields"])
         self.assertIn("engine_code", created["card"]["vehicle_profile"]["manual_fields"])
 
+    def test_update_card_accepts_vehicle_profile_ui_alias_fields(self) -> None:
+        created = self.service.create_card(
+            {
+                "title": "Паспорт автомобиля",
+                "description": "Проверка сохранения правой панели",
+                "deadline": {"hours": 6},
+            }
+        )
+
+        updated = self.service.update_card(
+            {
+                "card_id": created["card"]["id"],
+                "vehicle_profile": {
+                    "display_name": "Toyota Camry",
+                    "license_plate": "А111АА124",
+                    "manual_fields": ["display_name", "license_plate"],
+                    "field_sources": {
+                        "display_name": "manual_ui",
+                        "license_plate": "manual_ui",
+                    },
+                },
+            }
+        )
+
+        profile = updated["card"]["vehicle_profile"]
+        self.assertEqual(profile["display_name"], "Toyota Camry")
+        self.assertEqual(profile["make_display"], "Toyota")
+        self.assertEqual(profile["model_display"], "Camry")
+        self.assertEqual(profile["registration_plate"], "А111АА124")
+        self.assertIn("make_display", profile["manual_fields"])
+        self.assertIn("model_display", profile["manual_fields"])
+        self.assertIn("registration_plate", profile["manual_fields"])
+        self.assertEqual(profile["field_sources"]["make_display"], "manual_ui")
+        self.assertEqual(profile["field_sources"]["registration_plate"], "manual_ui")
+
     def test_update_card_stores_repair_order_and_persists_it(self) -> None:
         cashbox = self.service.create_cashbox({"name": "Безналичный", "actor_name": "ADMIN"})[
             "cashbox"

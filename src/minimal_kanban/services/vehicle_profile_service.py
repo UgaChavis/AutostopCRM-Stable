@@ -17,11 +17,13 @@ from ..vehicle_profile import (
     VEHICLE_PRIMARY_FIELDS,
     VIN_SOFT_PATTERN,
     VehicleProfile,
+    build_vehicle_display,
     normalize_vehicle_field_names,
     normalize_vehicle_float,
     normalize_vehicle_int,
     normalize_vehicle_text,
     soft_normalize_vin,
+    split_vehicle_display_alias,
 )
 
 _MAKE_ALIASES: dict[str, tuple[str, ...]] = {
@@ -347,7 +349,7 @@ class VehicleProfileService:
         *,
         assume_manual_for_explicit_fields: bool = False,
     ) -> tuple[VehicleProfile, set[str], set[str]]:
-        raw = raw_profile if isinstance(raw_profile, dict) else {}
+        raw = self._normalize_profile_alias_payload(raw_profile)
         profile = VehicleProfile.from_dict(raw)
         present_primary = {field for field in VEHICLE_PRIMARY_FIELDS if field in raw}
         present_meta = {field for field in VEHICLE_META_FIELDS if field in raw}
@@ -375,6 +377,75 @@ class VehicleProfileService:
         if not profile.manual_fields and not profile.autofilled_fields:
             profile.data_completion_state = "manually_entered"
         return profile, present_primary, present_meta
+
+    def _normalize_profile_alias_payload(self, raw_profile: Any) -> dict[str, Any]:
+        raw = dict(raw_profile) if isinstance(raw_profile, dict) else {}
+        display_name_present = "display_name" in raw
+        display_name = normalize_vehicle_text(raw.get("display_name"))
+        display_name_manual = self._profile_field_name_present(
+            raw.get("manual_fields"), "display_name"
+        )
+        current_display = build_vehicle_display(
+            normalize_vehicle_text(raw.get("make_display")),
+            normalize_vehicle_text(raw.get("model_display")),
+            normalize_vehicle_int(raw.get("production_year")),
+        )
+        if display_name_present and (display_name_manual or display_name != current_display):
+            make_display, model_display = split_vehicle_display_alias(display_name)
+            raw["make_display"] = make_display
+            raw["model_display"] = model_display
+
+        if "registration_plate" not in raw and "license_plate" in raw:
+            raw["registration_plate"] = raw.get("license_plate")
+
+        for meta_field in ("manual_fields", "autofilled_fields", "tentative_fields"):
+            if meta_field in raw:
+                raw[meta_field] = self._normalize_profile_alias_field_names(raw.get(meta_field))
+        if isinstance(raw.get("field_sources"), dict):
+            raw["field_sources"] = self._normalize_profile_alias_field_sources(raw["field_sources"])
+        return raw
+
+    @staticmethod
+    def _profile_field_names(value: Any) -> list[str]:
+        if isinstance(value, str):
+            raw_names = re.split(r"[\s,;]+", value)
+        elif isinstance(value, list):
+            raw_names = [str(item) for item in value]
+        else:
+            return []
+        names: list[str] = []
+        for raw_name in raw_names:
+            name = str(raw_name or "").strip()
+            if name:
+                names.append(name)
+        return names
+
+    def _profile_field_name_present(self, value: Any, field_name: str) -> bool:
+        return field_name in self._profile_field_names(value)
+
+    def _normalize_profile_alias_field_names(self, value: Any) -> list[str]:
+        names: list[str] = []
+        for field_name in self._profile_field_names(value):
+            if field_name == "display_name":
+                names.extend(["make_display", "model_display"])
+            elif field_name == "license_plate":
+                names.append("registration_plate")
+            else:
+                names.append(field_name)
+        return names
+
+    @staticmethod
+    def _normalize_profile_alias_field_sources(value: dict[str, Any]) -> dict[str, Any]:
+        sources: dict[str, Any] = {}
+        for field_name, source in value.items():
+            if field_name == "display_name":
+                sources["make_display"] = source
+                sources["model_display"] = source
+            elif field_name == "license_plate":
+                sources["registration_plate"] = source
+            else:
+                sources[field_name] = source
+        return sources
 
     def merge_profile_patch(
         self,

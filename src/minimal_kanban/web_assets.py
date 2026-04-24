@@ -5993,7 +5993,7 @@ BOARD_WEB_APP_HTML = "".join(
         title: 'Идентификация',
         fields: [
           { name: 'display_name', label: 'Марка / модель', placeholder: 'Subaru Legacy', wide: true },
-          { name: 'license_plate', label: 'Гос номер', placeholder: 'А123АА124', mono: true },
+          { name: 'registration_plate', label: 'Гос номер', placeholder: 'А123АА124', mono: true },
           { name: 'production_year', label: 'Год', type: 'number', min: '1900', max: '2100', step: '1', placeholder: '2016' },
           { name: 'mileage', label: 'Пробег', type: 'number', min: '0', step: '1', placeholder: '185000' },
           { name: 'vin', label: 'VIN', placeholder: 'WAU...', copy: true, mono: true, wide: true, maxlength: '17' },
@@ -11671,6 +11671,9 @@ BOARD_WEB_APP_HTML = "".join(
       cloned.tentative_fields = Array.isArray(cloned.tentative_fields) ? Array.from(new Set(cloned.tentative_fields)) : [];
       cloned.field_sources = cloned.field_sources && typeof cloned.field_sources === 'object' ? cloned.field_sources : {};
       cloned.warnings = Array.isArray(cloned.warnings) ? cloned.warnings : [];
+      if (!String(cloned.registration_plate || '').trim() && String(cloned.license_plate || '').trim()) {
+        cloned.registration_plate = cloned.license_plate;
+      }
       return cloned;
     }
 

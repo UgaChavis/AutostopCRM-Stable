@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Any, Literal
-
 
 VehicleCompletionState = Literal[
     "manually_entered",
@@ -239,13 +238,25 @@ def soft_validate_vin(value) -> tuple[str, bool, list[str]]:
     return vin, suspicious, warnings
 
 
-def build_vehicle_display(make_display: str, model_display: str, production_year: int | None = None) -> str:
+def build_vehicle_display(
+    make_display: str, model_display: str, production_year: int | None = None
+) -> str:
     parts = [normalize_vehicle_text(make_display), normalize_vehicle_text(model_display)]
     parts = [part for part in parts if part]
     display = " ".join(parts)
     if production_year and display:
         return f"{display} {production_year}"
     return display
+
+
+def split_vehicle_display_alias(value) -> tuple[str, str]:
+    text = normalize_vehicle_text(value)
+    if not text:
+        return "", ""
+    parts = text.split(maxsplit=1)
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], parts[1]
 
 
 @dataclass(slots=True)
@@ -391,10 +402,7 @@ class VehicleProfile:
 
     def to_compact_dict(self) -> dict[str, Any]:
         payload = self.to_dict()
-        compact = {
-            field_name: payload.get(field_name)
-            for field_name in VEHICLE_COMPACT_FIELDS
-        }
+        compact = {field_name: payload.get(field_name) for field_name in VEHICLE_COMPACT_FIELDS}
         compact.update(
             {
                 "display_name": payload.get("display_name"),
@@ -418,12 +426,20 @@ class VehicleProfile:
         return payload
 
     @classmethod
-    def from_dict(cls, payload: Any) -> "VehicleProfile":
+    def from_dict(cls, payload: Any) -> VehicleProfile:
         if not isinstance(payload, dict):
             return cls()
         vin, _, vin_warnings = soft_validate_vin(payload.get("vin"))
+        display_make, display_model = split_vehicle_display_alias(payload.get("display_name"))
+        make_display = normalize_vehicle_text(payload.get("make_display")) or display_make
+        model_display = normalize_vehicle_text(payload.get("model_display")) or display_model
+        registration_plate = normalize_vehicle_text(payload.get("registration_plate"))
+        if not registration_plate and "registration_plate" not in payload:
+            registration_plate = normalize_vehicle_text(payload.get("license_plate"))
         warnings: list[str] = []
-        for raw_warning in payload.get("warnings", []) if isinstance(payload.get("warnings"), list) else []:
+        for raw_warning in (
+            payload.get("warnings", []) if isinstance(payload.get("warnings"), list) else []
+        ):
             warning = normalize_vehicle_text(raw_warning, limit=200)
             if warning and warning not in warnings:
                 warnings.append(warning)
@@ -431,15 +447,15 @@ class VehicleProfile:
             if warning not in warnings:
                 warnings.append(warning)
         return cls(
-            make_display=normalize_vehicle_text(payload.get("make_display")),
-            model_display=normalize_vehicle_text(payload.get("model_display")),
+            make_display=make_display,
+            model_display=model_display,
             generation_or_platform=normalize_vehicle_text(payload.get("generation_or_platform")),
             production_year=normalize_vehicle_int(payload.get("production_year")),
             mileage=normalize_vehicle_int(payload.get("mileage")),
             customer_phone=normalize_vehicle_text(payload.get("customer_phone")),
             customer_name=normalize_vehicle_text(payload.get("customer_name")),
             vin=vin,
-            registration_plate=normalize_vehicle_text(payload.get("registration_plate")),
+            registration_plate=registration_plate,
             pts_series=normalize_vehicle_text(payload.get("pts_series")),
             pts_number=normalize_vehicle_text(payload.get("pts_number")),
             sts_series=normalize_vehicle_text(payload.get("sts_series")),
@@ -472,6 +488,7 @@ class VehicleProfile:
             field_sources=normalize_vehicle_field_sources(payload.get("field_sources")),
             raw_input_text=normalize_vehicle_raw_text(payload.get("raw_input_text")),
             raw_image_text=normalize_vehicle_raw_text(payload.get("raw_image_text")),
-            image_parse_status=normalize_vehicle_text(payload.get("image_parse_status"), limit=40) or "not_attempted",
+            image_parse_status=normalize_vehicle_text(payload.get("image_parse_status"), limit=40)
+            or "not_attempted",
             warnings=warnings,
         )
