@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
+import subprocess
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -87,12 +91,17 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
         )
 
     def transcribe_audio(self, *, audio_bytes: bytes, filename: str, mime_type: str = "") -> str:
+        upload_name, upload_mime_type, upload_bytes = self._prepare_transcription_audio(
+            audio_bytes=audio_bytes,
+            filename=filename,
+            mime_type=mime_type,
+        )
         headers = {"Authorization": f"Bearer {self._api_key}"}
         files = {
             "file": (
-                filename or "telegram-voice.ogg",
-                audio_bytes,
-                mime_type or "audio/ogg",
+                upload_name,
+                upload_bytes,
+                upload_mime_type,
             )
         }
         data = {"model": self._transcription_model, "response_format": "json"}
@@ -112,6 +121,56 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
         if not text:
             raise TelegramAIModelError("OpenAI transcription returned empty text.")
         return text
+
+    def _prepare_transcription_audio(
+        self, *, audio_bytes: bytes, filename: str, mime_type: str
+    ) -> tuple[str, str, bytes]:
+        upload_name = (filename or "telegram-voice.ogg").strip() or "telegram-voice.ogg"
+        upload_mime_type = (mime_type or "").strip() or _guess_audio_mime_type(upload_name)
+        if _is_supported_audio_upload(upload_name, upload_mime_type):
+            return upload_name, upload_mime_type, audio_bytes
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            raise TelegramAIModelError(
+                "OpenAI transcription request failed: unsupported Telegram voice format and ffmpeg is unavailable."
+            )
+
+        with tempfile.TemporaryDirectory(prefix="telegram_ai_audio_") as temp_dir:
+            temp_dir_path = Path(temp_dir)
+            input_suffix = Path(upload_name).suffix or ".ogg"
+            input_path = temp_dir_path / f"voice{input_suffix}"
+            output_path = temp_dir_path / "voice.mp3"
+            input_path.write_bytes(audio_bytes)
+            try:
+                subprocess.run(
+                    [
+                        ffmpeg,
+                        "-y",
+                        "-i",
+                        str(input_path),
+                        "-vn",
+                        "-acodec",
+                        "libmp3lame",
+                        "-q:a",
+                        "4",
+                        str(output_path),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                stderr = str(exc.stderr or "").strip()
+                detail = f": {stderr}" if stderr else ""
+                raise TelegramAIModelError(
+                    f"OpenAI transcription request failed: voice conversion failed{detail}"
+                ) from exc
+            if not output_path.exists():
+                raise TelegramAIModelError(
+                    "OpenAI transcription request failed: voice conversion did not produce output."
+                )
+            return output_path.name, "audio/mpeg", output_path.read_bytes()
 
     def _responses_json(
         self,
@@ -237,3 +296,38 @@ def _openai_error_message(response: httpx.Response) -> str:
         if message:
             return f"OpenAI HTTP {response.status_code}: {message}"
     return f"OpenAI HTTP {response.status_code}"
+
+
+def _is_supported_audio_upload(filename: str, mime_type: str) -> bool:
+    suffix = Path(filename or "").suffix.lower()
+    if suffix in {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm"}:
+        return True
+    return (mime_type or "").lower() in {
+        "audio/mpeg",
+        "audio/mp4",
+        "audio/m4a",
+        "audio/x-m4a",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/webm",
+        "video/mp4",
+    }
+
+
+def _guess_audio_mime_type(filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()
+    if suffix == ".mp3":
+        return "audio/mpeg"
+    if suffix == ".mp4":
+        return "video/mp4"
+    if suffix in {".mpeg", ".mpga"}:
+        return "audio/mpeg"
+    if suffix == ".m4a":
+        return "audio/m4a"
+    if suffix == ".wav":
+        return "audio/wav"
+    if suffix == ".webm":
+        return "audio/webm"
+    if suffix in {".ogg", ".oga", ".opus"}:
+        return "audio/ogg"
+    return "application/octet-stream"

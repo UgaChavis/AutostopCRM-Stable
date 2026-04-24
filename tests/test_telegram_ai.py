@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -24,6 +25,7 @@ from minimal_kanban.telegram_ai.config import TelegramAIConfig
 from minimal_kanban.telegram_ai.context import CRMContextBuilder
 from minimal_kanban.telegram_ai.crm_tools import CRMToolError, CRMToolRegistry
 from minimal_kanban.telegram_ai.normalizer import normalize_update
+from minimal_kanban.telegram_ai.openai_client import TelegramAIOpenAIClient
 from minimal_kanban.telegram_ai.orchestrator import TelegramAIOrchestrator
 
 
@@ -221,6 +223,64 @@ class TelegramAIOrchestratorTests(unittest.TestCase):
 
             self.assertIn("Telegram AI worker активен", response)
             self.assertEqual(model.decide_calls, 0)
+
+
+class TelegramAITranscriptionTests(unittest.TestCase):
+    def test_voice_ogg_is_converted_before_transcription_upload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = build_config(temp_dir)
+            client = TelegramAIOpenAIClient(config)
+            captured: dict[str, object] = {}
+
+            class FakeResponse:
+                def raise_for_status(self) -> None:
+                    return None
+
+                def json(self) -> dict[str, object]:
+                    return {"text": "Создай карточку"}
+
+            class FakeHttpxClient:
+                def __init__(self, *args, **kwargs) -> None:
+                    return None
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb) -> None:
+                    return None
+
+                def post(self, url, headers=None, data=None, files=None):
+                    captured["url"] = url
+                    captured["headers"] = headers
+                    captured["data"] = data
+                    captured["files"] = files
+                    return FakeResponse()
+
+            def fake_run(cmd, check, capture_output, text):
+                Path(cmd[-1]).write_bytes(b"mp3-bytes")
+                return None
+
+            with (
+                patch(
+                    "minimal_kanban.telegram_ai.openai_client.shutil.which", return_value="ffmpeg"
+                ),
+                patch(
+                    "minimal_kanban.telegram_ai.openai_client.subprocess.run", side_effect=fake_run
+                ),
+                patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FakeHttpxClient),
+            ):
+                text = client.transcribe_audio(
+                    audio_bytes=b"ogg-bytes",
+                    filename="voice.ogg",
+                    mime_type="audio/ogg",
+                )
+
+            self.assertEqual(text, "Создай карточку")
+            file_name, file_bytes, file_mime = captured["files"]["file"]
+            self.assertTrue(str(file_name).endswith(".mp3"))
+            self.assertEqual(file_bytes, b"mp3-bytes")
+            self.assertEqual(file_mime, "audio/mpeg")
+            self.assertEqual(captured["data"]["model"], "gpt-4o-mini-transcribe")
 
 
 class TelegramAICRMToolTests(unittest.TestCase):
