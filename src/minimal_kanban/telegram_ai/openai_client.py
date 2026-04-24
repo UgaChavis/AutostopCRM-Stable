@@ -184,7 +184,6 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
             "instructions": instructions,
             "input": input_messages,
             "text": {"format": {"type": "json_object"}},
-            "temperature": 0.2,
             "reasoning": {"effort": self._reasoning_effort},
             "store": False,
         }

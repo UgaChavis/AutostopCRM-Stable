@@ -283,6 +283,48 @@ class TelegramAITranscriptionTests(unittest.TestCase):
             self.assertEqual(captured["data"]["model"], "gpt-4o-mini-transcribe")
 
 
+class TelegramAIResponsesPayloadTests(unittest.TestCase):
+    def test_decide_payload_omits_temperature_for_responses_api(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = build_config(temp_dir)
+            client = TelegramAIOpenAIClient(config)
+            captured: dict[str, object] = {}
+
+            def fake_post_with_retry(path: str, payload: dict[str, object]) -> dict[str, object]:
+                captured["path"] = path
+                captured["payload"] = payload
+                return {
+                    "output_text": json.dumps(
+                        {
+                            "intent": "no_action",
+                            "confidence": "high",
+                            "actions": [],
+                            "telegram_response": "ok",
+                            "requires_human_confirmation": False,
+                        },
+                        ensure_ascii=False,
+                    )
+                }
+
+            with patch.object(
+                TelegramAIOpenAIClient, "_post_with_retry", side_effect=fake_post_with_retry
+            ):
+                result = client.decide(
+                    command_text="/status",
+                    role="owner",
+                    crm_context={},
+                    tool_catalog=[],
+                )
+
+            self.assertEqual(captured["path"], "/responses")
+            payload = captured["payload"]
+            self.assertIsInstance(payload, dict)
+            assert isinstance(payload, dict)
+            self.assertNotIn("temperature", payload)
+            self.assertEqual(payload["reasoning"], {"effort": "medium"})
+            self.assertEqual(result["intent"], "no_action")
+
+
 class TelegramAICRMToolTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
