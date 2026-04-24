@@ -42,6 +42,6 @@ services:
       autostopcrm:
         condition: service_healthy
     env_file:
-      - .env
+      - telegram-ai.env
     volumes:
       - "${AUTOSTOP_DATA_DIR:-./data}:/root/.minimal-kanban"
