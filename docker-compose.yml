@@ -30,3 +30,28 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+
+  autostopcrm-telegram-ai:
+    container_name: autostopcrm-telegram-ai
+    build: .
+    restart: always
+    command: ["python", "main_telegram_ai.py"]
+    depends_on:
+      autostopcrm:
+        condition: service_healthy
+    environment:
+      AUTOSTOP_TELEGRAM_AI_ENABLED: "${AUTOSTOP_TELEGRAM_AI_ENABLED:-0}"
+      AUTOSTOP_TELEGRAM_BOT_TOKEN: "${AUTOSTOP_TELEGRAM_BOT_TOKEN:-}"
+      AUTOSTOP_TELEGRAM_OWNER_IDS: "${AUTOSTOP_TELEGRAM_OWNER_IDS:-}"
+      AUTOSTOP_CRM_API_BASE_URL: "${AUTOSTOP_CRM_API_BASE_URL:-http://autostopcrm:41731}"
+      AUTOSTOP_AI_MODEL: "${AUTOSTOP_AI_MODEL:-gpt-5.4-mini}"
+      AUTOSTOP_AI_REASONING_EFFORT: "${AUTOSTOP_AI_REASONING_EFFORT:-medium}"
+      AUTOSTOP_AI_MAX_BATCH_CARDS: "${AUTOSTOP_AI_MAX_BATCH_CARDS:-20}"
+      AUTOSTOP_AI_AUDIT_ENABLED: "${AUTOSTOP_AI_AUDIT_ENABLED:-1}"
+      AUTOSTOP_AI_AUTOPILOT_ENABLED: "${AUTOSTOP_AI_AUTOPILOT_ENABLED:-0}"
+      AUTOSTOP_AI_AUTOPILOT_INTERVAL_MINUTES: "${AUTOSTOP_AI_AUTOPILOT_INTERVAL_MINUTES:-30}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-5.4-mini}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+    volumes:
+      - "${AUTOSTOP_DATA_DIR:-./data}:/root/.minimal-kanban"

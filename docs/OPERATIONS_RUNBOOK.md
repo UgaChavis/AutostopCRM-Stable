@@ -8,12 +8,12 @@ This is the compact operational guide for local work, GitHub sync, and productio
 - MCP: `https://crm.autostopcrm.ru/mcp`
 - production server: `vps26457.mnogoweb.in`
 - production repo path: `/opt/autostopcrm`
-- this deploy path covers only the CRM repo; AI worker and VPN helpers are separate repositories with separate deploy targets
+- this deploy path covers the CRM repo and the in-repo Telegram AI worker service; VPN helpers are separate deploy targets
 
 ## Branch Rule
 
 - active branch: `autostopcrm-v1`
-- in this workspace the GitHub remote for that line is `origin`
+- in this workspace the GitHub remote for that line is `autostop-v1`
 - the same commit should be present locally, on GitHub, and on production before and after release work
 
 ## Standard Sync Check
@@ -23,8 +23,8 @@ Run these checks before serious work:
 ```powershell
 git status --short --branch
 git rev-parse --short HEAD
-git fetch origin --prune
-git rev-parse --short origin/autostopcrm-v1
+git fetch autostop-v1 --prune
+git rev-parse --short autostop-v1/autostopcrm-v1
 ```
 
 Then verify the server:
@@ -44,15 +44,43 @@ ssh -i C:\Users\User\.ssh\codex_autostopcrm root@vps26457.mnogoweb.in "cd /opt/a
 ## Deployment Workflow
 
 1. Commit the intended change.
-2. Push to `origin/autostopcrm-v1`.
+2. Push to `autostop-v1/autostopcrm-v1`.
 3. On the server, fetch and reset to `origin/autostopcrm-v1`.
 4. Run `./deploy.sh`; by default it syncs `origin/autostopcrm-v1` before rebuilding.
 5. Confirm the smoke check passes.
 
 `deploy.sh` can be overridden with `AUTOSTOP_DEPLOY_REMOTE` and
 `AUTOSTOP_DEPLOY_BRANCH`, but the normal production path must stay on
-`autostopcrm-v1`. Do not deploy the legacy `autostopCRM` branch unless the
-active branch rule is intentionally changed first.
+`autostopcrm-v1`.
+
+## Telegram AI Worker
+
+The Telegram AI Board Manager runs in Docker service `autostopcrm-telegram-ai`.
+
+It uses long polling and opens no public port. The worker talks to the CRM API at:
+
+```text
+http://autostopcrm:41731
+```
+
+Required production `.env` values when enabled:
+
+```env
+AUTOSTOP_TELEGRAM_AI_ENABLED=1
+AUTOSTOP_TELEGRAM_BOT_TOKEN=...
+AUTOSTOP_TELEGRAM_OWNER_IDS=123456789
+OPENAI_API_KEY=...
+AUTOSTOP_AI_MODEL=gpt-5.4-mini
+```
+
+Verification:
+
+```bash
+docker compose ps
+docker compose logs --tail=100 autostopcrm-telegram-ai
+```
+
+Full setup notes for the operator are in `C:\Users\User\Desktop\AUTOSTOP_TELEGRAM_AI_SETUP_RU.md`; the technical map is `docs/TELEGRAM_AI_BOARD_MANAGER.md`.
 
 ## Production Cautions
 

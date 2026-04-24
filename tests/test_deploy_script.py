@@ -9,14 +9,17 @@ class DeployScriptTests(unittest.TestCase):
         script = (PROJECT_ROOT / "deploy.sh").read_text(encoding="utf-8")
 
         self.assertIn('DEPLOY_BRANCH="${AUTOSTOP_DEPLOY_BRANCH:-autostopcrm-v1}"', script)
+        self.assertIn('DEPLOY_REMOTE="${AUTOSTOP_DEPLOY_REMOTE:-origin}"', script)
         self.assertIn('git fetch "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"', script)
         self.assertIn("git reset --hard FETCH_HEAD", script)
 
-    def test_deploy_script_does_not_sync_legacy_branch(self) -> None:
-        script = (PROJECT_ROOT / "deploy.sh").read_text(encoding="utf-8")
+    def test_compose_declares_telegram_ai_worker(self) -> None:
+        compose = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 
-        self.assertNotIn("git fetch origin autostopCRM", script)
-        self.assertNotIn("git reset --hard origin/autostopCRM", script)
+        self.assertIn("autostopcrm-telegram-ai:", compose)
+        self.assertIn('command: ["python", "main_telegram_ai.py"]', compose)
+        self.assertIn("AUTOSTOP_TELEGRAM_AI_ENABLED", compose)
+        self.assertIn("AUTOSTOP_CRM_API_BASE_URL", compose)
 
 
 if __name__ == "__main__":

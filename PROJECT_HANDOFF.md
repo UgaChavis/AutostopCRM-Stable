@@ -15,7 +15,7 @@ It should answer four questions fast:
 
 ## 1. Product Snapshot
 
-AutoStop CRM is a production-oriented CRM for an auto workshop built around a kanban board, local API, MCP surface, and one narrow background card-enrichment action.
+AutoStop CRM is a production-oriented CRM for an auto workshop built around a kanban board, local API, MCP surface, and a new Telegram-first AI Board Manager worker.
 
 Current product scope:
 
@@ -26,6 +26,7 @@ Current product scope:
 - operator authentication and admin user management
 - cashboxes, cash transactions, employees, and payroll reports
 - MCP server for ChatGPT / OpenAI tool access
+- Telegram AI Board Manager for owner-controlled CRM operations through text, voice and photo messages
 - lower-right card indicator that enqueues the bounded agent-driven card enrichment flow without opening the agent modal
 
 Legacy names still exist and are expected:
@@ -39,11 +40,6 @@ Legacy names still exist and are expected:
 Active working branch:
 
 - `autostopcrm-v1`
-
-Not the active line for current production work:
-
-- `autostopCRM`
-- `autostopCRM-V2`
 
 Environment rule:
 
@@ -66,14 +62,10 @@ Important operational note:
 - production still currently accepts the default admin account
 - this is a real risk, but it has not been rotated in the current line yet
 
-Most recent pre-pass synchronized head:
+Current alignment rule:
 
-- `8d4cba8` `Relax MCP wording for agent workflows`
-
-Current alignment at handoff update time:
-
-- local `autostopcrm-v1`, GitHub `autostopcrm-v1`, and production `/opt/autostopcrm` are aligned on the same commit
-- local worktree now contains the current documentation edits until they are committed
+- local `autostopcrm-v1`, GitHub `autostopcrm-v1`, and production `/opt/autostopcrm` must be verified with commands before release work
+- this handoff intentionally avoids pinning a stale commit hash; use `git rev-parse --short HEAD` and the runbook sync commands
 
 ## 3. Runtime Architecture
 
@@ -108,6 +100,7 @@ Core rule:
 
 - `main.py`: desktop application entry
 - `main_mcp.py`: MCP-only entry
+- `main_telegram_ai.py`: Telegram AI Board Manager worker entry
 
 ### Runtime assembly
 
@@ -141,6 +134,12 @@ Core rule:
 - `src/minimal_kanban/mcp/runtime.py`: MCP runtime server wrapper
 - `src/minimal_kanban/mcp/oauth_provider.py`: embedded OAuth metadata and provider behavior
 
+### Telegram AI layer
+
+- `src/minimal_kanban/telegram_ai/`: Telegram polling, auth, OpenAI calls, CRM tool registry, verification and audit
+- `docs/TELEGRAM_AI_BOARD_MANAGER.md`: technical runtime map, env variables, tools and test commands
+- `C:\Users\User\Desktop\AUTOSTOP_TELEGRAM_AI_SETUP_RU.md`: Russian setup/runbook for creating the Telegram bot and starting the worker
+
 ### Retired agent layer
 
 - old server-agent modules now remain only as internal compatibility code
@@ -159,25 +158,22 @@ Core rule:
 - `src/minimal_kanban/ui/settings_window.py`: settings UI
 - `src/minimal_kanban/web_assets.py`: browser-facing UI assets
 
-## 5. Card Cleanup Status
+## 5. AI Runtime Status
 
-Current visible AI behavior:
+Current active AI direction:
 
-- the card indicator now launches `run_full_card_enrichment`
-- click -> `/api/run_full_card_enrichment`
-- CRM enqueues the task into the shared agent control storage
-- when an agent controller is attached, it consumes the task and writes back the patch; local fallback handling remains available when it is not
-- the card view stays open while the task runs in the background
-- local deterministic cleanup still exists as a fallback route, but it is no longer the visible card-button path
+- Telegram AI Board Manager is the new main AI runtime
+- it runs as `main_telegram_ai.py` or Docker service `autostopcrm-telegram-ai`
+- it receives owner commands through Telegram long polling
+- it calls OpenAI for structured decisions, voice transcription, and photo/vision extraction
+- it writes to CRM only through the local HTTP API and verifies writes by read-back
+- every run writes redacted audit under `telegram_ai/audit.jsonl`
 
-Hard guarantees of the current flow:
+Compatibility behavior:
 
-- no embedded worker is started by default in CRM startup
-- the queue is shared with the separate agent runtime
-- the agent modal is no longer auto-opened by the green button
-- the lower-right indicator no longer behaves like the retired local-only cleanup action
-- internet lookup happens in the separate agent process, not in the CRM UI thread
-- the production deploy target in this repo is only the CRM checkout at `/opt/autostopcrm`; AI worker and VPN helpers are separate repositories and are not part of this deploy path
+- the old card indicator / VIN-enrichment flow remains compatibility code
+- do not use the old AutostopAI repository as the base for new product work
+- do not add direct storage writes, shell actions, or hard delete behavior to the Telegram AI worker
 
 ## 6. Most Recent Development State
 
@@ -192,6 +188,7 @@ Latest completed wave, in practical terms:
 - visible AI chat / dock / popup entries were removed
 - server deploy topology was reduced to the main `autostopcrm` service
 - MCP and local API were kept as the active integration layers
+- Telegram AI Board Manager was added back as a separate worker service, not as UI-thread logic and not as the old VIN-only agent
 
 Latest completed stabilization wave:
 
@@ -227,19 +224,20 @@ At the current verification baseline, production reported:
 - MCP live check passes
 - `autostopcrm` container is healthy
 - no separate `autostopcrm-agent` container is expected anymore
+- `autostopcrm-telegram-ai` is expected when Telegram AI is enabled; it opens no public ports
 
 Operational reality:
 
 - production is currently healthy enough for continued iterative work
 - the main workflow risk is accidental drift between local, GitHub, and server state
 
-Current post-sync note for the active stabilization pass:
+Current post-sync rule for this pass:
 
-- local regression is green
-- local/GitHub/production were synchronized on `8d4cba8` before the current documentation pass
-- connector and MCP live checks passed after deploy
+- local regression must be rerun after the Telegram AI changes
+- local/GitHub/production parity must be verified from command output, not from stale handoff notes
+- connector and MCP live checks should be repeated after deploy
 - the active API surface includes `/api/agent_status`, `/api/agent_tasks`, `/api/agent_actions`, `/api/agent_scheduled_tasks`, and `/api/agent_enqueue_task`
-- `deploy.sh` must sync `autostopcrm-v1`, not the legacy `autostopCRM` branch
+- `deploy.sh` must sync `autostopcrm-v1`
 
 ## 8. Test And Verification Baseline
 
@@ -284,6 +282,7 @@ git reset --hard origin/autostopcrm-v1
 Current compose services:
 
 - `autostopcrm`: main app, local API, MCP
+- `autostopcrm-telegram-ai`: Telegram long-polling AI worker, CRM API client and audit writer
 
 Useful production verification commands:
 

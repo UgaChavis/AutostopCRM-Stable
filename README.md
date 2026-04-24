@@ -15,6 +15,7 @@ The repository still contains legacy technical names from the earlier `Minimal K
 - kanban board with cards, custom columns, sticky notes, archive, unread and updated markers
 - local HTTP API for the UI, reverse proxy, and automation
 - MCP server for ChatGPT / OpenAI tools / connector workflows
+- Telegram-first AI Board Manager worker for owner-controlled CRM operations
 - background card enrichment action available from the card indicator
 - vehicle profiles and card autofill
 - repair orders with works, materials, payments, status flow, and text export
@@ -26,6 +27,7 @@ The repository still contains legacy technical names from the earlier `Minimal K
 
 - Desktop application: [main.py](main.py)
 - MCP server only: [main_mcp.py](main_mcp.py)
+- Telegram AI worker: [main_telegram_ai.py](main_telegram_ai.py)
 - Containerized deployment: [docker-compose.yml](docker-compose.yml)
 
 ## Architecture
@@ -44,6 +46,16 @@ JsonStore / local state files
 ChatGPT / OpenAI / external MCP client
         ->
 MCP server
+        ->
+local HTTP API
+        ->
+same CardService and storage
+
+Telegram owner
+        ->
+Telegram AI worker
+        ->
+OpenAI + explicit CRM tool registry
         ->
 local HTTP API
         ->
@@ -83,6 +95,12 @@ MCP layer:
 - [src/minimal_kanban/mcp/client.py](src/minimal_kanban/mcp/client.py): HTTP client to local API
 - [src/minimal_kanban/mcp/runtime.py](src/minimal_kanban/mcp/runtime.py): MCP server runtime
 - [src/minimal_kanban/mcp/oauth_provider.py](src/minimal_kanban/mcp/oauth_provider.py): embedded OAuth metadata and provider logic
+
+Telegram AI layer:
+
+- [main_telegram_ai.py](main_telegram_ai.py): long-running Telegram worker entrypoint
+- [src/minimal_kanban/telegram_ai](src/minimal_kanban/telegram_ai): Telegram gateway, OpenAI client, tool registry, audit, verifier and orchestrator
+- [docs/TELEGRAM_AI_BOARD_MANAGER.md](docs/TELEGRAM_AI_BOARD_MANAGER.md): technical runtime map and operator notes
 
 Printing and documents:
 
@@ -126,14 +144,27 @@ The exact runtime inventory is documented in [MCP_GUIDE.md](MCP_GUIDE.md). The u
 
 See [MCP_GUIDE.md](MCP_GUIDE.md) and [src/minimal_kanban/mcp/server.py](src/minimal_kanban/mcp/server.py).
 
-## Card Cleanup
+## Telegram AI Board Manager
 
-The visible AI behavior in the product is intentionally narrow:
+The active server-side AI expansion is now Telegram-first:
+
+- owner sends text, voice, or photo to the Telegram bot
+- worker authorizes by Telegram user ID
+- worker asks OpenAI for a structured decision
+- CRM writes go through the explicit tool registry and local HTTP API
+- every write is verified by read-back
+- every run is written to `telegram_ai/audit.jsonl`
+
+The worker runs as a separate Docker service named `autostopcrm-telegram-ai` and opens no public port.
+
+## Legacy Card Cleanup
+
+The older card-indicator cleanup/enrichment behavior remains compatibility-only and separate from the Telegram AI manager:
 
 - only the card indicator remains
-- clicking it runs a local deterministic cleanup flow
-- the cleanup path stays inside `CardService`
-- no internet, no MCP dependency in the user flow, and no server worker are involved
+- the compatibility path stays inside the existing CRM/card-service contour
+- new AI product work should go through the Telegram AI manager
+- do not extend the old VIN/green-button experiments as the primary AI runtime
 
 Current cleanup contract:
 
@@ -228,9 +259,10 @@ Main files:
 - [Dockerfile](Dockerfile)
 - [AUTOSTOPCRM_FULL_INSTRUCTION.txt](AUTOSTOPCRM_FULL_INSTRUCTION.txt)
 
-The production compose stack currently has one service:
+The production compose stack currently has these services:
 
 - `autostopcrm`: main app, local API, MCP
+- `autostopcrm-telegram-ai`: optional long-polling Telegram AI worker, no public port
 
 ## Documentation Map
 
@@ -259,4 +291,3 @@ Cleanup notes:
 ## Current Branch Policy
 
 - working branch: `autostopcrm-v1`
-- `autostopCRM` and `autostopCRM-V2` are separate legacy lines and are not the active production branch for this repository state

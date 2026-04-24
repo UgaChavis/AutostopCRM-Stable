@@ -7,7 +7,6 @@ This is the first file a new developer or agent should read in branch `autostopc
 - branch: `autostopcrm-v1`
 - current synced HEAD must be verified before work with `git rev-parse --short HEAD`
 - local, GitHub, and production should be kept aligned on the same `autostopcrm-v1` HEAD
-- `autostopCRM` is now a legacy line and should only be treated as historical context
 - the local working clone is currently aligned to `origin/autostopcrm-v1`
 - production CRM: `https://crm.autostopcrm.ru`
 - production MCP: `https://crm.autostopcrm.ru/mcp`
@@ -27,6 +26,7 @@ AutoStop CRM is an auto-workshop CRM built around:
 - operator authentication and admin users
 - cashboxes, employees, payroll
 - MCP server for external tool access
+- Telegram AI Board Manager worker for owner-controlled CRM operations
 - background card enrichment action from the card indicator
 
 ## First Read Order
@@ -63,23 +63,24 @@ External ChatGPT / MCP client
 
 - `main.py`: desktop entry
 - `main_mcp.py`: MCP entry
+- `main_telegram_ai.py`: Telegram AI worker entry
 - `src/minimal_kanban/api/server.py`: API surface
 - `src/minimal_kanban/services/card_service.py`: business core
 - `src/minimal_kanban/services/column_service.py`: column ordering and column operations
 - `src/minimal_kanban/mcp/server.py`: MCP server
 - `src/minimal_kanban/web_assets.py`: browser UI
 
-## Current Cleanup Status
+## Current AI Status
 
-The active in-product AI behavior is now the card enrichment trigger on the lower-right indicator:
+The active AI product direction is now the Telegram AI Board Manager:
 
-- click the card indicator
-- enqueue `run_full_card_enrichment` through `CardService`
-- stay on the card while the task runs in the background
-- patch card data through the agent control / shared task storage flow
-- refresh the card when the task completes
+- run `main_telegram_ai.py` or Docker service `autostopcrm-telegram-ai`
+- receive text, voice, or photo commands from the authorized Telegram owner
+- call OpenAI for a structured decision
+- execute CRM tools only through the local HTTP API
+- verify writes and record redacted audit
 
-There is still no embedded worker started by default in CRM startup; the separate agent process is expected to consume the shared task queue.
+The older lower-right card enrichment button remains compatibility behavior, but it is not the base for new AI development.
 
 ## Recent Practical Changes
 
@@ -95,7 +96,7 @@ There is still no embedded worker started by default in CRM startup; the separat
 - latest targeted `service + api + web_assets + MCP` runs are green
 - production site: `200 OK`
 - production MCP: verify current tool count from live runtime before assuming a stale number
-- this deployment path covers only the CRM repo at `/opt/autostopcrm`; the AI worker and VPN helpers are separate repos and are not part of this deploy target
+- this deployment path covers the CRM repo at `/opt/autostopcrm` and its optional in-repo Telegram AI worker; VPN helpers are separate deploy targets
 
 ## Documentation Layout
 
