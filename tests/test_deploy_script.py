@@ -21,6 +21,7 @@ class DeployScriptTests(unittest.TestCase):
             'command: ["sh", "-lc", "set -a; . /run/telegram-ai.env; exec python main_telegram_ai.py"]',
             compose,
         )
+        self.assertIn('AUTOSTOP_CRM_API_BASE_URL: "http://autostopcrm:41731"', compose)
         self.assertIn("telegram-ai.env:/run/telegram-ai.env:ro", compose)
         self.assertIn("telegram-ai.env", compose)
 
