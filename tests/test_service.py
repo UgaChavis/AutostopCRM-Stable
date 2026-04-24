@@ -1047,7 +1047,9 @@ class CardServiceTests(unittest.TestCase):
                 "work_percent": "100",
             }
         )["employee"]
-        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})["cashbox"]
+        cashbox = self.service.create_cashbox({"name": "Наличный", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
         card = self.service.create_card(
             {
                 "vehicle": "Mitsubishi L200",
@@ -1101,11 +1103,15 @@ class CardServiceTests(unittest.TestCase):
 
         raw_state = json.loads(self.state_file.read_text(encoding="utf-8"))
         sanitized = sanitize_financial_history_state(raw_state)
-        self.state_file.write_text(json.dumps(sanitized, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.state_file.write_text(
+            json.dumps(sanitized, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         fresh_service = self._build_service()
         ledger = fresh_service.get_employee_salary_ledger({"employee_id": employee["id"]})
-        cashbox_details = fresh_service.get_cashbox({"cashbox_id": cashbox["id"], "transaction_limit": 10})
+        cashbox_details = fresh_service.get_cashbox(
+            {"cashbox_id": cashbox["id"], "transaction_limit": 10}
+        )
 
         self.assertEqual(ledger["balance_total"], "0")
         self.assertEqual(ledger["journal_rows"], [])
@@ -1209,9 +1215,7 @@ class CardServiceTests(unittest.TestCase):
         )
 
         listed = self.service.list_employees()
-        listed_employee = next(
-            item for item in listed["employees"] if item["id"] == employee["id"]
-        )
+        listed_employee = next(item for item in listed["employees"] if item["id"] == employee["id"])
         self.assertEqual(listed_employee["balance_total"], "0")
 
     def test_employee_supports_up_to_fifteen_records_without_overwrite(self) -> None:
@@ -2893,10 +2897,79 @@ class CardServiceTests(unittest.TestCase):
                 },
             }
         )["card"]["repair_order"]
-        self.assertEqual(updated_maria["payment_method"], "cash")
+        self.assertEqual(updated_maria["payment_method"], "card")
         self.assertEqual(updated_maria["taxes_total"], "0")
         self.assertEqual(updated_maria["grand_total"], "1000")
         self.assertEqual(updated_maria["due_total"], "500")
+
+    def test_repair_order_payments_route_to_cashbox_by_payment_method(self) -> None:
+        supplier_cashbox = self.service.create_cashbox(
+            {"name": "Алексей Снабженец", "actor_name": "ADMIN"}
+        )["cashbox"]
+        cash_cashbox = self.service.create_cashbox(
+            {"name": "Касса наличных оплат", "actor_name": "ADMIN"}
+        )["cashbox"]
+        cashless_cashbox = self.service.create_cashbox(
+            {"name": "Безналичная касса", "actor_name": "ADMIN"}
+        )["cashbox"]
+        card_cashbox = self.service.create_cashbox({"name": "На карту", "actor_name": "ADMIN"})[
+            "cashbox"
+        ]
+        card = self.service.create_card(
+            {"vehicle": "TOYOTA CAMRY", "title": "Оплата", "deadline": {"hours": 2}}
+        )["card"]
+
+        order = self.service.update_card(
+            {
+                "card_id": card["id"],
+                "repair_order": {
+                    "works": [{"name": "Работы", "quantity": "1", "price": "6000"}],
+                    "payments": [
+                        {
+                            "amount": "1000",
+                            "paid_at": "06.04.2026 10:00",
+                            "payment_method": "cash",
+                            "cashbox_id": supplier_cashbox["id"],
+                        },
+                        {
+                            "amount": "2000",
+                            "paid_at": "06.04.2026 10:10",
+                            "payment_method": "cashless",
+                            "cashbox_id": supplier_cashbox["id"],
+                        },
+                        {
+                            "amount": "3000",
+                            "paid_at": "06.04.2026 10:20",
+                            "payment_method": "card",
+                            "cashbox_id": supplier_cashbox["id"],
+                        },
+                    ],
+                },
+            }
+        )["card"]["repair_order"]
+
+        payments_by_method = {payment["payment_method"]: payment for payment in order["payments"]}
+        self.assertEqual(payments_by_method["cash"]["cashbox_id"], cash_cashbox["id"])
+        self.assertEqual(payments_by_method["cashless"]["cashbox_id"], cashless_cashbox["id"])
+        self.assertEqual(payments_by_method["card"]["cashbox_id"], card_cashbox["id"])
+
+        supplier_details = self.service.get_cashbox(
+            {"cashbox_id": supplier_cashbox["id"], "transaction_limit": 10}
+        )["cashbox"]
+        cash_details = self.service.get_cashbox(
+            {"cashbox_id": cash_cashbox["id"], "transaction_limit": 10}
+        )["cashbox"]
+        cashless_details = self.service.get_cashbox(
+            {"cashbox_id": cashless_cashbox["id"], "transaction_limit": 10}
+        )["cashbox"]
+        card_details = self.service.get_cashbox(
+            {"cashbox_id": card_cashbox["id"], "transaction_limit": 10}
+        )["cashbox"]
+
+        self.assertEqual(supplier_details["statistics"]["transactions_total"], 0)
+        self.assertEqual(cash_details["statistics"]["income_total_minor"], 100000)
+        self.assertEqual(cashless_details["statistics"]["income_total_minor"], 200000)
+        self.assertEqual(card_details["statistics"]["income_total_minor"], 300000)
 
     def test_repair_order_payment_summary_handles_cash_cashless_and_mixed_payments(self) -> None:
         cashless_cashbox = self.service.create_cashbox(

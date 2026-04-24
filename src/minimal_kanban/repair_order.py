@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
-
 
 REPAIR_ORDER_NUMBER_LIMIT = 40
 REPAIR_ORDER_DATE_LIMIT = 32
@@ -24,6 +23,7 @@ REPAIR_ORDER_STATUS_LIMIT = 16
 REPAIR_ORDER_DEFAULT_TAG_COLOR = "green"
 REPAIR_ORDER_PAYMENT_METHOD_CASH = "cash"
 REPAIR_ORDER_PAYMENT_METHOD_CASHLESS = "cashless"
+REPAIR_ORDER_PAYMENT_METHOD_CARD = "card"
 REPAIR_ORDER_PAYMENT_METHOD_LIMIT = 16
 REPAIR_ORDER_PAYMENT_TAX_RATE = Decimal("0.15")
 REPAIR_ORDER_ALLOWED_STATUSES = {
@@ -33,6 +33,7 @@ REPAIR_ORDER_ALLOWED_STATUSES = {
 REPAIR_ORDER_ALLOWED_PAYMENT_METHODS = {
     REPAIR_ORDER_PAYMENT_METHOD_CASH,
     REPAIR_ORDER_PAYMENT_METHOD_CASHLESS,
+    REPAIR_ORDER_PAYMENT_METHOD_CARD,
 }
 REPAIR_ORDER_ALLOWED_TAG_COLORS = {
     "green",
@@ -74,12 +75,24 @@ def normalize_repair_order_status(value, *, default: str = REPAIR_ORDER_STATUS_O
     return default
 
 
-def normalize_repair_order_payment_method(value, *, default: str = REPAIR_ORDER_PAYMENT_METHOD_CASH) -> str:
+def normalize_repair_order_payment_method(
+    value, *, default: str = REPAIR_ORDER_PAYMENT_METHOD_CASH
+) -> str:
     raw = _normalize_single_line(value, limit=REPAIR_ORDER_PAYMENT_METHOD_LIMIT).lower()
     if raw in {"", "cash", "cash_only", "cash-only", "нал", "наличный", "наличные"}:
         return default
     if raw in {"cashless", "wire", "bank", "безнал", "безналичный", "безналичные"}:
         return REPAIR_ORDER_PAYMENT_METHOD_CASHLESS
+    if raw in {
+        "card",
+        "card_transfer",
+        "card-transfer",
+        "bank_card",
+        "на карту",
+        "карта",
+        "перевод",
+    }:
+        return REPAIR_ORDER_PAYMENT_METHOD_CARD
     if raw in REPAIR_ORDER_ALLOWED_PAYMENT_METHODS:
         return raw
     return default
@@ -93,15 +106,21 @@ def repair_order_payment_method_from_cashbox_name(
         return normalize_repair_order_payment_method(default)
     if "безнал" in raw or "cashless" in raw or "wire" in raw or "bank" in raw:
         return REPAIR_ORDER_PAYMENT_METHOD_CASHLESS
+    if "на карту" in raw or "карта" in raw or "card" in raw or "мария" in raw:
+        return REPAIR_ORDER_PAYMENT_METHOD_CARD
     return REPAIR_ORDER_PAYMENT_METHOD_CASH
 
 
 def repair_order_payment_method_from_payments(
-    payments: list["RepairOrderPayment"] | Any, *, default: str = REPAIR_ORDER_PAYMENT_METHOD_CASH
+    payments: list[RepairOrderPayment] | Any, *, default: str = REPAIR_ORDER_PAYMENT_METHOD_CASH
 ) -> str:
-    normalized_payments = payments if isinstance(payments, list) else normalize_repair_order_payments(payments)
+    normalized_payments = (
+        payments if isinstance(payments, list) else normalize_repair_order_payments(payments)
+    )
     if not normalized_payments:
         return normalize_repair_order_payment_method(default)
+    fallback_method = normalize_repair_order_payment_method(default)
+    has_card_payment = False
     for payment in normalized_payments:
         resolved = repair_order_payment_method_from_cashbox_name(
             getattr(payment, "cashbox_name", ""),
@@ -109,12 +128,20 @@ def repair_order_payment_method_from_payments(
         )
         if resolved == REPAIR_ORDER_PAYMENT_METHOD_CASHLESS:
             return REPAIR_ORDER_PAYMENT_METHOD_CASHLESS
-    return REPAIR_ORDER_PAYMENT_METHOD_CASH
+        if resolved == REPAIR_ORDER_PAYMENT_METHOD_CARD:
+            has_card_payment = True
+    if has_card_payment:
+        return REPAIR_ORDER_PAYMENT_METHOD_CARD
+    return fallback_method
 
 
 def repair_order_payment_method_label(value) -> str:
     normalized = normalize_repair_order_payment_method(value)
-    return "Безналичный" if normalized == REPAIR_ORDER_PAYMENT_METHOD_CASHLESS else "Наличный"
+    if normalized == REPAIR_ORDER_PAYMENT_METHOD_CASHLESS:
+        return "Безналичный"
+    if normalized == REPAIR_ORDER_PAYMENT_METHOD_CARD:
+        return "На карту"
+    return "Наличный"
 
 
 def _parse_decimal(value) -> Decimal | None:
@@ -140,10 +167,12 @@ def _round_money(value: Decimal) -> Decimal:
 
 
 def repair_order_payments_value_by_method(
-    payments: list["RepairOrderPayment"] | Any,
+    payments: list[RepairOrderPayment] | Any,
     payment_method: str,
 ) -> Decimal:
-    normalized_payments = payments if isinstance(payments, list) else normalize_repair_order_payments(payments)
+    normalized_payments = (
+        payments if isinstance(payments, list) else normalize_repair_order_payments(payments)
+    )
     normalized_method = normalize_repair_order_payment_method(payment_method)
     return sum(
         (
@@ -157,23 +186,37 @@ def repair_order_payments_value_by_method(
 
 def repair_order_payment_summary_value(
     base_total: Decimal,
-    payments: list["RepairOrderPayment"] | Any,
+    payments: list[RepairOrderPayment] | Any,
 ) -> dict[str, Decimal]:
-    normalized_payments = payments if isinstance(payments, list) else normalize_repair_order_payments(payments)
+    normalized_payments = (
+        payments if isinstance(payments, list) else normalize_repair_order_payments(payments)
+    )
     base_total = _round_money(base_total)
-    base_paid_cash = repair_order_payments_value_by_method(normalized_payments, REPAIR_ORDER_PAYMENT_METHOD_CASH)
-    base_paid_noncash = repair_order_payments_value_by_method(normalized_payments, REPAIR_ORDER_PAYMENT_METHOD_CASHLESS)
-    base_remaining = max(base_total - base_paid_cash - base_paid_noncash, Decimal("0"))
+    base_paid_cash = repair_order_payments_value_by_method(
+        normalized_payments, REPAIR_ORDER_PAYMENT_METHOD_CASH
+    )
+    base_paid_card = repair_order_payments_value_by_method(
+        normalized_payments, REPAIR_ORDER_PAYMENT_METHOD_CARD
+    )
+    base_paid_noncash = repair_order_payments_value_by_method(
+        normalized_payments, REPAIR_ORDER_PAYMENT_METHOD_CASHLESS
+    )
+    base_remaining = max(
+        base_total - base_paid_cash - base_paid_card - base_paid_noncash, Decimal("0")
+    )
     taxes_and_fees = _round_money(base_paid_noncash * REPAIR_ORDER_PAYMENT_TAX_RATE)
     return {
         "base_total": base_total,
-        "base_paid_cash": _round_money(base_paid_cash),
+        "base_paid_cash": _round_money(base_paid_cash + base_paid_card),
+        "base_paid_card": _round_money(base_paid_card),
         "base_paid_noncash": _round_money(base_paid_noncash),
         "base_remaining": _round_money(base_remaining),
         "cash_due": _round_money(base_remaining),
-        "noncash_due": _round_money(base_remaining * (Decimal("1") + REPAIR_ORDER_PAYMENT_TAX_RATE)),
+        "noncash_due": _round_money(
+            base_remaining * (Decimal("1") + REPAIR_ORDER_PAYMENT_TAX_RATE)
+        ),
         "taxes_and_fees": taxes_and_fees,
-        "total_paid": _round_money(base_paid_cash + base_paid_noncash),
+        "total_paid": _round_money(base_paid_cash + base_paid_card + base_paid_noncash),
         "grand_total": _round_money(base_total + taxes_and_fees),
         "due_total": _round_money(base_remaining),
     }
@@ -196,19 +239,31 @@ class RepairOrderRow:
 
     def __post_init__(self) -> None:
         self.name = _normalize_single_line(self.name, limit=REPAIR_ORDER_ROW_NAME_LIMIT)
-        self.catalog_number = _normalize_single_line(self.catalog_number, limit=REPAIR_ORDER_FIELD_LIMIT)
+        self.catalog_number = _normalize_single_line(
+            self.catalog_number, limit=REPAIR_ORDER_FIELD_LIMIT
+        )
         self.quantity = _normalize_single_line(self.quantity, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
         self.price = _normalize_single_line(self.price, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
         normalized_total = _normalize_single_line(self.total, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
         computed_total = self.computed_total()
         self.total = computed_total if computed_total else normalized_total
         self.executor_id = _normalize_single_line(self.executor_id, limit=64)
-        self.executor_name = _normalize_single_line(self.executor_name, limit=REPAIR_ORDER_FIELD_LIMIT)
+        self.executor_name = _normalize_single_line(
+            self.executor_name, limit=REPAIR_ORDER_FIELD_LIMIT
+        )
         self.salary_mode_snapshot = _normalize_single_line(self.salary_mode_snapshot, limit=32)
-        self.base_salary_snapshot = _normalize_single_line(self.base_salary_snapshot, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
-        self.work_percent_snapshot = _normalize_single_line(self.work_percent_snapshot, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
-        self.salary_amount = _normalize_single_line(self.salary_amount, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
-        self.salary_accrued_at = _normalize_single_line(self.salary_accrued_at, limit=REPAIR_ORDER_DATE_LIMIT)
+        self.base_salary_snapshot = _normalize_single_line(
+            self.base_salary_snapshot, limit=REPAIR_ORDER_ROW_VALUE_LIMIT
+        )
+        self.work_percent_snapshot = _normalize_single_line(
+            self.work_percent_snapshot, limit=REPAIR_ORDER_ROW_VALUE_LIMIT
+        )
+        self.salary_amount = _normalize_single_line(
+            self.salary_amount, limit=REPAIR_ORDER_ROW_VALUE_LIMIT
+        )
+        self.salary_accrued_at = _normalize_single_line(
+            self.salary_accrued_at, limit=REPAIR_ORDER_DATE_LIMIT
+        )
 
     def is_empty(self) -> bool:
         return not any([self.name, self.catalog_number, self.quantity, self.price, self.total])
@@ -246,14 +301,19 @@ class RepairOrderRow:
         return _format_decimal(quantity * price)
 
     @classmethod
-    def from_dict(cls, payload: Any) -> "RepairOrderRow":
+    def from_dict(cls, payload: Any) -> RepairOrderRow:
         if not isinstance(payload, dict):
             return cls()
         return cls(
             name=payload.get("name", ""),
             catalog_number=payload.get(
                 "catalog_number",
-                payload.get("catalogNumber", payload.get("part_number", payload.get("partNumber", payload.get("catalog", "")))),
+                payload.get(
+                    "catalogNumber",
+                    payload.get(
+                        "part_number", payload.get("partNumber", payload.get("catalog", ""))
+                    ),
+                ),
             ),
             quantity=payload.get("quantity", payload.get("qty", "")),
             price=payload.get("price", ""),
@@ -287,7 +347,7 @@ class RepairOrderTag:
         }
 
     @classmethod
-    def from_value(cls, payload: Any) -> "RepairOrderTag | None":
+    def from_value(cls, payload: Any) -> RepairOrderTag | None:
         if isinstance(payload, cls):
             return cls(label=payload.label, color=payload.color)
         if isinstance(payload, dict):
@@ -320,7 +380,9 @@ class RepairOrderPayment:
         self.note = _normalize_multiline(self.note, limit=REPAIR_ORDER_PAYMENT_NOTE_LIMIT)
         self.actor_name = _normalize_single_line(self.actor_name, limit=80)
         self.cashbox_id = _normalize_single_line(self.cashbox_id, limit=128)
-        self.cashbox_name = _normalize_single_line(self.cashbox_name, limit=REPAIR_ORDER_FIELD_LIMIT)
+        self.cashbox_name = _normalize_single_line(
+            self.cashbox_name, limit=REPAIR_ORDER_FIELD_LIMIT
+        )
         self.cash_transaction_id = _normalize_single_line(self.cash_transaction_id, limit=128)
         self.payment_method = repair_order_payment_method_from_cashbox_name(
             self.cashbox_name,
@@ -367,7 +429,7 @@ class RepairOrderPayment:
         }
 
     @classmethod
-    def from_dict(cls, payload: Any, *, fallback_id: str = "") -> "RepairOrderPayment":
+    def from_dict(cls, payload: Any, *, fallback_id: str = "") -> RepairOrderPayment:
         if not isinstance(payload, dict):
             return cls(id=fallback_id)
         return cls(
@@ -379,7 +441,9 @@ class RepairOrderPayment:
             actor_name=payload.get("actor_name", payload.get("actorName", "")),
             cashbox_id=payload.get("cashbox_id", payload.get("cashboxId", "")),
             cashbox_name=payload.get("cashbox_name", payload.get("cashboxName", "")),
-            cash_transaction_id=payload.get("cash_transaction_id", payload.get("cashTransactionId", "")),
+            cash_transaction_id=payload.get(
+                "cash_transaction_id", payload.get("cashTransactionId", "")
+            ),
         )
 
 
@@ -459,11 +523,15 @@ class RepairOrder:
         self.client = _normalize_single_line(self.client, limit=REPAIR_ORDER_FIELD_LIMIT)
         self.phone = _normalize_single_line(self.phone, limit=REPAIR_ORDER_FIELD_LIMIT)
         self.vehicle = _normalize_single_line(self.vehicle, limit=REPAIR_ORDER_FIELD_LIMIT)
-        self.license_plate = _normalize_single_line(self.license_plate, limit=REPAIR_ORDER_FIELD_LIMIT)
+        self.license_plate = _normalize_single_line(
+            self.license_plate, limit=REPAIR_ORDER_FIELD_LIMIT
+        )
         self.vin = _normalize_single_line(self.vin, limit=REPAIR_ORDER_FIELD_LIMIT)
         self.mileage = _normalize_single_line(self.mileage, limit=REPAIR_ORDER_FIELD_LIMIT)
         self.payment_method = normalize_repair_order_payment_method(self.payment_method)
-        self.prepayment = _normalize_single_line(self.prepayment, limit=REPAIR_ORDER_ROW_VALUE_LIMIT)
+        self.prepayment = _normalize_single_line(
+            self.prepayment, limit=REPAIR_ORDER_ROW_VALUE_LIMIT
+        )
         self.payments = normalize_repair_order_payments(self.payments)
         if not self.payments:
             legacy_amount = _parse_decimal(self.prepayment)
@@ -596,14 +664,18 @@ class RepairOrder:
 
     def cash_payments_value(self) -> Decimal:
         if self.payments:
-            return repair_order_payments_value_by_method(self.payments, REPAIR_ORDER_PAYMENT_METHOD_CASH)
+            return repair_order_payments_value_by_method(
+                self.payments, REPAIR_ORDER_PAYMENT_METHOD_CASH
+            )
         if self.payment_method == REPAIR_ORDER_PAYMENT_METHOD_CASH:
             return _parse_decimal(self.prepayment) or Decimal("0")
         return Decimal("0")
 
     def cashless_payments_value(self) -> Decimal:
         if self.payments:
-            return repair_order_payments_value_by_method(self.payments, REPAIR_ORDER_PAYMENT_METHOD_CASHLESS)
+            return repair_order_payments_value_by_method(
+                self.payments, REPAIR_ORDER_PAYMENT_METHOD_CASHLESS
+            )
         prepayment = _parse_decimal(self.prepayment) or Decimal("0")
         if self.payment_method != REPAIR_ORDER_PAYMENT_METHOD_CASHLESS:
             return Decimal("0")
@@ -658,7 +730,7 @@ class RepairOrder:
         return "Оплачен" if self.is_paid() else "Не оплачен"
 
     @classmethod
-    def from_dict(cls, payload: Any) -> "RepairOrder":
+    def from_dict(cls, payload: Any) -> RepairOrder:
         if not isinstance(payload, dict):
             return cls()
         return cls(
@@ -674,11 +746,24 @@ class RepairOrder:
             vin=payload.get("vin", ""),
             mileage=payload.get("mileage", payload.get("odometer", "")),
             payment_method=payload.get("payment_method", payload.get("paymentMethod", "")),
-            prepayment=payload.get("prepayment", payload.get("advance_payment", payload.get("advancePayment", ""))),
+            prepayment=payload.get(
+                "prepayment", payload.get("advance_payment", payload.get("advancePayment", ""))
+            ),
             payments=payload.get("payments", payload.get("payment_history", [])),
             reason=payload.get("reason", payload.get("problem", "")),
-            comment=payload.get("client_information", payload.get("clientInformation", payload.get("comment", ""))),
-            note=payload.get("note", payload.get("master_comment", payload.get("masterComment", payload.get("internal_comment", payload.get("internalComment", ""))))),
+            comment=payload.get(
+                "client_information", payload.get("clientInformation", payload.get("comment", ""))
+            ),
+            note=payload.get(
+                "note",
+                payload.get(
+                    "master_comment",
+                    payload.get(
+                        "masterComment",
+                        payload.get("internal_comment", payload.get("internalComment", "")),
+                    ),
+                ),
+            ),
             tags=payload.get("tags", []),
             works=payload.get("works", []),
             materials=payload.get("materials", []),

@@ -5901,6 +5901,8 @@ BOARD_WEB_APP_HTML = "".join(
         note: '',
       },
       employees: [],
+      employeesLoadedMonth: '',
+      employeesReferencePromise: null,
       activeEmployeeId: '',
       employeeCreateMode: false,
       employeesReportDetailsOpen: false,
@@ -8789,15 +8791,37 @@ BOARD_WEB_APP_HTML = "".join(
 
     async function loadEmployeesReference() {
       const month = state.payrollMonth || currentPayrollMonthValue();
-      const data = await api('/api/list_employees?month=' + encodeURIComponent(month));
-      state.employees = Array.isArray(data?.employees) ? data.employees : [];
-      if (!state.employeeCreateMode && !state.activeEmployeeId && state.employees.length) {
-        state.activeEmployeeId = state.employees[0].id;
+      if (state.employeesLoadedMonth === month && Array.isArray(state.employees)) {
+        if (!state.employeeCreateMode && !state.activeEmployeeId && state.employees.length) {
+          state.activeEmployeeId = state.employees[0].id;
+        }
+        if (!state.employees.length) {
+          state.employeeCreateMode = true;
+        }
+        return { employees: state.employees, meta: { cached: true, month } };
       }
-      if (!state.employees.length) {
-        state.employeeCreateMode = true;
+      if (state.employeesReferencePromise && state.employeesReferencePromise.month === month) {
+        return state.employeesReferencePromise.promise;
       }
-      return data;
+      const request = api('/api/list_employees?month=' + encodeURIComponent(month))
+        .then((data) => {
+          state.employees = Array.isArray(data?.employees) ? data.employees : [];
+          state.employeesLoadedMonth = month;
+          if (!state.employeeCreateMode && !state.activeEmployeeId && state.employees.length) {
+            state.activeEmployeeId = state.employees[0].id;
+          }
+          if (!state.employees.length) {
+            state.employeeCreateMode = true;
+          }
+          return data;
+        })
+        .finally(() => {
+          if (state.employeesReferencePromise && state.employeesReferencePromise.month === month) {
+            state.employeesReferencePromise = null;
+          }
+        });
+      state.employeesReferencePromise = { month, promise: request };
+      return request;
     }
 
     async function loadPayrollReport() {
@@ -8876,9 +8900,10 @@ BOARD_WEB_APP_HTML = "".join(
       }
       try {
         const data = await api('/api/save_employee', { method: 'POST', body: readEmployeeFormPayload() });
-        state.employees = Array.isArray(data?.employees) ? data.employees : [];
-        state.employeeCreateMode = false;
-        state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
+      state.employees = Array.isArray(data?.employees) ? data.employees : [];
+      state.employeesLoadedMonth = state.payrollMonth || currentPayrollMonthValue();
+      state.employeeCreateMode = false;
+      state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
         await loadPayrollReport();
         if (String(state.activeEmployeeSalaryId || '') === String(data?.employee?.id || '')) {
           await loadEmployeeSalarySheet(state.activeEmployeeSalaryId, { openModal: true });
@@ -8909,6 +8934,7 @@ BOARD_WEB_APP_HTML = "".join(
           },
         });
         state.employees = Array.isArray(data?.employees) ? data.employees : [];
+        state.employeesLoadedMonth = state.payrollMonth || currentPayrollMonthValue();
         if (String(state.activeEmployeeId || '') === String(employee.id || '')) {
           state.activeEmployeeId = '';
         }
@@ -8945,6 +8971,7 @@ BOARD_WEB_APP_HTML = "".join(
           },
         });
         state.employees = Array.isArray(data?.employees) ? data.employees : [];
+        state.employeesLoadedMonth = state.payrollMonth || currentPayrollMonthValue();
         state.activeEmployeeId = data?.employee?.id || state.activeEmployeeId;
         state.employeeCreateMode = false;
         await loadPayrollReport();
@@ -12909,35 +12936,41 @@ BOARD_WEB_APP_HTML = "".join(
     }
 
     async function openRepairOrderModal() {
-      try {
-        await loadEmployeesReference();
-      } catch (error) {
-        setStatus(error.message, true);
-      }
       let order = repairOrderCardDraft(state.activeCard, state.activeCard?.repair_order || {});
       const cardId = String(state.activeCard?.id || state.editingId || '').trim();
-      if (cardId) {
-        try {
-          const data = await api('/api/get_repair_order', {
-            method: 'POST',
-            body: {
-              card_id: cardId,
-              actor_name: state.actor,
-              source: 'ui',
-            },
-          });
-          const updatedCard = repairOrderResponseCard(data, order);
-          order = applyRepairOrderCardUpdate(updatedCard, data?.repair_order || order);
-        } catch (error) {
-          setStatus(error.message, true);
-          return;
-        }
-      }
-      applyRepairOrderToForm(order);
       if (!state.repairOrderParentLayer && els.cardModal.classList.contains('is-open')) {
         state.repairOrderParentLayer = 'card';
       }
       els.repairOrderModal.classList.add('is-open');
+      applyRepairOrderToForm(order);
+
+      const employeesRequest = loadEmployeesReference();
+      const repairOrderRequest = cardId
+        ? api('/api/get_repair_order', {
+          method: 'POST',
+          body: {
+            card_id: cardId,
+            actor_name: state.actor,
+            source: 'ui',
+          },
+        })
+        : Promise.resolve(null);
+
+      const [employeesResult, repairOrderResult] = await Promise.allSettled([employeesRequest, repairOrderRequest]);
+      if (employeesResult.status === 'rejected' && employeesResult.reason) {
+        setStatus(employeesResult.reason.message || String(employeesResult.reason), true);
+      }
+      if (cardId) {
+        if (repairOrderResult.status !== 'fulfilled' || !repairOrderResult.value) {
+          const error = repairOrderResult.status === 'rejected' ? repairOrderResult.reason : new Error('Не удалось загрузить заказ-наряд.');
+          setStatus(error.message || String(error), true);
+          return;
+        }
+        const data = repairOrderResult.value;
+        const updatedCard = repairOrderResponseCard(data, order);
+        order = applyRepairOrderCardUpdate(updatedCard, data?.repair_order || order);
+      }
+      applyRepairOrderToForm(order);
     }
 
     function closeRepairOrderModal() {
@@ -13194,8 +13227,12 @@ BOARD_WEB_APP_HTML = "".join(
       applyVehicleProfileToForm(currentCard?.vehicle_profile || emptyVehicleProfile());
       refreshRepairOrderEntry(currentCard);
       renderColorTags();
-      renderFiles(currentCard);
       renderLogs([]);
+      if (currentCard?.id) {
+        requestAnimationFrame(() => renderFiles(currentCard));
+      } else {
+        renderFiles(currentCard);
+      }
       if (state.cardCleanupState !== 'error') {
         state.cardCleanupState = currentCard?.id ? 'idle' : 'idle';
         state.cardCleanupError = '';
@@ -13710,16 +13747,38 @@ function renderCompactArchiveRows(cards) {
     async function openCardWorkspace(cardId, { closeModalEl = null, openCardModalEl = true, openRepairOrder = false, repairOrderParentLayer = '' } = {}) {
       const normalizedCardId = String(cardId || '').trim();
       if (!normalizedCardId) return null;
-      const data = await api('/api/open_card', { method: 'POST', body: { card_id: normalizedCardId } });
-      if (openCardModalEl) {
-        if (closeModalEl) closeModalEl.classList.remove('is-open');
-        openCardModal(data.card);
-      } else {
-        applyCardModalState(data.card);
+      const cachedCard = snapshotCardById(normalizedCardId);
+      const cardRequest = api('/api/open_card', { method: 'POST', body: { card_id: normalizedCardId } });
+      let repairOrderTask = null;
+      if (cachedCard) {
+        if (openCardModalEl) {
+          if (closeModalEl) closeModalEl.classList.remove('is-open');
+          openCardModal(cachedCard);
+        } else {
+          applyCardModalState(cachedCard);
+        }
       }
-      if (openRepairOrder) {
+      if (openRepairOrder && cachedCard) {
         state.repairOrderParentLayer = String(repairOrderParentLayer || (openCardModalEl ? 'card' : '')).trim();
-        await openRepairOrderModal();
+        repairOrderTask = openRepairOrderModal();
+      }
+      const data = await cardRequest;
+      if (!cachedCard) {
+        if (openCardModalEl) {
+          if (closeModalEl) closeModalEl.classList.remove('is-open');
+          openCardModal(data.card);
+        } else {
+          applyCardModalState(data.card);
+        }
+      } else if (data?.card?.id) {
+        state.activeCard = data.card;
+      }
+      if (openRepairOrder && !repairOrderTask) {
+        state.repairOrderParentLayer = String(repairOrderParentLayer || (openCardModalEl ? 'card' : '')).trim();
+        repairOrderTask = openRepairOrderModal();
+      }
+      if (repairOrderTask) {
+        await repairOrderTask;
       }
       return data.card;
     }

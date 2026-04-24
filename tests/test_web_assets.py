@@ -313,9 +313,15 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function renderEmployeeSalaryModal()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleEmployeeSalaryActionConfirm()", BOARD_WEB_APP_HTML)
         self.assertIn("await loadEmployeesReference();", BOARD_WEB_APP_HTML)
+        self.assertIn("employeesLoadedMonth: ''", BOARD_WEB_APP_HTML)
+        self.assertIn("employeesReferencePromise: null", BOARD_WEB_APP_HTML)
+        self.assertIn("state.employeesLoadedMonth = month;", BOARD_WEB_APP_HTML)
         self.assertIn("await loadPayrollReport();", BOARD_WEB_APP_HTML)
         self.assertIn("renderEmployeesWorkspace();", BOARD_WEB_APP_HTML)
-        self.assertIn("employee.balance_total ?? summary?.balance_total ?? summary?.total_salary", BOARD_WEB_APP_HTML)
+        self.assertIn(
+            "employee.balance_total ?? summary?.balance_total ?? summary?.total_salary",
+            BOARD_WEB_APP_HTML,
+        )
         self.assertIn("function renderEmployeeProfileMeta()", BOARD_WEB_APP_HTML)
         self.assertIn("function handleEmployeesDetailClick(event)", BOARD_WEB_APP_HTML)
         self.assertIn("function syncEmployeeSalaryModeUi()", BOARD_WEB_APP_HTML)
@@ -506,6 +512,8 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("function applyCardModalState(card)", BOARD_WEB_APP_HTML)
         self.assertIn("function resetCardModalState()", BOARD_WEB_APP_HTML)
         self.assertIn("async function persistCardPayload(payload)", BOARD_WEB_APP_HTML)
+        self.assertIn("const cachedCard = snapshotCardById(normalizedCardId);", BOARD_WEB_APP_HTML)
+        self.assertIn("requestAnimationFrame(() => renderFiles(currentCard));", BOARD_WEB_APP_HTML)
         self.assertIn(
             "async function openCardWorkspace(cardId, { closeModalEl = null, openCardModalEl = true, openRepairOrder = false, repairOrderParentLayer = '' } = {})",
             BOARD_WEB_APP_HTML,
@@ -522,6 +530,10 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("resetCardModalState();", BOARD_WEB_APP_HTML)
         self.assertIn("await persistCardPayload(payload);", BOARD_WEB_APP_HTML)
         self.assertIn("await openCardWorkspace(cardId);", BOARD_WEB_APP_HTML)
+        self.assertLess(
+            BOARD_WEB_APP_HTML.index("const cachedCard = snapshotCardById(normalizedCardId);"),
+            BOARD_WEB_APP_HTML.index("const data = await cardRequest;"),
+        )
         self.assertIn(
             "const createInTrigger = target.closest('[data-create-in]');", BOARD_WEB_APP_HTML
         )
@@ -965,6 +977,11 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("[data-open-repair-order-modal]", BOARD_WEB_APP_HTML)
         self.assertIn("openRepairOrderModal();", BOARD_WEB_APP_HTML)
         self.assertIn("'/api/get_repair_order'", BOARD_WEB_APP_HTML)
+        self.assertIn("els.repairOrderModal.classList.add('is-open');", BOARD_WEB_APP_HTML)
+        self.assertLess(
+            BOARD_WEB_APP_HTML.index("els.repairOrderModal.classList.add('is-open');"),
+            BOARD_WEB_APP_HTML.index("const employeesRequest = loadEmployeesReference();"),
+        )
         self.assertNotIn('id="repairOrderEntryNote"', BOARD_WEB_APP_HTML)
         self.assertIn('id="repairOrderDate"', BOARD_WEB_APP_HTML)
         self.assertIn('data-repair-order-field="date" type="text"', BOARD_WEB_APP_HTML)

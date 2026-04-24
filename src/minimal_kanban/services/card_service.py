@@ -57,6 +57,8 @@ from ..models import (
 )
 from ..printing.service import PrintModuleError, PrintModuleService
 from ..repair_order import (
+    REPAIR_ORDER_PAYMENT_METHOD_CARD,
+    REPAIR_ORDER_PAYMENT_METHOD_CASHLESS,
     REPAIR_ORDER_STATUS_CLOSED,
     REPAIR_ORDER_STATUS_OPEN,
     RepairOrder,
@@ -858,7 +860,9 @@ class CardService:
         scenario_id = str(payload.get("scenario_id", "") or "").strip().lower()
         heading = str(payload.get("card_heading", "") or payload.get("title", "") or "").strip()
         vehicle = str(payload.get("vehicle", "") or "").strip()
-        mini_prompt = str(payload.get("prompt", "") or payload.get("ai_autofill_prompt", "") or "").strip()
+        mini_prompt = str(
+            payload.get("prompt", "") or payload.get("ai_autofill_prompt", "") or ""
+        ).strip()
         lines = [
             "Выполни полное заполнение карточки автосервиса.",
             "Работай только с этой карточкой и заполни все подтверждаемые поля самостоятельно.",
@@ -925,7 +929,9 @@ class CardService:
                 except Exception:
                     server_available = True
             if enabled_requested and enabled and not previous_enabled:
-                self._append_card_ai_log(card, level="RUN", message="Полное заполнение карточки включено.")
+                self._append_card_ai_log(
+                    card, level="RUN", message="Полное заполнение карточки включено."
+                )
                 for level, message in self._card_ai_context_messages(card):
                     self._append_card_ai_log(card, level=level, message=message)
                 if self._agent_control is not None:
@@ -939,7 +945,9 @@ class CardService:
                         "ai_log_tail": list(card.ai_autofill_log[-8:]),
                         "scenario_id": "full_card_enrichment",
                     }
-                    task_payload["task_text"] = self._build_full_card_enrichment_prompt(task_payload)
+                    task_payload["task_text"] = self._build_full_card_enrichment_prompt(
+                        task_payload
+                    )
                     task = self._agent_control.enqueue_card_autofill_task(
                         task_payload,
                         source="ui_full_card_enrichment",
@@ -967,14 +975,18 @@ class CardService:
                         )
                     else:
                         self._append_card_ai_log(
-                            card, level="WAIT", message="Полное заполнение карточки уже выполняется."
+                            card,
+                            level="WAIT",
+                            message="Полное заполнение карточки уже выполняется.",
                         )
                 else:
                     self._append_card_ai_log(card, level="WARN", message="Server AI недоступен.")
             self._touch_card(card, actor_name)
             if enabled:
                 card.last_card_fingerprint = self._card_ai_fingerprint(card)
-            event_action = "card_full_enrichment_enabled" if enabled else "card_full_enrichment_disabled"
+            event_action = (
+                "card_full_enrichment_enabled" if enabled else "card_full_enrichment_disabled"
+            )
             event_message = (
                 f"{actor_name} {'включил' if enabled else 'выключил'} полное заполнение карточки"
             )
@@ -5804,6 +5816,85 @@ class CardService:
             payment.cashbox_id or "",
         )
 
+    def _repair_order_payment_target_cashbox(
+        self,
+        cashboxes: list[CashBox],
+        payment: RepairOrderPayment,
+        *,
+        default_method: str,
+    ) -> tuple[CashBox | None, str]:
+        payment_method = normalize_repair_order_payment_method(
+            payment.payment_method or default_method
+        )
+        selected_cashbox = (
+            self._find_cashbox(cashboxes, payment.cashbox_id) if payment.cashbox_id else None
+        )
+        if selected_cashbox is not None:
+            selected_method = repair_order_payment_method_from_cashbox_name(
+                selected_cashbox.name,
+                default=payment_method,
+            )
+            if selected_method in {
+                REPAIR_ORDER_PAYMENT_METHOD_CASHLESS,
+                REPAIR_ORDER_PAYMENT_METHOD_CARD,
+            }:
+                return selected_cashbox, selected_method
+
+        target = self._cashbox_for_repair_order_payment_method(cashboxes, payment_method)
+        if target is not None:
+            return target, payment_method
+        if selected_cashbox is not None:
+            return selected_cashbox, repair_order_payment_method_from_cashbox_name(
+                selected_cashbox.name,
+                default=payment_method,
+            )
+        return None, payment_method
+
+    def _cashbox_for_repair_order_payment_method(
+        self, cashboxes: list[CashBox], payment_method: str
+    ) -> CashBox | None:
+        normalized_method = normalize_repair_order_payment_method(payment_method)
+        if normalized_method == REPAIR_ORDER_PAYMENT_METHOD_CASHLESS:
+            return self._first_cashbox_matching(
+                cashboxes,
+                exact_names=("безналичный", "безналичная касса", "безнал"),
+                contains=("безнал", "cashless", "wire", "bank"),
+            )
+        if normalized_method == REPAIR_ORDER_PAYMENT_METHOD_CARD:
+            return self._first_cashbox_matching(
+                cashboxes,
+                exact_names=("на карту", "карта", "карта мария"),
+                contains=("на карту", "карта", "card", "мария"),
+            )
+        return self._first_cashbox_matching(
+            cashboxes,
+            exact_names=("наличный", "наличные", "касса наличных оплат"),
+            contains=("налич", "cash"),
+            exclude_contains=("безнал", "cashless", "wire", "bank", "карта", "card", "мария"),
+        )
+
+    def _first_cashbox_matching(
+        self,
+        cashboxes: list[CashBox],
+        *,
+        exact_names: tuple[str, ...],
+        contains: tuple[str, ...],
+        exclude_contains: tuple[str, ...] = (),
+    ) -> CashBox | None:
+        def matches(cashbox: CashBox, *, exact: bool) -> bool:
+            name = cashbox.name.casefold()
+            if any(marker in name for marker in exclude_contains):
+                return False
+            if exact:
+                return name in exact_names
+            return any(marker in name for marker in contains)
+
+        exact = [item for item in cashboxes if matches(item, exact=True)]
+        if exact:
+            return exact[0]
+        loose = [item for item in cashboxes if matches(item, exact=False)]
+        return loose[0] if loose else None
+
     def _is_cashbox_transfer_transaction(self, transaction: CashTransaction) -> bool:
         note = normalize_text(transaction.note, default="", limit=240).casefold()
         return note.startswith("перемещение в ") or note.startswith("перемещение из ")
@@ -5845,6 +5936,16 @@ class CardService:
             RepairOrderPayment.from_dict(payment.to_storage_dict())
             for payment in next_order.payments
         ]
+        for payment in next_payments:
+            cashbox, payment_method = self._repair_order_payment_target_cashbox(
+                cashboxes,
+                payment,
+                default_method=next_order.payment_method,
+            )
+            payment.payment_method = payment_method
+            if cashbox is not None:
+                payment.cashbox_id = cashbox.id
+                payment.cashbox_name = cashbox.name
         next_by_id = {payment.id: payment for payment in next_payments if payment.id}
 
         for previous_payment in previous_order.payments:
@@ -5898,9 +5999,6 @@ class CardService:
             if not payment.id:
                 payment.id = f"payment-{uuid.uuid4().hex[:10]}"
             payment.actor_name = payment.actor_name or actor_name
-            payment.payment_method = normalize_repair_order_payment_method(
-                payment.payment_method or next_order.payment_method
-            )
             if not payment.cashbox_id:
                 payment.cashbox_name = ""
                 payment.cash_transaction_id = ""
@@ -5908,9 +6006,8 @@ class CardService:
             cashbox = self._find_cashbox(cashboxes, payment.cashbox_id)
             payment.cashbox_id = cashbox.id
             payment.cashbox_name = cashbox.name
-            payment.payment_method = repair_order_payment_method_from_cashbox_name(
-                payment.cashbox_name,
-                default=payment.payment_method or next_order.payment_method,
+            payment.payment_method = normalize_repair_order_payment_method(
+                payment.payment_method or next_order.payment_method
             )
             if (
                 self._find_cash_transaction(cash_transactions, payment.cash_transaction_id)

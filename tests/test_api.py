@@ -304,8 +304,14 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn("replace_repair_order_works", prompt_text)
         self.assertIn("replace_repair_order_materials", prompt_text)
         self.assertEqual(payload["scenario_id"], "full_card_enrichment")
-        self.assertEqual(agent_control.enqueue_card_autofill_task.call_args.kwargs["purpose"], "full_card_enrichment")
-        self.assertEqual(agent_control.enqueue_card_autofill_task.call_args.kwargs["source"], "ui_full_card_enrichment")
+        self.assertEqual(
+            agent_control.enqueue_card_autofill_task.call_args.kwargs["purpose"],
+            "full_card_enrichment",
+        )
+        self.assertEqual(
+            agent_control.enqueue_card_autofill_task.call_args.kwargs["source"],
+            "ui_full_card_enrichment",
+        )
         self.assertEqual(payload["vehicle"], created["data"]["card"]["vehicle"])
 
     def test_head_root_and_health_are_supported(self) -> None:
@@ -1379,7 +1385,7 @@ class ApiServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         maria_order = updated_maria["data"]["card"]["repair_order"]
-        self.assertEqual(maria_order["payment_method"], "cash")
+        self.assertEqual(maria_order["payment_method"], "card")
         self.assertEqual(maria_order["taxes_total"], "0")
         self.assertEqual(maria_order["grand_total"], "1000")
         self.assertEqual(maria_order["due_total"], "500")
@@ -1805,7 +1811,9 @@ class ApiServerTests(unittest.TestCase):
         card_id = created["data"]["card"]["id"]
         self.assertEqual(created["data"]["card"]["vehicle"], "Suzuki Swift 2014")
         self.assertEqual(created["data"]["card"]["vehicle_profile"]["vin"], "JSAZC72S001234567")
-        self.assertEqual(created["data"]["card"]["vehicle_profile"]["registration_plate"], "A123BC77")
+        self.assertEqual(
+            created["data"]["card"]["vehicle_profile"]["registration_plate"], "A123BC77"
+        )
         self.assertEqual(
             created["data"]["card"]["vehicle_profile_compact"]["vin"], "JSAZC72S001234567"
         )
