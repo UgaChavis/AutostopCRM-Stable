@@ -27,6 +27,7 @@ Use this file for durable notes that should not be rediscovered every session.
 - Telegram AI also exposes `internet_search` as a model tool, so the decision JSON can request web search without relying only on the pre-route detector
 - Telegram AI now attaches a compact `conversation_state.last_card` from the previous card/search result so follow-up commands like "this card" or "that one" can reuse the last selected card instead of asking for it again
 - Telegram AI now also attaches `conversation_state.last_vin` when the previous verified card result includes a VIN, so follow-up commands can reuse the already-seen VIN instead of asking the user to resend it
+- Telegram AI voice notes are transcribed locally first with `faster-whisper`; OpenAI transcription stays as fallback when the local backend is missing or unavailable
 - Telegram AI escalates complex multi-step/VIN/OEM/parts/research CRM-planning commands from `AUTOSTOP_AI_MODEL` to `AUTOSTOP_AI_STRONG_MODEL` with `AUTOSTOP_AI_STRONG_REASONING_EFFORT`
 - VIN/parts internet-search requests should keep using `AUTOSTOP_AI_STRONG_MODEL` with web-search enabled; do not downgrade that path to the base model just to shorten the prompt
 - direct internet-search uses the base model for simple lookups, but complex VIN/OEM/parts searches now use the strong model with high reasoning and fall back once to the base model on transient OpenAI failure
@@ -55,6 +56,7 @@ Use this file for durable notes that should not be rediscovered every session.
   - Telegram AI container running
 - live Telegram AI VIN follow-up smoke inside `autostopcrm-telegram-ai` succeeded; `conversation_state.last_vin` was preserved across the next turn and was forwarded into internet-search payloads
 - live Telegram AI web-search payload smoke confirmed simple search uses `gpt-5.4-mini`/medium, complex VIN/OEM/parts search uses `gpt-5.4`/high, and Telegram formatting sections are present
+- live Telegram AI voice behavior now prefers local `faster-whisper` first and only falls back to OpenAI transcription when the local backend cannot be used
 - next likely feature: composed parts-search flow through Telegram:
   1. user references a card or asks for a part
   2. agent reads CRM card/context

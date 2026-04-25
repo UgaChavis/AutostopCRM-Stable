@@ -6,6 +6,7 @@ import logging
 import socket
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -59,6 +60,7 @@ def build_config(
         strong_model="gpt-5.4",
         vision_model="gpt-5.4-mini",
         transcription_model="gpt-4o-mini-transcribe",
+        local_transcription_model="base",
         reasoning_effort="medium",
         strong_reasoning_effort="high",
         crm_api_base_url="http://127.0.0.1:41731",
@@ -908,38 +910,41 @@ class TelegramAIOrchestratorTests(unittest.TestCase):
 
 
 class TelegramAITranscriptionTests(unittest.TestCase):
-    def test_voice_ogg_is_uploaded_directly_for_transcription(self) -> None:
+    def test_voice_ogg_uses_local_transcription_backend_before_openai(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = build_config(temp_dir)
             client = TelegramAIOpenAIClient(config)
             captured: dict[str, object] = {}
 
-            class FakeResponse:
-                def raise_for_status(self) -> None:
-                    return None
+            class FakeWhisperModel:
+                def __init__(self, model_name, device, compute_type, download_root):
+                    captured["init"] = {
+                        "model_name": model_name,
+                        "device": device,
+                        "compute_type": compute_type,
+                        "download_root": download_root,
+                    }
 
-                def json(self) -> dict[str, object]:
-                    return {"text": "Создай карточку"}
+                def transcribe(self, audio_path, language=None, beam_size=None, vad_filter=None):
+                    captured["audio_path"] = audio_path
+                    captured["language"] = language
+                    captured["beam_size"] = beam_size
+                    captured["vad_filter"] = vad_filter
+                    return [
+                        types.SimpleNamespace(text="Создай "),
+                        types.SimpleNamespace(text="карточку"),
+                    ], {}
 
-            class FakeHttpxClient:
+            fake_module = types.ModuleType("faster_whisper")
+            fake_module.WhisperModel = FakeWhisperModel
+
+            class FailIfOpenAIClient:
                 def __init__(self, *args, **kwargs) -> None:
-                    return None
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, exc_type, exc, tb) -> None:
-                    return None
-
-                def post(self, url, headers=None, data=None, files=None):
-                    captured["url"] = url
-                    captured["headers"] = headers
-                    captured["data"] = data
-                    captured["files"] = files
-                    return FakeResponse()
+                    raise AssertionError("OpenAI transcription should not be called first.")
 
             with (
-                patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FakeHttpxClient),
+                patch.dict(sys.modules, {"faster_whisper": fake_module}),
+                patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FailIfOpenAIClient),
             ):
                 text = client.transcribe_audio(
                     audio_bytes=b"ogg-bytes",
@@ -948,11 +953,13 @@ class TelegramAITranscriptionTests(unittest.TestCase):
                 )
 
             self.assertEqual(text, "Создай карточку")
-            file_name, file_bytes, file_mime = captured["files"]["file"]
-            self.assertTrue(str(file_name).endswith(".ogg"))
-            self.assertEqual(file_bytes, b"ogg-bytes")
-            self.assertEqual(file_mime, "audio/ogg")
-            self.assertEqual(captured["data"]["model"], "gpt-4o-mini-transcribe")
+            self.assertEqual(captured["init"]["model_name"], "base")
+            self.assertEqual(captured["init"]["device"], "cpu")
+            self.assertEqual(captured["init"]["compute_type"], "int8")
+            self.assertTrue(str(captured["audio_path"]).endswith("voice.ogg"))
+            self.assertEqual(captured["language"], "ru")
+            self.assertEqual(captured["beam_size"], 5)
+            self.assertTrue(captured["vad_filter"])
 
     def test_transcription_retries_transient_429(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1005,11 +1012,14 @@ class TelegramAITranscriptionTests(unittest.TestCase):
                         return FakeResponse(status_code=429)
                     return FakeResponse()
 
-            with patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FakeHttpxClient):
+            with (
+                patch.object(TelegramAIOpenAIClient, "_transcribe_audio_local", return_value=""),
+                patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FakeHttpxClient),
+            ):
                 text = client.transcribe_audio(
-                    audio_bytes=b"ogg-bytes",
-                    filename="voice.ogg",
-                    mime_type="audio/ogg",
+                    audio_bytes=b"wav-bytes",
+                    filename="voice.wav",
+                    mime_type="audio/wav",
                 )
 
             self.assertEqual(text, "Создай карточку")

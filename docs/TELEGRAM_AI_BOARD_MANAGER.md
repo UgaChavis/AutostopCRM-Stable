@@ -47,7 +47,7 @@ Telegram update
   -> TelegramBotClient long polling
   -> normalize_update
   -> TelegramAuthService
-  -> voice/photo processing through OpenAI when needed
+  -> voice/photo processing through local STT first, then OpenAI when needed
   -> CRMContextBuilder
   -> TelegramAIOpenAIClient decision JSON
   -> CRMToolRegistry
@@ -95,6 +95,7 @@ Optional:
 ```env
 AUTOSTOP_AI_VISION_MODEL=gpt-5.4-mini
 AUTOSTOP_AI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+AUTOSTOP_AI_LOCAL_TRANSCRIPTION_MODEL=base
 AUTOSTOP_AI_WEB_SEARCH_ENABLED=1
 AUTOSTOP_AI_AUTOPILOT_ENABLED=0
 AUTOSTOP_AI_AUTOPILOT_INTERVAL_MINUTES=30
@@ -109,7 +110,7 @@ If owner IDs, bot token, or OpenAI key are missing, the worker stays in safe-dis
 - `telegram_client.py`: Telegram Bot API polling, replies, file download
 - `normalizer.py`: text, voice, photo, document update normalization
 - `auth.py`: owner authorization by stable Telegram user ID
-- `openai_client.py`: Responses API decision JSON, image analysis, audio transcription
+- `openai_client.py`: Responses API decision JSON, image analysis, local-first audio transcription
 - `context.py`: compact CRM context builder from board snapshot/review/search
 - `crm_tools.py`: explicit CRM tool registry, validation, execution, verification
 - `audit.py`: redacted JSONL audit per run
@@ -324,7 +325,8 @@ Natural commands go to the model, for example:
 Добавь в заказ-наряд Камри замену масла и фильтра
 ```
 
-Voice messages are transcribed and then processed as normal text.
+Voice messages are transcribed locally first and then processed as normal text.
+If local STT is unavailable, OpenAI transcription is used as fallback.
 
 Conversation memory is enabled by default. The worker stores compact per-chat history so follow-up commands like `добавь туда описание`, `перенеси её`, or `прикрепи к этой карточке` can reuse recent verified card ids and actions. The memory stores summaries and ids, not raw file bytes.
 
@@ -361,7 +363,7 @@ Covered:
 - Responses API payload includes `web_search_preview` when internet search is enabled
 - automatic strong-model escalation for complex Telegram requests
 - web-search uses the base model with fast reasoning and retries once
-- voice `.ogg` conversion before transcription
+- voice `.ogg` local transcription with `faster-whisper` first, OpenAI fallback when needed
 - photo attachment and card-image analysis tool paths
 
 Current known green commands:

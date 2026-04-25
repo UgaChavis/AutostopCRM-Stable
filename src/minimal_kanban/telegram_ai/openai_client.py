@@ -33,6 +33,8 @@ class TelegramAIOpenAIClient:
         self._strong_reasoning_effort = config.strong_reasoning_effort or config.reasoning_effort
         self._timeout_seconds = config.openai_request_timeout_seconds
         self._web_search_enabled = config.web_search_enabled
+        self._local_transcription_model = config.local_transcription_model
+        self._local_transcription_download_root = config.data_dir / "models" / "faster_whisper"
 
     @property
     def model(self) -> str:
@@ -219,6 +221,56 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
         )
 
     def transcribe_audio(self, *, audio_bytes: bytes, filename: str, mime_type: str = "") -> str:
+        try:
+            local_text = self._transcribe_audio_local(
+                audio_bytes=audio_bytes,
+                filename=filename,
+                mime_type=mime_type,
+            )
+        except TelegramAIModelError:
+            local_text = ""
+        if local_text:
+            return local_text
+        return self._transcribe_audio_openai(
+            audio_bytes=audio_bytes,
+            filename=filename,
+            mime_type=mime_type,
+        )
+
+    def _transcribe_audio_local(
+        self, *, audio_bytes: bytes, filename: str, mime_type: str = ""
+    ) -> str:
+        try:
+            model = _get_local_whisper_model(
+                model_name=self._local_transcription_model,
+                download_root=self._local_transcription_download_root,
+            )
+        except TelegramAIModelError:
+            return ""
+        upload_name = (filename or "telegram-voice.ogg").strip() or "telegram-voice.ogg"
+        with tempfile.TemporaryDirectory(prefix="telegram_ai_local_stt_") as temp_dir:
+            temp_dir_path = Path(temp_dir)
+            input_path = temp_dir_path / Path(upload_name).name
+            input_path.write_bytes(audio_bytes)
+            try:
+                segments, _info = model.transcribe(
+                    str(input_path),
+                    language="ru",
+                    beam_size=5,
+                    vad_filter=True,
+                )
+            except Exception as exc:
+                raise TelegramAIModelError("Local transcription request failed.") from exc
+            text = " ".join(
+                segment.text.strip()
+                for segment in segments
+                if getattr(segment, "text", "").strip()
+            ).strip()
+        return text
+
+    def _transcribe_audio_openai(
+        self, *, audio_bytes: bytes, filename: str, mime_type: str = ""
+    ) -> str:
         upload_name, upload_mime_type, upload_bytes = self._prepare_transcription_audio(
             audio_bytes=audio_bytes,
             filename=filename,
@@ -720,7 +772,7 @@ def _openai_error_message(response: httpx.Response) -> str:
 
 def _is_supported_audio_upload(filename: str, mime_type: str) -> bool:
     suffix = Path(filename or "").suffix.lower()
-    if suffix in {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm", ".ogg", ".oga", ".opus"}:
+    if suffix in {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm"}:
         return True
     return (mime_type or "").lower() in {
         "audio/mpeg",
@@ -730,10 +782,7 @@ def _is_supported_audio_upload(filename: str, mime_type: str) -> bool:
         "audio/wav",
         "audio/x-wav",
         "audio/webm",
-        "audio/ogg",
-        "audio/opus",
         "video/mp4",
-        "application/ogg",
     }
 
 
@@ -754,3 +803,37 @@ def _guess_audio_mime_type(filename: str) -> str:
     if suffix in {".ogg", ".oga", ".opus"}:
         return "audio/ogg"
     return "application/octet-stream"
+
+
+_LOCAL_WHISPER_MODELS: dict[tuple[str, str], Any] = {}
+
+
+def _get_local_whisper_model(*, model_name: str, download_root: Path) -> Any:
+    cache_key = (model_name, str(download_root))
+    cached = _LOCAL_WHISPER_MODELS.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:
+        raise TelegramAIModelError("Local transcription backend is unavailable.") from exc
+    download_root.mkdir(parents=True, exist_ok=True)
+    try:
+        model = WhisperModel(
+            model_name,
+            device="cpu",
+            compute_type="int8",
+            download_root=str(download_root),
+        )
+    except Exception:
+        try:
+            model = WhisperModel(
+                model_name,
+                device="cpu",
+                compute_type="float32",
+                download_root=str(download_root),
+            )
+        except Exception as fallback_exc:
+            raise TelegramAIModelError("Local transcription model failed to load.") from fallback_exc
+    _LOCAL_WHISPER_MODELS[cache_key] = model
+    return model

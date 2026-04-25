@@ -86,6 +86,7 @@ docker compose logs --tail=100 autostopcrm-telegram-ai
 Current Telegram AI behavior:
 
 - text, voice, photo, CRM tools, audit, rollback basics, and conversation memory are implemented
+- voice notes are transcribed locally first with `faster-whisper`; OpenAI transcription is fallback only
 - explicit `найди в интернете` / `загугли` commands and the model-planned `internet_search` tool use OpenAI `web_search_preview`
 - complex CRM-planning commands can escalate to `AUTOSTOP_AI_STRONG_MODEL`
 - direct internet search intentionally stays on `AUTOSTOP_AI_MODEL` with a low search context and one retry; this avoids the live strong-model web-search timeout/429 failure mode

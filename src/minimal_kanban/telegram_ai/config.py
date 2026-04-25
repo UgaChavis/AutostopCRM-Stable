@@ -82,6 +82,7 @@ class TelegramAIConfig:
     strong_model: str
     vision_model: str
     transcription_model: str
+    local_transcription_model: str
     reasoning_effort: str
     strong_reasoning_effort: str
     crm_api_base_url: str
@@ -133,6 +134,7 @@ def load_config() -> TelegramAIConfig:
         vision_model=_env_text("AUTOSTOP_AI_VISION_MODEL") or model,
         transcription_model=_env_text("AUTOSTOP_AI_TRANSCRIPTION_MODEL")
         or "gpt-4o-mini-transcribe",
+        local_transcription_model=_env_text("AUTOSTOP_AI_LOCAL_TRANSCRIPTION_MODEL") or "base",
         reasoning_effort=_env_text("AUTOSTOP_AI_REASONING_EFFORT") or "medium",
         strong_reasoning_effort=_env_text("AUTOSTOP_AI_STRONG_REASONING_EFFORT") or "high",
         crm_api_base_url=_default_crm_api_base_url(),
