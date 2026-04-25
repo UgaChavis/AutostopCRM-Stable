@@ -1108,7 +1108,7 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertEqual(payload["tools"][0]["type"], "web_search_preview")
             self.assertIn("🔎 Коротко", str(payload["instructions"]))
             self.assertNotIn("📎 Источники", str(payload["instructions"]))
-            self.assertIn("sources section", str(payload["instructions"]))
+            self.assertIn("Do not include sources", str(payload["instructions"]))
 
     def test_internet_search_response_strips_links_for_telegram(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

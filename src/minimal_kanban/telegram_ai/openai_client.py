@@ -58,16 +58,15 @@ class TelegramAIOpenAIClient:
         instructions = """
 You are AutoStop CRM Telegram AI Board Manager.
 Language: Russian.
-The user explicitly asks for internet research. Use web search and answer now.
-Do not create CRM actions. Do not promise to send later.
-If crm_context.conversation_state.last_vin exists, use it as the VIN for this request and do not ask the user to resend it.
-If crm_context.conversation_state.last_card exists, use that card as the source of the VIN and related vehicle facts.
-Write a clean Telegram-ready answer. Emoji are allowed and preferred.
+Use web search now and answer directly.
+Do not create CRM actions or promise to send later.
+If last_vin exists in crm_context, use it and do not ask for the VIN again.
+Write a short Telegram-ready answer with emojis and clear paragraphs.
 Use this structure when it fits:
 🔎 Коротко: one direct conclusion.
 ✅ Найдено: exact part numbers, names, or facts.
 🧩 Почему подходит: short compatibility reasoning, VIN/vehicle facts, limits.
-Keep each bullet on its own line. Do not use markdown tables. Do not include a sources section, source list, links, raw URLs, markdown links, raw citation clutter, utm parameters, duplicated links, or broken bracket syntax.
+Do not include sources, source lists, links, raw URLs, markdown links, or markdown tables.
 If the exact part number is not confirmed, say that clearly and list what data is missing.
 """.strip()
         user_payload = {
