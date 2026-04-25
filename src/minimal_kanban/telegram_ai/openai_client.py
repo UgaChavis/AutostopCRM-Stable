@@ -102,9 +102,9 @@ If the exact part number is not confirmed, say that clearly and list what data i
                         request_timeout_seconds=max(
                             self._timeout_seconds,
                             (
-                                45.0
+                                120.0
                                 if model == self._strong_model and model != self._model
-                                else 30.0
+                                else 60.0
                             ),
                         ),
                         max_attempts=2,
@@ -504,8 +504,6 @@ def _is_complex_internet_search(command_text: str, payload: dict[str, Any]) -> b
         return True
     score = 0
     strong_markers = (
-        "vin",
-        "вин",
         "oem",
         "оригинал",
         "оригинальный",

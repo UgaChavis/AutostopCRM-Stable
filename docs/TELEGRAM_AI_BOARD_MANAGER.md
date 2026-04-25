@@ -195,6 +195,7 @@ Production stabilization note:
 
 - Simple web-search uses the base model `AUTOSTOP_AI_MODEL` and a low search context size.
 - Complex web-search for VIN, OEM, parts, compatibility, analogs, and source comparison uses `AUTOSTOP_AI_STRONG_MODEL` with `AUTOSTOP_AI_STRONG_REASONING_EFFORT`.
+- When `conversation_state.last_vin` is available or the request is clearly VIN/parts-related, keep the strong model path and web-search enabled.
 - Transient OpenAI `429` and timeout responses are retried before the worker falls back from the strong model to the base model.
 - If the strong web-search call fails with a transient OpenAI error, the worker falls back once to the base model before surfacing an error to Telegram.
 - The Telegram worker wraps update handling in a safety net and still sends a fallback failure reply if the update pipeline throws before the normal reply path.

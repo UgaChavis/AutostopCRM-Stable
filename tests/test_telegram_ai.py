@@ -1245,6 +1245,44 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertEqual(payload["tools"][0]["type"], "web_search_preview")
             self.assertEqual(payload["tools"][0]["search_context_size"], "low")
 
+    def test_vin_parts_search_uses_strong_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = TelegramAIConfig(
+                **{
+                    **build_config(temp_dir).__dict__,
+                    "web_search_enabled": True,
+                }
+            )
+            client = TelegramAIOpenAIClient(config)
+            captured: dict[str, object] = {}
+
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
+                captured["payload"] = payload
+                return {"output_text": "Найдено"}
+
+            with patch.object(
+                TelegramAIOpenAIClient, "_post_with_retry", side_effect=fake_post_with_retry
+            ):
+                client.internet_search(
+                    command_text="Найди по этому VIN передние тормозные колодки",
+                    role="owner",
+                    crm_context={
+                        "conversation_state": {
+                            "last_vin": "JTD...",
+                        }
+                    },
+                )
+
+            payload = captured["payload"]
+            self.assertIsInstance(payload, dict)
+            assert isinstance(payload, dict)
+            self.assertEqual(payload["model"], "gpt-5.4")
+            self.assertEqual(payload["reasoning"], {"effort": "high"})
+
     def test_complex_internet_search_falls_back_to_base_model_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = TelegramAIConfig(
