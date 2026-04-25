@@ -6113,19 +6113,19 @@ BOARD_WEB_APP_HTML = "".join(
       {
         title: 'Идентификация',
         fields: [
-          { name: 'display_name', label: 'Марка / модель', placeholder: 'Subaru Legacy', wide: true },
-          { name: 'registration_plate', label: 'Гос номер', placeholder: 'А123АА124', mono: true },
-          { name: 'production_year', label: 'Год', type: 'number', min: '1900', max: '2100', step: '1', placeholder: '2016' },
-          { name: 'mileage', label: 'Пробег', type: 'number', min: '0', step: '1', placeholder: '185000' },
-          { name: 'vin', label: 'VIN', placeholder: 'WAU...', copy: true, mono: true, wide: true, maxlength: '17' },
+          { name: 'display_name', label: 'Марка / модель', wide: true },
+          { name: 'registration_plate', label: 'Гос номер', mono: true },
+          { name: 'production_year', label: 'Год', type: 'number', min: '1900', max: '2100', step: '1' },
+          { name: 'mileage', label: 'Пробег', type: 'number', min: '0', step: '1' },
+          { name: 'vin', label: 'VIN', copy: true, mono: true, wide: true, maxlength: '17' },
         ],
       },
       {
         title: 'Агрегаты',
         fields: [
-          { name: 'engine_model', label: 'Модель двигателя', placeholder: '3.0 TFSI / K12B', wide: true },
-          { name: 'gearbox_model', label: 'Модель КПП', placeholder: 'ZF 8HP55 / Aisin', wide: true },
-          { name: 'drivetrain', label: 'Привод', placeholder: 'передний / задний / полный', wide: true },
+          { name: 'engine_model', label: 'Модель двигателя', wide: true },
+          { name: 'gearbox_model', label: 'Модель КПП', wide: true },
+          { name: 'drivetrain', label: 'Привод', wide: true },
         ],
       },
     ];
@@ -6133,8 +6133,8 @@ BOARD_WEB_APP_HTML = "".join(
     VEHICLE_FIELD_GROUPS[0].fields.splice(
       4,
       0,
-      { name: 'customer_phone', label: 'Телефон клиента', placeholder: '+7 900 123-45-67', wide: true },
-      { name: 'customer_name', label: 'ФИО клиента', placeholder: 'Иван Иванов', wide: true },
+      { name: 'customer_phone', label: 'Телефон клиента', wide: true },
+      { name: 'customer_name', label: 'ФИО клиента', wide: true },
     );
     const VEHICLE_FIELD_MAP = Object.fromEntries(
       VEHICLE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => [field.name, field]))

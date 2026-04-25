@@ -94,6 +94,14 @@ class WebAssetsTests(unittest.TestCase):
         self.assertIn("МЕТОК НЕТ", BOARD_WEB_APP_HTML)
         self.assertIn(".column > * {", BOARD_WEB_APP_HTML)
 
+    def test_vehicle_profile_fields_do_not_show_placeholder_hints(self) -> None:
+        self.assertNotIn("Subaru Legacy", BOARD_WEB_APP_HTML)
+        self.assertNotIn("3.0 TFSI / K12B", BOARD_WEB_APP_HTML)
+        self.assertNotIn("ZF 8HP55 / Aisin", BOARD_WEB_APP_HTML)
+        self.assertNotIn("передний / задний / полный", BOARD_WEB_APP_HTML)
+        self.assertNotIn("Иван Иванов", BOARD_WEB_APP_HTML)
+        self.assertNotIn("WAU...", BOARD_WEB_APP_HTML)
+
     def test_modal_uses_themed_scrollbars(self) -> None:
         self.assertIn("--scroll-track:", BOARD_WEB_APP_HTML)
         self.assertIn(
