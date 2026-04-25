@@ -5768,19 +5768,19 @@ BOARD_WEB_APP_HTML = "".join(
             <div class="repair-order-card__grid repair-order-card__grid--document">
               <div class="field field--compact repair-order-field repair-order-field--number">
                 <label for="repairOrderNumber">НОМЕР</label>
-                <input id="repairOrderNumber" data-repair-order-field="number" type="text" maxlength="32" placeholder="1">
+                <input id="repairOrderNumber" data-repair-order-field="number" type="text" maxlength="32">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--date">
                 <label for="repairOrderDate">ДАТА</label>
-                <input id="repairOrderDate" data-repair-order-field="date" type="text" maxlength="32" placeholder="04.04.26 14:30">
+                <input id="repairOrderDate" data-repair-order-field="date" type="text" maxlength="32">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--date">
                 <label for="repairOrderOpenedAt">ОТКРЫТА</label>
-                <input id="repairOrderOpenedAt" data-repair-order-field="opened_at" type="text" maxlength="32" placeholder="05.04.26 10:30">
+                <input id="repairOrderOpenedAt" data-repair-order-field="opened_at" type="text" maxlength="32">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--date">
                 <label for="repairOrderClosedAt">ЗАКРЫТА</label>
-                <input id="repairOrderClosedAt" data-repair-order-field="closed_at" type="text" maxlength="32" placeholder="05.04.26 18:20">
+                <input id="repairOrderClosedAt" data-repair-order-field="closed_at" type="text" maxlength="32">
               </div>
             </div>
           </section>
@@ -5788,11 +5788,11 @@ BOARD_WEB_APP_HTML = "".join(
             <div class="panel-title">КЛИЕНТ</div>
             <div class="repair-order-card__grid repair-order-card__grid--client">
               <div class="field field--compact repair-order-field repair-order-field--client">
-                <input id="repairOrderClient" data-repair-order-field="client" aria-label="Клиент" type="text" maxlength="120" placeholder="Имя и фамилия">
+                <input id="repairOrderClient" data-repair-order-field="client" aria-label="Клиент" type="text" maxlength="120">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--phone">
                 <label for="repairOrderPhone">ТЕЛЕФОН</label>
-                <input id="repairOrderPhone" data-repair-order-field="phone" type="text" maxlength="60" placeholder="+7 900 123-45-67">
+                <input id="repairOrderPhone" data-repair-order-field="phone" type="text" maxlength="60">
               </div>
             </div>
           </section>
@@ -5800,19 +5800,19 @@ BOARD_WEB_APP_HTML = "".join(
             <div class="panel-title">АВТОМОБИЛЬ</div>
             <div class="repair-order-card__grid repair-order-card__grid--vehicle">
               <div class="field field--compact repair-order-field repair-order-field--vehicle">
-                <input id="repairOrderVehicle" data-repair-order-field="vehicle" aria-label="Автомобиль" type="text" maxlength="120" placeholder="Volkswagen Tiguan">
+                <input id="repairOrderVehicle" data-repair-order-field="vehicle" aria-label="Автомобиль" type="text" maxlength="120">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--plate">
                 <label for="repairOrderLicensePlate">ГОСНОМЕР</label>
-                <input id="repairOrderLicensePlate" data-repair-order-field="license_plate" type="text" maxlength="20" placeholder="А123АА124">
+                <input id="repairOrderLicensePlate" data-repair-order-field="license_plate" type="text" maxlength="20">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--vin">
                 <label for="repairOrderVin">VIN</label>
-                <input id="repairOrderVin" data-repair-order-field="vin" type="text" maxlength="32" placeholder="WAUZZZ...">
+                <input id="repairOrderVin" data-repair-order-field="vin" type="text" maxlength="32">
               </div>
               <div class="field field--compact repair-order-field repair-order-field--mileage">
                 <label for="repairOrderMileage">ПРОБЕГ</label>
-                <input id="repairOrderMileage" data-repair-order-field="mileage" type="text" maxlength="32" placeholder="215 000">
+                <input id="repairOrderMileage" data-repair-order-field="mileage" type="text" maxlength="32">
               </div>
             </div>
             <div class="repair-order-hidden-fields" aria-hidden="true">
@@ -5833,19 +5833,19 @@ BOARD_WEB_APP_HTML = "".join(
         <section class="repair-order-card repair-order-card--wide hidden" data-repair-order-section="reason" aria-hidden="true">
           <div class="panel-title">ПРИЧИНА ОБРАЩЕНИЯ</div>
           <div class="field field--compact repair-order-client-info">
-            <textarea id="repairOrderReason" data-repair-order-field="reason" aria-label="Причина обращения" maxlength="4000" placeholder="Кратко зафиксируйте суть обращения клиента."></textarea>
+            <textarea id="repairOrderReason" data-repair-order-field="reason" aria-label="Причина обращения" maxlength="4000"></textarea>
           </div>
         </section>
         <section class="repair-order-card repair-order-card--wide" data-repair-order-section="client_information">
           <div class="panel-title">ИНФОРМАЦИЯ ДЛЯ КЛИЕНТА</div>
           <div class="field field--compact repair-order-client-info">
-            <textarea id="repairOrderComment" data-repair-order-field="client_information" aria-label="Информация для клиента" maxlength="4000" placeholder="Краткая история ремонта для клиента: что проверили, что нашли, что сделали и что рекомендовано дальше."></textarea>
+            <textarea id="repairOrderComment" data-repair-order-field="client_information" aria-label="Информация для клиента" maxlength="4000"></textarea>
           </div>
         </section>
         <section class="repair-order-card repair-order-card--wide hidden" data-repair-order-section="note" aria-hidden="true">
           <div class="panel-title">ПРИМЕЧАНИЕ</div>
           <div class="field field--compact repair-order-client-info">
-            <textarea id="repairOrderNote" data-repair-order-field="note" aria-label="Примечание мастера" maxlength="4000" placeholder="Внутренний комментарий мастера или примечание по заказ-наряду."></textarea>
+            <textarea id="repairOrderNote" data-repair-order-field="note" aria-label="Примечание мастера" maxlength="4000"></textarea>
           </div>
         </section>
         <section class="repair-order-card repair-order-card--wide repair-order-tags-card hidden" data-repair-order-section="tags" aria-hidden="true">
@@ -5857,7 +5857,7 @@ BOARD_WEB_APP_HTML = "".join(
           <div class="repair-order-tag-editor">
             <div class="tag-color-picker" id="repairOrderTagColorPicker"></div>
             <div class="tag-entry">
-              <input id="repairOrderTagInput" type="text" maxlength="24" placeholder="МЕТКА">
+              <input id="repairOrderTagInput" type="text" maxlength="24">
               <button class="btn" id="repairOrderTagAddButton" type="button">+</button>
             </div>
           </div>
@@ -12762,7 +12762,7 @@ BOARD_WEB_APP_HTML = "".join(
 
     function repairOrderRowInputHtml(fieldName, value, placeholder = '') {
       const isNumeric = fieldName === 'quantity' || fieldName === 'price';
-      return '<input class="repair-order-table__input' + (isNumeric ? ' repair-order-table__input--num' : '') + '" type="text"' + (isNumeric ? ' inputmode="decimal"' : '') + ' data-repair-order-cell="' + escapeHtml(fieldName) + '" value="' + escapeHtml(value) + '" placeholder="' + escapeHtml(placeholder) + '">';
+      return '<input class="repair-order-table__input' + (isNumeric ? ' repair-order-table__input--num' : '') + '" type="text"' + (isNumeric ? ' inputmode="decimal"' : '') + ' data-repair-order-cell="' + escapeHtml(fieldName) + '" value="' + escapeHtml(value) + '">';
     }
 
     function repairOrderExecutorOptionsHtml(selectedId, selectedName = '') {

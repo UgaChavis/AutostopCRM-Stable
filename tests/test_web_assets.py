@@ -102,6 +102,32 @@ class WebAssetsTests(unittest.TestCase):
         self.assertNotIn("Иван Иванов", BOARD_WEB_APP_HTML)
         self.assertNotIn("WAU...", BOARD_WEB_APP_HTML)
 
+    def test_repair_order_fields_do_not_show_placeholder_hints(self) -> None:
+        self.assertNotIn("placeholder=\"1\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"04.04.26 14:30\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"05.04.26 10:30\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"05.04.26 18:20\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"Имя и фамилия\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"+7 900 123-45-67\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"Volkswagen Tiguan\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"А123АА124\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"WAUZZZ...\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"215 000\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn(
+            "placeholder=\"Кратко зафиксируйте суть обращения клиента.\"", BOARD_WEB_APP_HTML
+        )
+        self.assertNotIn(
+            "placeholder=\"Краткая история ремонта для клиента: что проверили, что нашли, что сделали и что рекомендовано дальше.\"",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertNotIn(
+            "placeholder=\"Внутренний комментарий мастера или примечание по заказ-наряду.\"",
+            BOARD_WEB_APP_HTML,
+        )
+        self.assertNotIn("placeholder=\"МЕТКА\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"Артикул / OEM\"", BOARD_WEB_APP_HTML)
+        self.assertNotIn("placeholder=\"Наименование\"", BOARD_WEB_APP_HTML)
+
     def test_modal_uses_themed_scrollbars(self) -> None:
         self.assertIn("--scroll-track:", BOARD_WEB_APP_HTML)
         self.assertIn(
