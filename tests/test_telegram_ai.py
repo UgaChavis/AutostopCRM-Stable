@@ -854,7 +854,7 @@ class TelegramAIOrchestratorTests(unittest.TestCase):
 
 
 class TelegramAITranscriptionTests(unittest.TestCase):
-    def test_voice_ogg_is_converted_before_transcription_upload(self) -> None:
+    def test_voice_ogg_is_uploaded_directly_for_transcription(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = build_config(temp_dir)
             client = TelegramAIOpenAIClient(config)
@@ -884,17 +884,7 @@ class TelegramAITranscriptionTests(unittest.TestCase):
                     captured["files"] = files
                     return FakeResponse()
 
-            def fake_run(cmd, check, capture_output, text):
-                Path(cmd[-1]).write_bytes(b"mp3-bytes")
-                return None
-
             with (
-                patch(
-                    "minimal_kanban.telegram_ai.openai_client.shutil.which", return_value="ffmpeg"
-                ),
-                patch(
-                    "minimal_kanban.telegram_ai.openai_client.subprocess.run", side_effect=fake_run
-                ),
                 patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FakeHttpxClient),
             ):
                 text = client.transcribe_audio(
@@ -905,10 +895,71 @@ class TelegramAITranscriptionTests(unittest.TestCase):
 
             self.assertEqual(text, "Создай карточку")
             file_name, file_bytes, file_mime = captured["files"]["file"]
-            self.assertTrue(str(file_name).endswith(".mp3"))
-            self.assertEqual(file_bytes, b"mp3-bytes")
-            self.assertEqual(file_mime, "audio/mpeg")
+            self.assertTrue(str(file_name).endswith(".ogg"))
+            self.assertEqual(file_bytes, b"ogg-bytes")
+            self.assertEqual(file_mime, "audio/ogg")
             self.assertEqual(captured["data"]["model"], "gpt-4o-mini-transcribe")
+
+    def test_transcription_retries_transient_429(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = build_config(temp_dir)
+            client = TelegramAIOpenAIClient(config)
+            seen_posts: list[dict[str, object]] = []
+
+            class FakeResponse:
+                def __init__(self, *, status_code: int = 200, payload: dict[str, object] | None = None):
+                    self.status_code = status_code
+                    self._payload = payload or {"text": "Создай карточку"}
+                    self.headers = {"retry-after": "0"}
+
+                def raise_for_status(self) -> None:
+                    if self.status_code >= 400:
+                        request = httpx.Request(
+                            "POST",
+                            "https://api.openai.com/v1/audio/transcriptions",
+                        )
+                        response = httpx.Response(
+                            self.status_code,
+                            request=request,
+                            headers=self.headers,
+                        )
+                        raise httpx.HTTPStatusError(
+                            "boom",
+                            request=request,
+                            response=response,
+                        )
+
+                def json(self) -> dict[str, object]:
+                    return self._payload
+
+            class FakeHttpxClient:
+                attempts = 0
+
+                def __init__(self, *args, **kwargs) -> None:
+                    return None
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb) -> None:
+                    return None
+
+                def post(self, url, headers=None, data=None, files=None):
+                    FakeHttpxClient.attempts += 1
+                    seen_posts.append({"url": url, "data": data, "files": files})
+                    if FakeHttpxClient.attempts == 1:
+                        return FakeResponse(status_code=429)
+                    return FakeResponse()
+
+            with patch("minimal_kanban.telegram_ai.openai_client.httpx.Client", FakeHttpxClient):
+                text = client.transcribe_audio(
+                    audio_bytes=b"ogg-bytes",
+                    filename="voice.ogg",
+                    mime_type="audio/ogg",
+                )
+
+            self.assertEqual(text, "Создай карточку")
+            self.assertEqual(len(seen_posts), 2)
 
 
 class TelegramAIResponsesPayloadTests(unittest.TestCase):

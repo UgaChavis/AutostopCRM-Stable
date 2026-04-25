@@ -233,18 +233,31 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
             )
         }
         data = {"model": self._transcription_model, "response_format": "json"}
-        try:
-            with httpx.Client(timeout=self._timeout_seconds) as client:
-                response = client.post(
-                    f"{self._base_url}/audio/transcriptions",
-                    headers=headers,
-                    data=data,
-                    files=files,
-                )
-            response.raise_for_status()
-            payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise TelegramAIModelError("OpenAI transcription request failed.") from exc
+        last_error: Exception | None = None
+        timeout = max(self._timeout_seconds, 90.0)
+        attempts = 3
+        for attempt in range(1, attempts + 1):
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.post(
+                        f"{self._base_url}/audio/transcriptions",
+                        headers=headers,
+                        data=data,
+                        files=files,
+                    )
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                if exc.response.status_code not in {408, 409, 429, 500, 502, 503, 504}:
+                    raise TelegramAIModelError(_openai_error_message(exc.response)) from exc
+            except (httpx.HTTPError, ValueError) as exc:
+                last_error = exc
+            if attempt < attempts:
+                time.sleep(_retry_delay_seconds(last_error, attempt))
+        else:
+            raise TelegramAIModelError(f"OpenAI transcription request failed: {last_error}") from last_error
         text = str(payload.get("text") or "").strip() if isinstance(payload, dict) else ""
         if not text:
             raise TelegramAIModelError("OpenAI transcription returned empty text.")
@@ -707,7 +720,7 @@ def _openai_error_message(response: httpx.Response) -> str:
 
 def _is_supported_audio_upload(filename: str, mime_type: str) -> bool:
     suffix = Path(filename or "").suffix.lower()
-    if suffix in {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm"}:
+    if suffix in {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm", ".ogg", ".oga", ".opus"}:
         return True
     return (mime_type or "").lower() in {
         "audio/mpeg",
@@ -717,7 +730,10 @@ def _is_supported_audio_upload(filename: str, mime_type: str) -> bool:
         "audio/wav",
         "audio/x-wav",
         "audio/webm",
+        "audio/ogg",
+        "audio/opus",
         "video/mp4",
+        "application/ogg",
     }
 
 
