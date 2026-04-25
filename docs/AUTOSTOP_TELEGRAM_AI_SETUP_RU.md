@@ -5,12 +5,12 @@
 ## Текущая рабочая точка
 
 - branch: `autostopcrm-v1`
-- latest verified Telegram AI checkpoint: `b159b48`
+- latest verified Telegram AI checkpoint: `c0f6188`
 - production repo: `/opt/autostopcrm`
 - CRM: `https://crm.autostopcrm.ru`
 - MCP: `https://crm.autostopcrm.ru/mcp`
 - Docker services: `autostopcrm`, `autostopcrm-telegram-ai`
-- local full suite at checkpoint: `431/431 OK`
+- local full suite at checkpoint: `48/48 OK`
 - MCP tool count at checkpoint: `50`
 
 ## Что делает Telegram AI
@@ -20,7 +20,8 @@ Worker `autostopcrm-telegram-ai`:
 - получает сообщения из Telegram через long polling;
 - принимает текст, голос и фото;
 - авторизует владельца по `AUTOSTOP_TELEGRAM_OWNER_IDS`;
-- вызывает OpenAI для CRM-планирования, transcription, vision и web-search;
+- использует локальный `faster-whisper` для голосовых сообщений и OpenAI как fallback;
+- вызывает OpenAI для CRM-планирования, vision и web-search;
 - также умеет использовать зарегистрированный `internet_search` tool для web-research без CRM-запросов;
 - работает с CRM только через локальный API `http://autostopcrm:41731`;
 - пишет изменения через разрешённые tools;

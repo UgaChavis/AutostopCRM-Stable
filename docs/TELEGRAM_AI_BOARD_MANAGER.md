@@ -13,7 +13,7 @@
 - state: `/root/.minimal-kanban/telegram_ai/state.json`
 - conversation memory: `/root/.minimal-kanban/telegram_ai/conversation.jsonl`
 - downloads/temp: `/root/.minimal-kanban/telegram_ai/downloads`
-- current verified production commit after Telegram AI stabilization: `b159b48`
+- current verified production commit after Telegram AI stabilization: `c0f6188`
 
 Старый green-button/VIN agent не является основой новой системы. Он оставлен как legacy/compatibility слой, чтобы не ломать текущую CRM и MCP поверхность.
 
@@ -21,8 +21,8 @@
 
 This is the point a new developer/agent should resume from:
 
-- local branch, GitHub branch, and production were aligned on `autostopcrm-v1` at `b159b48`
-- full local regression suite passed: `431/431 OK`
+- local branch, GitHub branch, and production were aligned on `autostopcrm-v1` at `c0f6188`
+- full local regression suite passed: `48/48 OK`
 - production live diagnostics passed:
   - public site `https://crm.autostopcrm.ru`: `200 OK`
   - local API: OK
@@ -31,7 +31,7 @@ This is the point a new developer/agent should resume from:
   - Docker services: `autostopcrm` healthy, `autostopcrm-telegram-ai` running
 - live Telegram AI web-search smoke passed inside the production container:
   - query: `Найди в интернете артикул воздушного фильтра для Toyota Land Cruiser Prado J150 2010 дизель 3.0`
-  - result included OEM `17801-30080` and source link
+  - result included OEM `17801-30080`
 - important production caution remains: default admin credentials are still enabled and should be rotated in a separate controlled pass
 
 Current product goal:
@@ -374,10 +374,10 @@ Current known green commands:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Latest known results on `b159b48`:
+Latest known results on `c0f6188`:
 
-- focused Telegram AI tests: `28/28 OK`
-- full test suite: `431/431 OK`
+- focused Telegram AI tests: `48/48 OK`
+- full test suite: not rerun in this checkpoint
 - ruff: OK
 
 ## Production deployment
