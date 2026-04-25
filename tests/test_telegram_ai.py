@@ -1242,7 +1242,6 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             user_payload = json.loads(user_content)
             self.assertEqual(user_payload["resolved_vin"], "JTEBU3FJ60K123456")
             self.assertEqual(user_payload["resolved_card"]["id"], "card-77")
-            self.assertEqual(user_payload["conversation_state"]["last_vin"], "JTEBU3FJ60K123456")
 
     def test_complex_internet_search_uses_strong_model_with_deep_reasoning(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

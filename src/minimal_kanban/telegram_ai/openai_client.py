@@ -69,12 +69,16 @@ Use this structure when it fits:
 Do not include sources, source lists, links, raw URLs, markdown links, or markdown tables.
 If the exact part number is not confirmed, say that clearly and list what data is missing.
 """.strip()
+        search_context = _compact_search_context(crm_context or {})
         user_payload = {
             "command_text": command_text,
             "role": role,
             "mode": "internet_search",
-            **_compact_search_context(crm_context or {}),
         }
+        for key in ("resolved_vin", "resolved_card"):
+            value = search_context.get(key)
+            if value not in (None, "", [], {}):
+                user_payload[key] = value
         primary_model = self._model_for_internet_search(command_text, user_payload)
         fallback_model = self._model if primary_model != self._model else None
         models = [primary_model, *([fallback_model] if fallback_model else [primary_model])]
