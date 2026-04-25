@@ -29,6 +29,7 @@ Telegram update
   -> CRMToolRegistry
   -> BoardApiClient / local HTTP API
   -> read-after-write verification
+  -> TelegramAIOpenAIClient final response from actual tool results
   -> TelegramAIAuditService
   -> Telegram reply
 ```
@@ -87,9 +88,26 @@ If owner IDs, bot token, or OpenAI key are missing, the worker stays in safe-dis
 - `crm_tools.py`: explicit CRM tool registry, validation, execution, verification
 - `audit.py`: redacted JSONL audit per run
 - `memory.py`: compact per-chat conversation memory for follow-up commands
-- `orchestrator.py`: command flow, media enrichment, model decision, tool execution
+- `orchestrator.py`: command flow, media enrichment, model decision, tool execution, final answer pass
 - `worker.py`: long-running polling process
 - `autopilot.py`: disabled-by-default skeleton using the same future pipeline
+
+## Response contract
+
+The worker sends one Telegram reply for each incoming update. It must not promise
+`сейчас пришлю`, `потом пришлю`, or any other deferred follow-up unless a real
+background task queue is implemented.
+
+For tool-based commands the required order is:
+
+```text
+decision JSON -> execute CRM tools -> verify -> final response from tool_results -> Telegram reply
+```
+
+If the final model pass fails, `response.py` falls back to deterministic summaries
+from the real tool results. Read tools such as `get_card`, `get_card_context`,
+`get_repair_order_text`, `get_cards`, `search_cards`, and board reports must
+surface useful data directly in the same Telegram reply.
 
 ## CRM tool registry v1
 
@@ -218,6 +236,8 @@ Covered:
 - create/update/move CRM tools through real local `ApiServer`
 - verification after writes
 - compact context builder read path
+- final Telegram response after CRM tool execution
+- filtering stale future-promise phrases from model output
 
 ## Production deployment
 

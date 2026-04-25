@@ -78,6 +78,9 @@ class FakeModelClient:
         self.decide_calls = 0
         self.decisions: list[dict[str, object]] = []
         self.received_contexts: list[dict[str, object]] = []
+        self.final_response_calls = 0
+        self.final_responses: list[str] = []
+        self.received_tool_results: list[list[dict[str, object]]] = []
 
     def decide(self, **kwargs):
         self.decide_calls += 1
@@ -97,6 +100,13 @@ class FakeModelClient:
 
     def analyze_image(self, **kwargs):
         return {"vin": "WAUZZZ8V0JA000001", "confidence": "medium"}
+
+    def final_response(self, **kwargs) -> str:
+        self.final_response_calls += 1
+        self.received_tool_results.append(kwargs.get("tool_results") or [])
+        if self.final_responses:
+            return self.final_responses.pop(0)
+        return ""
 
 
 class TelegramAINormalizerTests(unittest.TestCase):
@@ -322,6 +332,81 @@ class TelegramAIOrchestratorTests(unittest.TestCase):
                 service.get_cards()["cards"][0]["id"],
             )
 
+    def test_final_response_is_built_after_tool_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = build_config(temp_dir, owner_ids=frozenset({1001}))
+            audit = TelegramAIAuditService(config.audit_file)
+            logger = logging.getLogger("test.telegram_final_response")
+            logger.handlers.clear()
+            logger.addHandler(logging.NullHandler())
+            logger.propagate = False
+            store = JsonStore(state_file=Path(temp_dir) / "state.json", logger=logger)
+            service = CardService(store, logger)
+            created = service.create_card(
+                {
+                    "title": "Тестовая карточка",
+                    "vehicle": "Toyota Corolla",
+                    "description": "Клиент просит проверить тормоза.",
+                    "deadline": {"days": 1},
+                }
+            )
+            card_id = created["card"]["id"]
+            port = reserve_port()
+            server = ApiServer(service, logger, start_port=port, fallback_limit=1)
+            server.start()
+            try:
+                client = BoardApiClient(
+                    server.base_url, logger=logger, default_source="telegram_ai"
+                )
+                model = FakeModelClient()
+                model.decisions = [
+                    {
+                        "intent": "card_read",
+                        "confidence": "high",
+                        "actions": [
+                            {
+                                "tool": "get_card",
+                                "arguments": {"card_id": card_id},
+                                "reason": "read requested card",
+                            }
+                        ],
+                        "telegram_response": "Сейчас пришлю содержание тестовой карточки.",
+                        "requires_human_confirmation": False,
+                    }
+                ]
+                model.final_responses = [
+                    "Тестовая карточка: Toyota Corolla. Клиент просит проверить тормоза."
+                ]
+                orchestrator = TelegramAIOrchestrator(
+                    auth=TelegramAuthService(config),
+                    model_client=model,
+                    context_builder=CRMContextBuilder(client),
+                    tool_registry=CRMToolRegistry(client, actor_name="TEST_TELEGRAM_AI"),
+                    audit=audit,
+                    memory=TelegramAIConversationMemory(config.conversation_file, limit=5),
+                )
+                normalized = normalize_update(
+                    {
+                        "update_id": 1,
+                        "message": {
+                            "message_id": 2,
+                            "chat": {"id": 3},
+                            "from": {"id": 1001},
+                            "text": "Покажи содержание тестовой карточки",
+                        },
+                    }
+                )
+
+                response = orchestrator.handle(normalized)
+            finally:
+                server.stop()
+
+            self.assertEqual(model.final_response_calls, 1)
+            self.assertEqual(model.received_tool_results[0][0]["tool"], "get_card")
+            self.assertIn("Toyota Corolla", response)
+            self.assertIn("Клиент просит проверить тормоза", response)
+            self.assertNotIn("Сейчас пришлю", response)
+
 
 class TelegramAITranscriptionTests(unittest.TestCase):
     def test_voice_ogg_is_converted_before_transcription_upload(self) -> None:
@@ -472,6 +557,33 @@ class TelegramAIConversationMemoryTests(unittest.TestCase):
 
 
 class TelegramAIResponseTests(unittest.TestCase):
+    def test_card_read_result_replaces_future_promise_in_reply(self) -> None:
+        response = build_execution_response(
+            model_decision={"telegram_response": "Сейчас пришлю содержание тестовой карточки."},
+            tool_results=[
+                {
+                    "tool": "get_card_context",
+                    "verify": {"passed": True},
+                    "result": {
+                        "data": {
+                            "card": {
+                                "id": "card-1",
+                                "title": "Тестовая карточка",
+                                "vehicle": "Toyota Corolla",
+                                "column": "priemka",
+                                "description": "Клиент просит проверить тормоза.",
+                            }
+                        }
+                    },
+                }
+            ],
+            status="completed",
+        )
+
+        self.assertIn("Тестовая карточка", response)
+        self.assertIn("Клиент просит проверить тормоза", response)
+        self.assertNotIn("Сейчас пришлю", response)
+
     def test_image_analysis_result_is_surfaced_in_telegram_reply(self) -> None:
         response = build_execution_response(
             model_decision={"telegram_response": "Проверил фото."},

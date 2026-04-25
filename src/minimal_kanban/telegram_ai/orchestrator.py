@@ -107,8 +107,14 @@ class TelegramAIOrchestrator:
                     for item in context.tool_results
                 )
             }
+            final_decision = self._with_final_tool_response(
+                decision=decision,
+                command_text=command_text,
+                role=identity.role,
+                tool_results=context.tool_results,
+            )
             context.telegram_response = build_execution_response(
-                model_decision=decision,
+                model_decision=final_decision,
                 tool_results=context.tool_results,
                 status=context.final_status,
             )
@@ -201,6 +207,31 @@ class TelegramAIOrchestrator:
         if "откати последнее" in lowered or lowered.startswith("откати"):
             return self._rollback_last_action(context)
         return None
+
+    def _with_final_tool_response(
+        self,
+        *,
+        decision: dict[str, Any],
+        command_text: str,
+        role: str,
+        tool_results: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not tool_results or not hasattr(self._model_client, "final_response"):
+            return decision
+        try:
+            final_text = self._model_client.final_response(
+                command_text=command_text,
+                role=role,
+                model_decision=decision,
+                tool_results=tool_results,
+            )
+        except TelegramAIModelError:
+            return decision
+        if not str(final_text or "").strip():
+            return decision
+        updated = dict(decision)
+        updated["telegram_response"] = str(final_text).strip()
+        return updated
 
     def _rollback_last_action(self, context: RunContext) -> str:
         for row in self._audit.recent(limit=20):

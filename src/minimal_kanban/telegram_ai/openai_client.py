@@ -62,6 +62,45 @@ class TelegramAIOpenAIClient:
             ],
         )
 
+    def final_response(
+        self,
+        *,
+        command_text: str,
+        role: str,
+        model_decision: dict[str, Any],
+        tool_results: list[dict[str, Any]],
+    ) -> str:
+        instructions = """
+You are AutoStop CRM Telegram AI Board Manager.
+Language: Russian.
+You receive completed CRM tool results and must write the final Telegram answer now.
+Do not promise to send anything later. Do not say "сейчас пришлю", "потом пришлю",
+"вернусь с результатом", or similar future-follow-up phrases.
+Do not create new actions and do not ask the user to wait.
+Return only JSON with this shape:
+{"telegram_response":"short final answer with the actual result from tool_results"}
+If tool_results contain card text, repair order text, card list, counts, or write results, include the useful result directly.
+Keep the answer compact, but complete enough that no second message is needed.
+""".strip()
+        user_payload = {
+            "command_text": command_text,
+            "role": role,
+            "model_decision": model_decision,
+            "tool_results": _compact_for_final_response(tool_results),
+        }
+        payload = self._responses_json(
+            model=self._model,
+            instructions=instructions,
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": json.dumps(user_payload, ensure_ascii=False, sort_keys=True),
+                }
+            ],
+            web_search=False,
+        )
+        return str(payload.get("telegram_response") or "").strip()
+
     def analyze_image(
         self, *, image_bytes: bytes, mime_type: str, caption: str = ""
     ) -> dict[str, Any]:
@@ -178,6 +217,7 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
         model: str,
         instructions: str,
         input_messages: list[dict[str, Any]],
+        web_search: bool = True,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": model,
@@ -187,7 +227,7 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
             "reasoning": {"effort": self._reasoning_effort},
             "store": False,
         }
-        if self._web_search_enabled:
+        if web_search and self._web_search_enabled:
             payload["tools"] = [
                 {
                     "type": "web_search_preview",
@@ -247,6 +287,39 @@ def _decision_instructions(*, role: str, tool_catalog: list[dict[str, Any]]) -> 
         f"{json.dumps(tool_catalog, ensure_ascii=False, sort_keys=True)}\n"
         f"Current role: {role}."
     )
+
+
+def _compact_for_final_response(tool_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact: list[dict[str, Any]] = []
+    for item in tool_results[:12]:
+        if not isinstance(item, dict):
+            continue
+        compact.append(_compact_value(item, max_depth=6))
+    return compact
+
+
+def _compact_value(value: Any, *, max_depth: int) -> Any:
+    if max_depth <= 0:
+        return _truncate_text(value, limit=600)
+    if isinstance(value, dict):
+        return {
+            str(key): _compact_value(item, max_depth=max_depth - 1)
+            for key, item in list(value.items())[:80]
+            if str(key).lower()
+            not in {"content_base64", "base64", "data_url", "token", "api_key", "password"}
+        }
+    if isinstance(value, list):
+        return [_compact_value(item, max_depth=max_depth - 1) for item in value[:30]]
+    if isinstance(value, str):
+        return _truncate_text(value, limit=2500)
+    return value
+
+
+def _truncate_text(value: Any, *, limit: int) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "... [truncated]"
 
 
 def _ensure_json_keyword_in_input(input_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
