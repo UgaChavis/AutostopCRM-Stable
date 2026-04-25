@@ -61,18 +61,29 @@ Keep the answer practical and concise. Include source names or URLs when availab
             "mode": "internet_search",
         }
         model = self._model_for_command(command_text)
-        return self._responses_text(
-            model=model,
-            instructions=instructions,
-            input_messages=[
-                {
-                    "role": "user",
-                    "content": json.dumps(user_payload, ensure_ascii=False, sort_keys=True),
-                }
-            ],
-            web_search=True,
-            reasoning_effort=self._reasoning_for_model(model),
-        )
+        candidates = [model]
+        if model != self._model:
+            candidates.append(self._model)
+        last_error: TelegramAIModelError | None = None
+        for candidate in candidates:
+            try:
+                return self._responses_text(
+                    model=candidate,
+                    instructions=instructions,
+                    input_messages=[
+                        {
+                            "role": "user",
+                            "content": json.dumps(user_payload, ensure_ascii=False, sort_keys=True),
+                        }
+                    ],
+                    web_search=True,
+                    reasoning_effort=self._reasoning_for_model(candidate),
+                    request_timeout_seconds=max(self._timeout_seconds, 75.0),
+                    max_attempts=1,
+                )
+            except TelegramAIModelError as exc:
+                last_error = exc
+        raise last_error or TelegramAIModelError("OpenAI web search request failed.")
 
     def decide(
         self,
@@ -287,6 +298,8 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
         input_messages: list[dict[str, Any]],
         web_search: bool = False,
         reasoning_effort: str | None = None,
+        request_timeout_seconds: float | None = None,
+        max_attempts: int = 3,
     ) -> str:
         payload: dict[str, Any] = {
             "model": model,
@@ -302,7 +315,12 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
                     "search_context_size": "medium",
                 }
             ]
-        response_payload = self._post_with_retry("/responses", payload)
+        response_payload = self._post_with_retry(
+            "/responses",
+            payload,
+            timeout_seconds=request_timeout_seconds,
+            max_attempts=max_attempts,
+        )
         return _extract_output_text(response_payload)
 
     def _model_for_command(self, command_text: str) -> str:
@@ -315,15 +333,24 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
             return self._strong_reasoning_effort
         return self._reasoning_effort
 
-    def _post_with_retry(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _post_with_retry(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+        max_attempts: int = 3,
+    ) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
         last_error: Exception | None = None
-        for attempt in range(1, 4):
+        attempts = max(1, int(max_attempts or 1))
+        timeout = timeout_seconds or self._timeout_seconds
+        for attempt in range(1, attempts + 1):
             try:
-                with httpx.Client(timeout=self._timeout_seconds) as client:
+                with httpx.Client(timeout=timeout) as client:
                     response = client.post(f"{self._base_url}{path}", headers=headers, json=payload)
                 response.raise_for_status()
                 parsed = response.json()
@@ -336,7 +363,8 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
                     raise TelegramAIModelError(_openai_error_message(exc.response)) from exc
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = exc
-            time.sleep(0.6 * attempt)
+            if attempt < attempts:
+                time.sleep(0.6 * attempt)
         raise TelegramAIModelError(f"OpenAI request failed: {last_error}") from last_error
 
 

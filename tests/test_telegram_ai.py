@@ -32,7 +32,7 @@ from minimal_kanban.telegram_ai.crm_tools import CRMToolError, CRMToolRegistry
 from minimal_kanban.telegram_ai.memory import TelegramAIConversationMemory
 from minimal_kanban.telegram_ai.models import DownloadedAttachment, RunContext, TelegramAttachment
 from minimal_kanban.telegram_ai.normalizer import normalize_update
-from minimal_kanban.telegram_ai.openai_client import TelegramAIOpenAIClient
+from minimal_kanban.telegram_ai.openai_client import TelegramAIModelError, TelegramAIOpenAIClient
 from minimal_kanban.telegram_ai.orchestrator import TelegramAIOrchestrator
 from minimal_kanban.telegram_ai.response import build_execution_response
 
@@ -518,7 +518,11 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             client = TelegramAIOpenAIClient(config)
             captured: dict[str, object] = {}
 
-            def fake_post_with_retry(path: str, payload: dict[str, object]) -> dict[str, object]:
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
                 captured["path"] = path
                 captured["payload"] = payload
                 return {
@@ -559,7 +563,11 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             client = TelegramAIOpenAIClient(config)
             captured: dict[str, object] = {}
 
-            def fake_post_with_retry(path: str, payload: dict[str, object]) -> dict[str, object]:
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
                 captured["payload"] = payload
                 return {
                     "output_text": json.dumps(
@@ -596,7 +604,11 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             client = TelegramAIOpenAIClient(config)
             captured: dict[str, object] = {}
 
-            def fake_post_with_retry(path: str, payload: dict[str, object]) -> dict[str, object]:
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
                 captured["payload"] = payload
                 return {
                     "output_text": json.dumps(
@@ -642,7 +654,11 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             client = TelegramAIOpenAIClient(config)
             captured: dict[str, object] = {}
 
-            def fake_post_with_retry(path: str, payload: dict[str, object]) -> dict[str, object]:
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
                 captured["path"] = path
                 captured["payload"] = payload
                 return {"output_text": "Найдено: source.example"}
@@ -673,7 +689,11 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             client = TelegramAIOpenAIClient(config)
             captured: dict[str, object] = {}
 
-            def fake_post_with_retry(path: str, payload: dict[str, object]) -> dict[str, object]:
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
                 captured["payload"] = payload
                 return {"output_text": "Найдено"}
 
@@ -694,6 +714,45 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertEqual(payload["model"], "gpt-5.4")
             self.assertEqual(payload["reasoning"], {"effort": "high"})
             self.assertEqual(payload["tools"][0]["type"], "web_search_preview")
+
+    def test_complex_internet_search_falls_back_to_base_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = TelegramAIConfig(
+                **{
+                    **build_config(temp_dir).__dict__,
+                    "web_search_enabled": True,
+                }
+            )
+            client = TelegramAIOpenAIClient(config)
+            seen_models: list[str] = []
+            seen_kwargs: list[dict[str, object]] = []
+
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
+                seen_models.append(str(payload.get("model") or ""))
+                seen_kwargs.append(kwargs)
+                if payload.get("model") == "gpt-5.4":
+                    raise TelegramAIModelError("OpenAI request failed: timeout")
+                return {"output_text": "Найдено на базовой модели"}
+
+            with patch.object(
+                TelegramAIOpenAIClient, "_post_with_retry", side_effect=fake_post_with_retry
+            ):
+                result = client.internet_search(
+                    command_text=(
+                        "Найди в интернете запчасти по VIN, сравни оригинал и аналоги, "
+                        "дай ссылки на источники."
+                    ),
+                    role="owner",
+                )
+
+            self.assertEqual(result, "Найдено на базовой модели")
+            self.assertEqual(seen_models, ["gpt-5.4", "gpt-5.4-mini"])
+            self.assertEqual(seen_kwargs[0]["max_attempts"], 1)
+            self.assertEqual(seen_kwargs[1]["max_attempts"], 1)
 
 
 class TelegramAIConversationMemoryTests(unittest.TestCase):
