@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 _PROMISE_MARKERS = (
@@ -19,6 +20,7 @@ _PROMISE_MARKERS = (
 )
 
 _CARD_READ_TOOLS = {"get_card", "get_card_context"}
+_HUMAN_ONLY_TOOLS = {"internet_search"}
 
 
 def build_execution_response(
@@ -34,6 +36,10 @@ def build_execution_response(
         response = _sanitize_model_response(model_decision.get("telegram_response"))
         return response or "Принял. Действий по CRM не требуется."
     if len(tool_results) == 1 and str(tool_results[0].get("tool") or "") in _CARD_READ_TOOLS:
+        detail = _tool_result_detail(tool_results[0])
+        if detail:
+            return detail
+    if len(tool_results) == 1 and str(tool_results[0].get("tool") or "") in _HUMAN_ONLY_TOOLS:
         detail = _tool_result_detail(tool_results[0])
         if detail:
             return detail
@@ -81,7 +87,7 @@ def _tool_result_detail(item: dict[str, Any]) -> str:
         answer = str(
             data.get("answer") or data.get("text") or data.get("content") or ""
         ).strip()
-        return _truncate(answer, limit=1800)
+        return _clean_internet_search_answer(_truncate(answer, limit=1800))
     if tool_name == "analyze_card_image_attachment":
         facts = data.get("image_facts") if isinstance(data.get("image_facts"), dict) else {}
         if not facts:
@@ -165,6 +171,35 @@ def _clean_description(description: str) -> str:
         if line:
             lines.append(line)
     return "\n".join(lines)
+
+
+def _clean_internet_search_answer(answer: str) -> str:
+    text = str(answer or "").replace("\r", "").strip()
+    if not text:
+        return ""
+    text = text.replace("**", "").replace("__", "").replace("`", "")
+    text = re.sub(r"\[([^\]\n]{1,120})\]\((?:https?://|www\.)[^\s)]+\)", "", text)
+    text = re.sub(r"\((?:https?://|www\.)[^\s)]+\)", "", text)
+    text = re.sub(r"(?:https?://|www\.)[^\s)\]]+", "", text)
+    text = re.sub(r"\butm_[A-Za-z0-9_=-]+", "", text)
+    text = re.sub(r"[ \t]+([,.;:])", r"\1", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    lines: list[str] = []
+    source_header = re.compile(r"^(?:[📎•\-\s]*)?(?:источники?|sources?)\b", re.IGNORECASE)
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            lines.append("")
+            continue
+        if source_header.match(line):
+            break
+        line = re.sub(r"\s+\)$", "", line).strip()
+        line = re.sub(r"\(\s*\)", "", line).strip()
+        lines.append(line)
+    cleaned = "\n".join(lines).strip()
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned
 
 
 def _vehicle_profile_lines(profile: dict[str, Any]) -> list[str]:

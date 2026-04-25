@@ -67,8 +67,7 @@ Use this structure when it fits:
 🔎 Коротко: one direct conclusion.
 ✅ Найдено: exact part numbers, names, or facts.
 🧩 Почему подходит: short compatibility reasoning, VIN/vehicle facts, limits.
-📎 Источники: 2-4 readable source names only, without URLs.
-Keep each bullet on its own line. Do not use markdown tables. Do not output links, raw URLs, markdown links, raw citation clutter, utm parameters, duplicated links, or broken bracket syntax.
+Keep each bullet on its own line. Do not use markdown tables. Do not include a sources section, source list, links, raw URLs, markdown links, raw citation clutter, utm parameters, duplicated links, or broken bracket syntax.
 If the exact part number is not confirmed, say that clearly and list what data is missing.
 """.strip()
         user_payload = {
@@ -589,7 +588,8 @@ def _sanitize_telegram_search_answer(text: str) -> str:
     cleaned = str(text or "").replace("\r", "").strip()
     if not cleaned:
         return ""
-    cleaned = re.sub(r"\[([^\]\n]{1,120})\]\((?:https?://|www\.)[^\s)]+\)", r"\1", cleaned)
+    cleaned = cleaned.replace("**", "").replace("__", "").replace("`", "")
+    cleaned = re.sub(r"\[([^\]\n]{1,120})\]\((?:https?://|www\.)[^\s)]+\)", "", cleaned)
     cleaned = re.sub(r"\((?:https?://|www\.)[^\s)]+\)", "", cleaned)
     cleaned = re.sub(r"(?:https?://|www\.)[^\s)\]]+", "", cleaned)
     cleaned = re.sub(r"\butm_[A-Za-z0-9_=-]+", "", cleaned)
@@ -597,15 +597,20 @@ def _sanitize_telegram_search_answer(text: str) -> str:
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     lines = []
+    source_header = re.compile(r"^(?:[📎•\-\s]*)?(?:источники?|sources?)\b", re.IGNORECASE)
     for raw_line in cleaned.splitlines():
         line = raw_line.strip()
         if not line:
             lines.append("")
             continue
+        if source_header.match(line):
+            break
         line = re.sub(r"\s+\)$", "", line).strip()
         line = re.sub(r"\(\s*\)", "", line).strip()
         lines.append(line)
-    return "\n".join(lines).strip()
+    cleaned = "\n".join(lines).strip()
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned
 
 
 def _compact_value(value: Any, *, max_depth: int) -> Any:

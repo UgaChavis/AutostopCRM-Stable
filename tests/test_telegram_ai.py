@@ -1107,8 +1107,8 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             assert isinstance(payload, dict)
             self.assertEqual(payload["tools"][0]["type"], "web_search_preview")
             self.assertIn("🔎 Коротко", str(payload["instructions"]))
-            self.assertIn("📎 Источники", str(payload["instructions"]))
-            self.assertIn("without URLs", str(payload["instructions"]))
+            self.assertNotIn("📎 Источники", str(payload["instructions"]))
+            self.assertIn("sources section", str(payload["instructions"]))
 
     def test_internet_search_response_strips_links_for_telegram(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1149,12 +1149,49 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
                     },
                 )
 
-            self.assertIn("VINCheck", result)
-            self.assertIn("Toyota Parts & Service", result)
             self.assertNotIn("http", result)
             self.assertNotIn("utm_", result)
             self.assertNotIn("](", result)
             self.assertNotIn("()", result)
+            self.assertNotIn("**", result)
+            self.assertNotIn("Источники", result)
+            self.assertNotIn("📎", result)
+            self.assertNotIn("VINCheck", result)
+            self.assertNotIn("Toyota Parts & Service", result)
+            self.assertNotIn("VINCheck", result)
+            self.assertNotIn("Toyota Parts & Service", result)
+
+    def test_simple_internet_search_tool_result_is_human_readable(self) -> None:
+        response = build_execution_response(
+            model_decision={"telegram_response": "Сделано."},
+            tool_results=[
+                {
+                    "tool": "internet_search",
+                    "verify": {"passed": True},
+                    "result": {
+                        "data": {
+                            "answer": (
+                                "🔎 Коротко: **подходит по VIN**. (https://example.com)\n\n"
+                                "✅ Найдено: **04465-02070**\n\n"
+                                "📎 Источники: Toyota Parts & Service; VINCheck"
+                            )
+                        }
+                    },
+                }
+            ],
+            status="completed",
+        )
+
+        self.assertIn("Коротко:", response)
+        self.assertIn("04465-02070", response)
+        self.assertNotIn("Сделано", response)
+        self.assertNotIn("internet_search", response)
+        self.assertNotIn("http", response)
+        self.assertNotIn("**", response)
+        self.assertNotIn("Источники", response)
+        self.assertNotIn("📎", response)
+        self.assertNotIn("VINCheck", response)
+        self.assertNotIn("Toyota Parts & Service", response)
 
     def test_internet_search_payload_includes_follow_up_vin_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
