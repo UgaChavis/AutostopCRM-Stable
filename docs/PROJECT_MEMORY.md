@@ -36,19 +36,19 @@ Use this file for durable notes that should not be rediscovered every session.
 
 ## Telegram AI Checkpoint: 2026-04-25
 
-- commit synced locally, on GitHub, and on production: `b159b48`
+- commit synced locally, on GitHub, and on production: `a73fb59`
 - production repo: `/opt/autostopcrm`
 - production services: `autostopcrm`, `autostopcrm-telegram-ai`
 - live CRM URL: `https://crm.autostopcrm.ru`
 - live MCP URL: `https://crm.autostopcrm.ru/mcp`
-- local full suite result before documentation pass: `431/431 OK`
+- local targeted Telegram AI regression result before documentation pass: `38/38 OK`
 - production live check before documentation pass:
   - site `200 OK`
   - API OK, active cards `60`
   - MCP OK, tool count `50`
   - anonymous public writes blocked with `401`
   - Telegram AI container running
-- live web-search smoke inside `autostopcrm-telegram-ai` succeeded for a Prado J150 air-filter query and returned OEM `17801-30080` with sources
+- live Telegram AI VIN follow-up smoke inside `autostopcrm-telegram-ai` succeeded; `conversation_state.last_vin` was preserved across the next turn
 - next likely feature: composed parts-search flow through Telegram:
   1. user references a card or asks for a part
   2. agent reads CRM card/context
