@@ -97,7 +97,7 @@ If the exact part number is not confirmed, say that clearly and list what data i
                             }
                         ],
                         web_search=True,
-                        reasoning_effort=self._reasoning_for_model(model),
+                        reasoning_effort=self._reasoning_effort,
                         request_timeout_seconds=max(
                             self._timeout_seconds,
                             (

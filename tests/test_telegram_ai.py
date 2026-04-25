@@ -1278,7 +1278,7 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertIsInstance(payload, dict)
             assert isinstance(payload, dict)
             self.assertEqual(payload["model"], "gpt-5.4")
-            self.assertEqual(payload["reasoning"], {"effort": "high"})
+            self.assertEqual(payload["reasoning"], {"effort": "medium"})
             self.assertEqual(payload["tools"][0]["type"], "web_search_preview")
             self.assertEqual(payload["tools"][0]["search_context_size"], "low")
 
@@ -1318,7 +1318,7 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertIsInstance(payload, dict)
             assert isinstance(payload, dict)
             self.assertEqual(payload["model"], "gpt-5.4")
-            self.assertEqual(payload["reasoning"], {"effort": "high"})
+            self.assertEqual(payload["reasoning"], {"effort": "medium"})
 
     def test_complex_internet_search_falls_back_to_base_model_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
