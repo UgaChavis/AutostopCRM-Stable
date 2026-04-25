@@ -36,7 +36,7 @@ Use this file for durable notes that should not be rediscovered every session.
 
 ## Telegram AI Checkpoint: 2026-04-25
 
-- commit synced locally, on GitHub, and on production: `b47fd3f`
+- commit synced locally, on GitHub, and on production: `662882c`
 - production repo: `/opt/autostopcrm`
 - production services: `autostopcrm`, `autostopcrm-telegram-ai`
 - live CRM URL: `https://crm.autostopcrm.ru`
@@ -49,6 +49,7 @@ Use this file for durable notes that should not be rediscovered every session.
   - anonymous public writes blocked with `401`
   - Telegram AI container running
 - live Telegram AI VIN follow-up smoke inside `autostopcrm-telegram-ai` succeeded; `conversation_state.last_vin` was preserved across the next turn and was forwarded into internet-search payloads
+- live Telegram AI web-search payload smoke confirmed simple search uses `gpt-5.4-mini`/medium, complex VIN/OEM/parts search uses `gpt-5.4`/high, and Telegram formatting sections are present
 - next likely feature: composed parts-search flow through Telegram:
   1. user references a card or asks for a part
   2. agent reads CRM card/context
