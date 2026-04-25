@@ -131,6 +131,28 @@ PRINT_BASE_STYLES = """
   .doc-section { margin-bottom: 12px; }
   .doc-section__title { margin: 0 0 7px; font-size: 14px; font-weight: 700; }
   .doc-note { border: 1px solid var(--paper-line); border-radius: 9px; padding: 10px 12px; min-height: 64px; white-space: normal; line-height: 1.55; background: #fcfcfc; }
+  .doc-terms {
+    border: 1px solid rgba(0, 0, 0, 0.09);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.015), rgba(255, 255, 255, 0.92));
+    font-size: 11px;
+    line-height: 1.48;
+  }
+  .doc-terms__lead {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--paper-soft);
+  }
+  .doc-terms__list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+  }
+  .doc-terms__list li { break-inside: avoid; }
+  .doc-terms__list p { margin: 0; }
+  .doc-terms__list strong { color: var(--paper-accent); }
   .doc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .doc-table th, .doc-table td { border: 1px solid var(--paper-line); padding: 7px 8px; vertical-align: top; text-align: left; }
   .doc-table th { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-accent); background: rgba(0, 0, 0, 0.025); }
@@ -165,6 +187,23 @@ def _record(document_type: str, suffix: str, name: str, content: str) -> PrintTe
         updated_at=_BUILTIN_CREATED_AT,
         source="builtin",
     )
+
+
+_REPAIR_ORDER_WARRANTY_TERMS_HTML = """
+<p class="doc-terms__lead">Ниже приведены условия гарантии, которые действуют для выполненных работ и установленных деталей.</p>
+<ol class="doc-terms__list">
+  <li><strong>30 дней:</strong> гарантия на выполненные работы и замененные запасные части. На запасные части, предоставленные заказчиком, гарантия не распространяется.</li>
+  <li><strong>Запчасти клиента:</strong> гарантия на них не распространяется.</li>
+  <li><strong>Неоригинальные и Б/У детали:</strong> гарантия не распространяется.</li>
+  <li><strong>Возврат замененных деталей:</strong> детали передаются заказчику по его требованию, заявленному до начала ремонта, в день выдачи автомобиля. Если требование не заявлено, детали утилизируются в процессе ремонта.</li>
+  <li><strong>Автоэлектрика и электропроводка:</strong> гарантия составляет 10 (десять) календарных дней.</li>
+  <li><strong>Диагностика и восстановительные работы:</strong> гарантия на результаты диагностики и на процедуры восстановления узлов и деталей, выполненные не заводским методом, не распространяется. Гарантия действует только на качество выполненных работ и на реализованные оригинальные запасные части.</li>
+  <li><strong>АКПП и ДВС:</strong> гарантия на механическую часть составляет 180 (сто восемьдесят) календарных дней, если иное не оговорено отдельно.</li>
+  <li><strong>ДВС:</strong> гарантия распространяется только на узлы, которые ремонтировались или заменялись.</li>
+  <li><strong>АКПП:</strong> гарантия не распространяется на гидротрансформатор, гидроблок, блок управления и соленоиды.</li>
+  <li><strong>Исключения:</strong> при ремонте АКПП восстанавливается только механическая часть коробки передач. Если после ремонта выявляется неисправность блока управления КПП, расходы на его ремонт или замену несет заказчик. Гарантия не распространяется на ремонт топливных форсунок, турбокомпрессоров, гидроблоков и соленоидов. Гарантия действует только на замененные оригинальные детали и работы по их установке.</li>
+</ol>
+""".strip()
 
 
 def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
@@ -224,6 +263,10 @@ def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
     <div class="doc-totals__row"><span>Итого по заказ-наряду</span><span>{{totals.grand_display}}</span></div>
     {{#totals.has_prepayment}}<div class="doc-totals__row"><span>Предоплата</span><span>{{totals.prepayment_display}}</span></div>{{/totals.has_prepayment}}
     <div class="doc-totals__row doc-totals__row--grand"><span>К доплате</span><span>{{totals.due_display}}</span></div>
+  </section>
+  <section class="doc-section doc-section--warranty">
+    <h2 class="doc-section__title">Гарантийные условия</h2>
+    <div class="doc-terms">{{{repair_order.warranty_terms_html}}}</div>
   </section>
 </div>
             """,
