@@ -71,6 +71,11 @@ def _tool_result_detail(item: dict[str, Any]) -> str:
         return _format_board_detail(data)
     if tool_name in {"get_board_content", "get_gpt_wall"}:
         return _truncate(str(data.get("text") or data.get("content") or "").strip(), limit=1800)
+    if tool_name == "internet_search":
+        answer = str(
+            data.get("answer") or data.get("text") or data.get("content") or ""
+        ).strip()
+        return _truncate(answer, limit=1800)
     if tool_name == "analyze_card_image_attachment":
         facts = data.get("image_facts") if isinstance(data.get("image_facts"), dict) else {}
         if not facts:

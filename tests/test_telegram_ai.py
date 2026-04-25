@@ -293,6 +293,66 @@ class TelegramAIOrchestratorTests(unittest.TestCase):
             self.assertEqual(model.decide_calls, 0)
             self.assertIn("воздушные фильтры", model.received_search_commands[0])
 
+    def test_research_phrase_routes_to_internet_search_without_crm_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = build_config(temp_dir, owner_ids=frozenset({1001}))
+            model = FakeModelClient()
+            model.internet_search_responses = [
+                "Нашёл в интернете: официальный сайт toyota.ru"
+            ]
+            orchestrator = TelegramAIOrchestrator(
+                auth=TelegramAuthService(config),
+                model_client=model,
+                context_builder=object(),
+                tool_registry=object(),
+                audit=TelegramAIAuditService(config.audit_file),
+            )
+            normalized = normalize_update(
+                {
+                    "update_id": 2,
+                    "message": {
+                        "message_id": 3,
+                        "chat": {"id": 4},
+                        "from": {"id": 1001},
+                        "text": "Проверь официальный сайт Toyota и дай ссылку.",
+                    },
+                }
+            )
+
+            response = orchestrator.handle(normalized)
+
+            self.assertIn("toyota.ru", response)
+            self.assertEqual(model.internet_search_calls, 1)
+            self.assertEqual(model.decide_calls, 0)
+
+    def test_status_command_reports_web_search_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = build_config(temp_dir, owner_ids=frozenset({1001}))
+            model = FakeModelClient()
+            orchestrator = TelegramAIOrchestrator(
+                auth=TelegramAuthService(config),
+                model_client=model,
+                context_builder=object(),
+                tool_registry=object(),
+                audit=TelegramAIAuditService(config.audit_file),
+            )
+            normalized = normalize_update(
+                {
+                    "update_id": 3,
+                    "message": {
+                        "message_id": 4,
+                        "chat": {"id": 5},
+                        "from": {"id": 1001},
+                        "text": "/status",
+                    },
+                }
+            )
+
+            response = orchestrator.handle(normalized)
+
+            self.assertIn("Интернет-поиск", response)
+            self.assertIn("неизвестно", response)
+
     def test_follow_up_receives_conversation_memory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = build_config(temp_dir, owner_ids=frozenset({1001}))
@@ -754,6 +814,27 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertEqual(seen_models, ["gpt-5.4-mini", "gpt-5.4-mini"])
             self.assertEqual(seen_kwargs[0]["max_attempts"], 1)
             self.assertEqual(seen_kwargs[1]["max_attempts"], 1)
+
+
+class TelegramAIInternetSearchToolTests(unittest.TestCase):
+    def test_registry_exposes_and_executes_internet_search(self) -> None:
+        registry = CRMToolRegistry(
+            object(),
+            internet_searcher=lambda **kwargs: "Нашёл в интернете: example.com",
+        )
+
+        catalog = registry.catalog_for_model()
+
+        self.assertIn("internet_search", {item["name"] for item in catalog})
+
+        result = registry.execute(
+            {"tool": "internet_search", "arguments": {"query": "Toyota Corolla"}},
+            role="owner",
+        )
+
+        self.assertEqual(result["tool"], "internet_search")
+        self.assertEqual(result["result"]["data"]["answer"], "Нашёл в интернете: example.com")
+        self.assertTrue(result["verify"]["passed"])
 
 
 class TelegramAIConversationMemoryTests(unittest.TestCase):

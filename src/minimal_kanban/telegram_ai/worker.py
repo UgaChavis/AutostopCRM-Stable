@@ -82,14 +82,16 @@ class TelegramAIWorker:
                 actor_name="TELEGRAM_AI",
                 max_batch_cards=self._config.max_batch_cards,
                 image_analyzer=model_client.analyze_image,
+                internet_searcher=model_client.internet_search,
             ),
             audit=audit,
             memory=memory,
         )
         self._logger.info(
-            "telegram_ai.started crm_api=%s model=%s owner_ids=%s token=%s",
+            "telegram_ai.started crm_api=%s model=%s web_search=%s owner_ids=%s token=%s",
             self._config.crm_api_base_url,
             self._config.model,
+            self._config.web_search_enabled,
             len(self._config.owner_ids),
             redact_secret(self._config.bot_token),
         )

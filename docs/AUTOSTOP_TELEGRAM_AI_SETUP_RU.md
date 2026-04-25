@@ -21,6 +21,7 @@ Worker `autostopcrm-telegram-ai`:
 - принимает текст, голос и фото;
 - авторизует владельца по `AUTOSTOP_TELEGRAM_OWNER_IDS`;
 - вызывает OpenAI для CRM-планирования, transcription, vision и web-search;
+- также умеет использовать зарегистрированный `internet_search` tool для web-research без CRM-запросов;
 - работает с CRM только через локальный API `http://autostopcrm:41731`;
 - пишет изменения через разрешённые tools;
 - проверяет запись read-after-write;
@@ -54,7 +55,8 @@ AUTOSTOP_AI_AUDIT_ENABLED=1
 
 - обычные CRM-команды: `gpt-5.4-mini`;
 - сложные CRM-команды: `gpt-5.4` + `high` reasoning;
-- прямой internet-search: `gpt-5.4-mini`, low search context, одна повторная попытка.
+- прямой internet-search: `gpt-5.4-mini`, low search context, одна повторная попытка;
+- model-planned `internet_search` tool: тот же прямой web-search маршрут без CRM-инструментов.
 
 Причина: live-проверки показали, что strong-model web-search может уходить в timeout или `429 Too Many Requests`. Поэтому web-search специально оставлен быстрым и стабильным.
 

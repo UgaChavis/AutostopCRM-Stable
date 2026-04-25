@@ -151,7 +151,7 @@ The active server-side AI expansion is now Telegram-first:
 - owner sends text, voice, or photo to the Telegram bot
 - worker authorizes by Telegram user ID
 - worker asks OpenAI for a structured decision
-- explicit `найди в интернете` / `загугли` commands use OpenAI `web_search_preview`
+- explicit `найди в интернете` / `загугли` commands and the model-planned `internet_search` tool use OpenAI `web_search_preview`
 - CRM writes go through the explicit tool registry and local HTTP API
 - every write is verified by read-back
 - every run is written to `telegram_ai/audit.jsonl`

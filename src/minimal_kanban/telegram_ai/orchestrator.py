@@ -20,6 +20,8 @@ HELP_TEXT = """AutoStop Telegram AI готов.
 Создай карточку: BMW X5, диагностика пневмы, сегодня до 18:00
 Найди просроченные карточки
 Что ты сделал сегодня?
+Найди в интернете официальный сайт Toyota
+Найди в интернете артикул воздушного фильтра для Prado
 """
 
 
@@ -198,11 +200,17 @@ class TelegramAIOrchestrator:
         if lowered in {"/start", "/help", "help", "помощь"}:
             return HELP_TEXT
         if lowered == "/status":
+            web_search_flag = getattr(self._model_client, "web_search_enabled", None)
+            if web_search_flag is None:
+                web_search_status = "неизвестно"
+            else:
+                web_search_status = "включён" if web_search_flag else "выключен"
             return (
                 "Telegram AI worker активен.\n"
                 f"Роль: {context.role}.\n"
                 f"Модель: {self._model_client.model}.\n"
-                f"Сильная модель: {getattr(self._model_client, 'strong_model', '-')}."
+                f"Сильная модель: {getattr(self._model_client, 'strong_model', '-')}.\n"
+                f"Интернет-поиск: {web_search_status}."
             )
         if (
             "что ты сделал" in lowered
@@ -295,7 +303,7 @@ def _looks_like_internet_search(command_text: str) -> bool:
     text = str(command_text or "").strip().lower()
     if not text:
         return False
-    markers = (
+    explicit_markers = (
         "найди в интернете",
         "поищи в интернете",
         "поиск в интернете",
@@ -312,4 +320,40 @@ def _looks_like_internet_search(command_text: str) -> bool:
         "web search",
         "internet search",
     )
-    return any(marker in text for marker in markers)
+    research_markers = (
+        "официальный сайт",
+        "артикул",
+        "oem",
+        "оригинал",
+        "аналог",
+        "аналоги",
+        "запчаст",
+        "источник",
+        "ссылк",
+        "цена",
+        "стоимость",
+        "где купить",
+        "какой фильтр",
+        "какой артикул",
+    )
+    crm_markers = (
+        "карточк",
+        "доска",
+        "доске",
+        "колонк",
+        "заказ-наряд",
+        "заказ наряд",
+        "касс",
+        "sticky",
+        "стикер",
+        "вложен",
+        "repair order",
+        "repair-order",
+    )
+    if any(marker in text for marker in explicit_markers):
+        return True
+    if any(marker in text for marker in research_markers) and not any(
+        marker in text for marker in crm_markers
+    ):
+        return True
+    return False

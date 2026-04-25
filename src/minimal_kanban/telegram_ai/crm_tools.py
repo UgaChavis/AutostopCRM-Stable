@@ -39,11 +39,13 @@ class CRMToolRegistry:
         actor_name: str = "TELEGRAM_AI",
         max_batch_cards: int = 20,
         image_analyzer: Callable[..., dict[str, Any]] | None = None,
+        internet_searcher: Callable[..., str] | None = None,
     ) -> None:
         self._board_api = board_api
         self._actor_name = actor_name
         self._max_batch_cards = max(1, int(max_batch_cards))
         self._image_analyzer = image_analyzer
+        self._internet_searcher = internet_searcher
         self._run_media: list[DownloadedAttachment] = []
         self._handlers: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
             "get_board_snapshot": self._get_board_snapshot,
@@ -124,6 +126,20 @@ class CRMToolRegistry:
                 "get_gpt_wall",
                 "Read combined board content and event log. Use only when a broad dump is needed.",
                 {"include_archived": "optional bool", "event_limit": "optional int"},
+            ),
+            *(
+                [
+                    CRMToolDefinition(
+                        "internet_search",
+                        (
+                            "Search external web sources for parts, prices, official sites, "
+                            "sources, and other non-CRM research."
+                        ),
+                        {"query": "required string"},
+                    )
+                ]
+                if self._internet_searcher is not None
+                else []
             ),
             CRMToolDefinition(
                 "get_cards",
@@ -411,6 +427,29 @@ class CRMToolRegistry:
     def execute(self, action: dict[str, Any], *, role: str) -> dict[str, Any]:
         tool_name = str(action.get("tool") or "").strip()
         arguments = action.get("arguments") if isinstance(action.get("arguments"), dict) else {}
+        if tool_name == "internet_search":
+            if self._internet_searcher is None:
+                raise CRMToolError("Internet search tool is not configured.")
+            query = str(
+                arguments.get("query")
+                or arguments.get("command_text")
+                or arguments.get("text")
+                or ""
+            ).strip()
+            if not query:
+                raise CRMToolError("Internet search query is missing.")
+            result_text = self._internet_searcher(command_text=query, role=role)
+            answer = str(result_text or "").strip()
+            if not answer:
+                raise CRMToolError("Internet search returned empty text.")
+            result = {"ok": True, "data": {"answer": answer, "query": query}}
+            return {
+                "tool": tool_name,
+                "arguments": {"query": query},
+                "before": {},
+                "result": result,
+                "verify": {"passed": True, "message": "internet search completed"},
+            }
         definition = self._definition(tool_name)
         if definition is None or tool_name not in self._handlers:
             raise CRMToolError(f"Unknown CRM tool: {tool_name}")

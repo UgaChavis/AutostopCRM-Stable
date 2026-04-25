@@ -137,7 +137,8 @@ surface useful data directly in the same Telegram reply.
 
 ## Internet search mode
 
-The worker has a direct internet-search route before CRM tool planning. It is
+The worker has a direct internet-search route before CRM tool planning, and the
+model can also choose the `internet_search` tool from the catalog. The route is
 triggered by explicit phrases such as:
 
 - `найди в интернете`
@@ -146,6 +147,19 @@ triggered by explicit phrases such as:
 - `загугли`
 - `посмотри в интернете`
 - `web search`
+
+It also catches common pure research wording such as:
+
+- `официальный сайт`
+- `артикул`
+- `OEM`
+- `оригинал`
+- `аналог`
+- `цена`
+- `стоимость`
+- `где купить`
+- `источник`
+- `ссылка`
 
 Flow:
 
@@ -196,6 +210,7 @@ Important current exception:
 - direct `internet_search` does **not** use the strong model on production
 - it uses `AUTOSTOP_AI_MODEL` with normal reasoning for stability
 - strong escalation still applies to CRM tool decisions and final response synthesis
+- `/status` now reports whether internet search is enabled in the current runtime
 
 ## CRM tool registry v1
 
@@ -343,7 +358,7 @@ Current known green commands:
 
 Latest known results on `fa3f574`:
 
-- focused Telegram AI tests: `25/25 OK`
+- focused Telegram AI tests: `28/28 OK`
 - full test suite: `431/431 OK`
 - ruff: OK
 
