@@ -1038,6 +1038,53 @@ class TelegramAIResponsesPayloadTests(unittest.TestCase):
             self.assertEqual(payload["tools"][0]["type"], "web_search_preview")
             self.assertIn("🔎 Коротко", str(payload["instructions"]))
             self.assertIn("📎 Источники", str(payload["instructions"]))
+            self.assertIn("without URLs", str(payload["instructions"]))
+
+    def test_internet_search_response_strips_links_for_telegram(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = TelegramAIConfig(
+                **{
+                    **build_config(temp_dir).__dict__,
+                    "web_search_enabled": True,
+                }
+            )
+            client = TelegramAIOpenAIClient(config)
+
+            def fake_post_with_retry(
+                path: str,
+                payload: dict[str, object],
+                **kwargs: object,
+            ) -> dict[str, object]:
+                return {
+                    "output_text": (
+                        "🔎 Коротко: VIN подходит по каталогу "
+                        "[VINCheck](https://vincheck.me/toyota/corolla?utm_source=openai)\n\n"
+                        "✅ Найдено: 17801-0D020 "
+                        "(https://www.toyotapartsandservice.com/file.pdf)\n\n"
+                        "📎 Источники: Toyota Parts & Service; VINCheck"
+                    )
+                }
+
+            with patch.object(
+                TelegramAIOpenAIClient, "_post_with_retry", side_effect=fake_post_with_retry
+            ):
+                result = client.internet_search(
+                    command_text="Найди в интернете по этому VIN оригинальный фильтр",
+                    role="owner",
+                    crm_context={
+                        "conversation_state": {
+                            "last_vin": "JTEBU3FJ60K123456",
+                            "last_card": {"id": "card-77", "vehicle": "Toyota Corolla"},
+                        }
+                    },
+                )
+
+            self.assertIn("VINCheck", result)
+            self.assertIn("Toyota Parts & Service", result)
+            self.assertNotIn("http", result)
+            self.assertNotIn("utm_", result)
+            self.assertNotIn("](", result)
+            self.assertNotIn("()", result)
 
     def test_internet_search_payload_includes_follow_up_vin_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

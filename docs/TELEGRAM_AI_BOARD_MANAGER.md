@@ -191,7 +191,7 @@ Production stabilization note:
 - Simple web-search uses the base model `AUTOSTOP_AI_MODEL` and a low search context size.
 - Complex web-search for VIN, OEM, parts, compatibility, analogs, and source comparison uses `AUTOSTOP_AI_STRONG_MODEL` with `AUTOSTOP_AI_STRONG_REASONING_EFFORT`.
 - If the strong web-search call fails with a transient OpenAI error, the worker falls back once to the base model before surfacing an error to Telegram.
-- Direct web-search answers are prompted as Telegram-ready text with short sections, readable source names/URLs, and optional emoji.
+- Direct web-search answers are prompted as Telegram-ready text with short sections, readable source names only, no raw links, and optional emoji.
 
 ## Model escalation
 

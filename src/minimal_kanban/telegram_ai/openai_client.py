@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -66,8 +67,8 @@ Use this structure when it fits:
 🔎 Коротко: one direct conclusion.
 ✅ Найдено: exact part numbers, names, or facts.
 🧩 Почему подходит: short compatibility reasoning, VIN/vehicle facts, limits.
-📎 Источники: 2-4 readable source names or URLs.
-Keep each bullet on its own line. Do not use markdown tables. Do not output raw citation clutter, utm parameters, duplicated links, or broken bracket syntax.
+📎 Источники: 2-4 readable source names only, without URLs.
+Keep each bullet on its own line. Do not use markdown tables. Do not output links, raw URLs, markdown links, raw citation clutter, utm parameters, duplicated links, or broken bracket syntax.
 If the exact part number is not confirmed, say that clearly and list what data is missing.
 """.strip()
         user_payload = {
@@ -82,22 +83,32 @@ If the exact part number is not confirmed, say that clearly and list what data i
         last_error: TelegramAIModelError | None = None
         for model in models:
             try:
-                return self._responses_text(
-                    model=model,
-                    instructions=instructions,
-                    input_messages=[
-                        {
-                            "role": "user",
-                            "content": json.dumps(user_payload, ensure_ascii=False, sort_keys=True),
-                        }
-                    ],
-                    web_search=True,
-                    reasoning_effort=self._reasoning_for_model(model),
-                    request_timeout_seconds=max(
-                        self._timeout_seconds,
-                        120.0 if model == self._strong_model and model != self._model else 75.0,
-                    ),
-                    max_attempts=1,
+                return _sanitize_telegram_search_answer(
+                    self._responses_text(
+                        model=model,
+                        instructions=instructions,
+                        input_messages=[
+                            {
+                                "role": "user",
+                                "content": json.dumps(
+                                    user_payload,
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                ),
+                            }
+                        ],
+                        web_search=True,
+                        reasoning_effort=self._reasoning_for_model(model),
+                        request_timeout_seconds=max(
+                            self._timeout_seconds,
+                            (
+                                120.0
+                                if model == self._strong_model and model != self._model
+                                else 75.0
+                            ),
+                        ),
+                        max_attempts=1,
+                    )
                 )
             except TelegramAIModelError as exc:
                 last_error = exc
@@ -551,6 +562,29 @@ def _compact_search_context(crm_context: dict[str, Any]) -> dict[str, Any]:
                     if last_card.get(key) not in (None, "", [], {})
                 }
     return compact
+
+
+def _sanitize_telegram_search_answer(text: str) -> str:
+    cleaned = str(text or "").replace("\r", "").strip()
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r"\[([^\]\n]{1,120})\]\((?:https?://|www\.)[^\s)]+\)", r"\1", cleaned)
+    cleaned = re.sub(r"\((?:https?://|www\.)[^\s)]+\)", "", cleaned)
+    cleaned = re.sub(r"(?:https?://|www\.)[^\s)\]]+", "", cleaned)
+    cleaned = re.sub(r"\butm_[A-Za-z0-9_=-]+", "", cleaned)
+    cleaned = re.sub(r"[ \t]+([,.;:])", r"\1", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    lines = []
+    for raw_line in cleaned.splitlines():
+        line = raw_line.strip()
+        if not line:
+            lines.append("")
+            continue
+        line = re.sub(r"\s+\)$", "", line).strip()
+        line = re.sub(r"\(\s*\)", "", line).strip()
+        lines.append(line)
+    return "\n".join(lines).strip()
 
 
 def _compact_value(value: Any, *, max_depth: int) -> Any:
