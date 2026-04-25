@@ -102,12 +102,12 @@ If the exact part number is not confirmed, say that clearly and list what data i
                         request_timeout_seconds=max(
                             self._timeout_seconds,
                             (
-                                120.0
+                                90.0
                                 if model == self._strong_model and model != self._model
-                                else 60.0
+                                else 45.0
                             ),
                         ),
-                        max_attempts=2,
+                        max_attempts=1,
                     )
                 )
             except TelegramAIModelError as exc:
