@@ -58,7 +58,7 @@
 | `cleanup_card_content` | write | Локальная нормализация карточки: описание, очевидные поля, verify patch. |
 | `move_card` | write | Перемещает карточку в столбец, опционально перед `before_card_id`. |
 | `bulk_move_cards` | write | Массово перемещает несколько карточек в один столбец. |
-| `set_card_deadline` | write | Меняет только дедлайн карточки. |
+| `set_card_deadline` | write | Меняет только дедлайн карточки. Принимает `days/hours/minutes/seconds` или `total_seconds`. |
 | `set_card_indicator` | write | Меняет сигнал карточки через пересчет дедлайна: green/yellow/red. |
 | `archive_card` | destructive | Архивирует карточку. |
 | `restore_card` | write | Восстанавливает архивную карточку в выбранный или стандартный столбец. |
@@ -134,9 +134,10 @@
 
 ## Минимальные правила параметров
 
-- `deadline`: объект с `days`, `hours`, `minutes`, `seconds`; для `create_card` пустой дедлайн заменяется на 1 день.
-- `StickyDeadlinePayload` дополнительно принимает `total_seconds`.
+- `deadline`: объект с `days`, `hours`, `minutes`, `seconds`; для короткой записи можно использовать `total_seconds`. Для `create_card` пустой дедлайн заменяется на 1 день.
+- `StickyDeadlinePayload` также принимает `total_seconds`.
 - `create_column`: основной параметр `label`, но `name` тоже принимается как алиас для совместимости.
+- `set_card_deadline`: принимает тот же `deadline`-объект, что и `create_card`/`update_card`.
 - `vehicle`: только марка/модель, без длинного описания проблемы.
 - `title`: краткая суть задачи или неисправности.
 - `vehicle_profile`: разрешает дополнительные поля, но manual values нельзя перетирать без явного решения.

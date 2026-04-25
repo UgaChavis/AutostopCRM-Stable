@@ -2272,7 +2272,7 @@ class CardServiceTests(unittest.TestCase):
         patches = self._patch_time(base)
         with patches[0], patches[1], patches[2]:
             created = self.service.create_card(
-                {"title": "Удалённая задача", "deadline": {"hours": 3}}
+                {"title": "Удалённая задача", "deadline": {"total_seconds": 3 * 3600}}
             )
         card_id = created["card"]["id"]
 
@@ -2280,7 +2280,7 @@ class CardServiceTests(unittest.TestCase):
         patches = self._patch_time(later)
         with patches[0], patches[1], patches[2]:
             deadline_updated = self.service.set_card_deadline(
-                {"card_id": card_id, "deadline": {"minutes": 1}}
+                {"card_id": card_id, "deadline": {"total_seconds": 60}}
             )
         self.assertLessEqual(deadline_updated["card"]["remaining_seconds"], 60)
 

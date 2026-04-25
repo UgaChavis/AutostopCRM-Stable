@@ -59,6 +59,7 @@
 | Заполнить данные автомобиля | `update_card` с `vehicle_profile` |
 | Заполнить заказ-наряд | `update_repair_order` как короткий patch, затем `replace_repair_order_works`, `replace_repair_order_materials` |
 | Двигать карточку | `move_card` или `bulk_move_cards` |
+| Менять дедлайн | `set_card_deadline(card_id, deadline={total_seconds: 5400})` или объектом `days/hours/minutes/seconds` |
 | Смотреть кассы | `list_cashboxes`, `get_cashbox` |
 | Смотреть заказ-наряды | `list_repair_orders`, `get_repair_order`, `get_repair_order_text` |
 

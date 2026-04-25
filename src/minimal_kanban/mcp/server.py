@@ -28,10 +28,25 @@ from .oauth_provider import EmbeddedOAuthAuthorizationServerProvider
 
 
 class DeadlinePayload(BaseModel):
-    days: int = Field(default=0, ge=0, le=365)
-    hours: int = Field(default=0, ge=0, le=23)
-    minutes: int = Field(default=0, ge=0, le=59)
-    seconds: int = Field(default=0, ge=0, le=59)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"days": 1, "hours": 0, "minutes": 0, "seconds": 0},
+                {"total_seconds": 5400},
+            ]
+        }
+    )
+
+    days: int = Field(default=0, ge=0, le=365, description="Whole days in the deadline delta.")
+    hours: int = Field(default=0, ge=0, le=23, description="Hours in the deadline delta.")
+    minutes: int = Field(default=0, ge=0, le=59, description="Minutes in the deadline delta.")
+    seconds: int = Field(default=0, ge=0, le=59, description="Seconds in the deadline delta.")
+    total_seconds: int = Field(
+        default=0,
+        ge=0,
+        le=31_536_000,
+        description="Optional shorthand for the full deadline in seconds. Can be combined with days, hours, minutes, and seconds.",
+    )
 
 
 class StickyDeadlinePayload(DeadlinePayload):
@@ -144,8 +159,11 @@ def _resolved_create_card_deadline(deadline: DeadlinePayload | None) -> dict[str
     if deadline is None:
         return {"days": 1, "hours": 0, "minutes": 0, "seconds": 0}
     payload = deadline.model_dump()
+    if int(payload.get("total_seconds", 0) or 0) > 0:
+        return payload
     if not any(
-        int(payload.get(part, 0) or 0) > 0 for part in ("days", "hours", "minutes", "seconds")
+        int(payload.get(part, 0) or 0) > 0
+        for part in ("days", "hours", "minutes", "seconds")
     ):
         return {"days": 1, "hours": 0, "minutes": 0, "seconds": 0}
     return payload
@@ -1125,7 +1143,8 @@ def create_mcp_server(
     @server.tool(
         name="create_sticky",
         description=_scoped_description(
-            "Create a sticky note on the current Minimal Kanban board. Sticky notes belong only to this board instance."
+            "Create a sticky note on the current Minimal Kanban board. Sticky notes belong only to this board instance. "
+            "The deadline accepts either days/hours/minutes/seconds or total_seconds."
         ),
         annotations=_write_tool_annotations("Create Sticky"),
         structured_output=True,
@@ -1932,7 +1951,8 @@ def create_mcp_server(
     @server.tool(
         name="update_sticky",
         description=_scoped_description(
-            "Update the text or deadline of a sticky note on the current Minimal Kanban board."
+            "Update the text or deadline of a sticky note on the current Minimal Kanban board. "
+            "The deadline accepts either days/hours/minutes/seconds or total_seconds."
         ),
         annotations=_write_tool_annotations("Update Sticky"),
         structured_output=True,
@@ -1984,7 +2004,8 @@ def create_mcp_server(
     @server.tool(
         name="set_card_deadline",
         description=_scoped_description(
-            "Change only the deadline of a card on the current Minimal Kanban board."
+            "Change only the deadline of a card on the current Minimal Kanban board. "
+            "The deadline accepts either days/hours/minutes/seconds or total_seconds."
         ),
         annotations=_write_tool_annotations("Set Card Deadline"),
         structured_output=True,

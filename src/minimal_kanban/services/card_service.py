@@ -8375,14 +8375,19 @@ class CardService:
         if not isinstance(value, dict):
             self._fail(
                 "validation_error",
-                "Поле deadline должно быть JSON-объектом с числами days, hours, minutes и seconds.",
+                "Поле deadline должно быть JSON-объектом с числами days, hours, minutes, seconds или total_seconds.",
                 details={"field": "deadline"},
             )
+        total_seconds_direct = self._validated_deadline_part(
+            value, "total_seconds", maximum=31_536_000
+        )
         days = self._validated_deadline_part(value, "days", maximum=365)
         hours = self._validated_deadline_part(value, "hours", maximum=23)
         minutes = self._validated_deadline_part(value, "minutes", maximum=59)
         seconds = self._validated_deadline_part(value, "seconds", maximum=59)
-        total_seconds = days * 24 * 3600 + hours * 3600 + minutes * 60 + seconds
+        total_seconds = (
+            total_seconds_direct + days * 24 * 3600 + hours * 3600 + minutes * 60 + seconds
+        )
         if total_seconds <= 0:
             self._fail(
                 "validation_error",

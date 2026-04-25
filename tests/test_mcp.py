@@ -1118,7 +1118,7 @@ class McpServerTests(unittest.IsolatedAsyncioTestCase):
                     "set_card_deadline",
                     {
                         "card_id": card_id,
-                        "deadline": {"hours": 1, "minutes": 30},
+                        "deadline": {"total_seconds": 5400},
                         "actor_name": "ОПЕРАТОР",
                     },
                 )
