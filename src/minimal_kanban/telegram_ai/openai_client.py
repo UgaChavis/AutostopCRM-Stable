@@ -61,11 +61,6 @@ Keep the answer practical and concise. Include source names or URLs when availab
             "mode": "internet_search",
         }
         model = self._model
-        reasoning_effort = (
-            self._strong_reasoning_effort
-            if _is_complex_command(command_text)
-            else self._reasoning_effort
-        )
         last_error: TelegramAIModelError | None = None
         for _attempt in range(2):
             try:
@@ -79,7 +74,7 @@ Keep the answer practical and concise. Include source names or URLs when availab
                         }
                     ],
                     web_search=True,
-                    reasoning_effort=reasoning_effort,
+                    reasoning_effort=self._reasoning_effort,
                     request_timeout_seconds=max(self._timeout_seconds, 75.0),
                     max_attempts=1,
                 )
@@ -314,7 +309,7 @@ Use empty strings or empty arrays when a fact is not visible. Do not invent fact
             payload["tools"] = [
                 {
                     "type": "web_search_preview",
-                    "search_context_size": "medium",
+                    "search_context_size": "low",
                 }
             ]
         response_payload = self._post_with_retry(
