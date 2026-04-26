@@ -540,6 +540,30 @@ def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
             "Стандартный счет",
             """
 <div class="document-page">
+  <div class="doc-invoice-notice">
+    Внимание! Оплата данного счета означает согласие с указанными в нем работами, материалами и условиями поставки. Уведомление об оплате обязательно.
+  </div>
+  <table class="doc-bank-table">
+    <colgroup>
+      <col style="width: 34%">
+      <col style="width: 24%">
+      <col style="width: 20%">
+      <col style="width: 22%">
+    </colgroup>
+    <tr>
+      <td colspan="2"><div class="doc-bank-table__label">Банк получателя</div><div class="doc-bank-table__value"><strong>{{service.bank_name}}</strong></div></td>
+      <td><div class="doc-bank-table__label">БИК</div><div class="doc-bank-table__value"><strong>{{service.bik}}</strong></div></td>
+      <td><div class="doc-bank-table__label">Сч. №</div><div class="doc-bank-table__value"><strong>{{service.correspondent_account}}</strong></div></td>
+    </tr>
+    <tr>
+      <td><div class="doc-bank-table__label">ИНН</div><div class="doc-bank-table__value"><strong>{{service.inn}}</strong></div></td>
+      <td><div class="doc-bank-table__label">КПП</div><div class="doc-bank-table__value"><strong>{{service.kpp}}</strong></div></td>
+      <td colspan="2"><div class="doc-bank-table__label">Сч. №</div><div class="doc-bank-table__value"><strong>{{service.settlement_account}}</strong></div></td>
+    </tr>
+    <tr>
+      <td colspan="4"><div class="doc-bank-table__label">Получатель</div><div class="doc-bank-table__value"><strong>{{service.legal_name}}</strong></div></td>
+    </tr>
+  </table>
   <table class="doc-head-table">
     <tr>
       <td class="doc-head-table__left">
@@ -571,30 +595,6 @@ def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
       </td>
     </tr>
   </table>
-  <div class="doc-invoice-notice">
-    Внимание! Оплата данного счета означает согласие с указанными в нем работами, материалами и условиями поставки. Уведомление об оплате обязательно.
-  </div>
-  <table class="doc-bank-table">
-    <colgroup>
-      <col style="width: 34%">
-      <col style="width: 24%">
-      <col style="width: 20%">
-      <col style="width: 22%">
-    </colgroup>
-    <tr>
-      <td colspan="2"><div class="doc-bank-table__label">Банк получателя</div><div class="doc-bank-table__value"><strong>{{service.bank_name}}</strong></div></td>
-      <td><div class="doc-bank-table__label">БИК</div><div class="doc-bank-table__value"><strong>{{service.bik}}</strong></div></td>
-      <td><div class="doc-bank-table__label">Сч. №</div><div class="doc-bank-table__value"><strong>{{service.correspondent_account}}</strong></div></td>
-    </tr>
-    <tr>
-      <td><div class="doc-bank-table__label">ИНН</div><div class="doc-bank-table__value"><strong>{{service.inn}}</strong></div></td>
-      <td><div class="doc-bank-table__label">КПП</div><div class="doc-bank-table__value"><strong>{{service.kpp}}</strong></div></td>
-      <td colspan="2"><div class="doc-bank-table__label">Сч. №</div><div class="doc-bank-table__value"><strong>{{service.settlement_account}}</strong></div></td>
-    </tr>
-    <tr>
-      <td colspan="4"><div class="doc-bank-table__label">Получатель</div><div class="doc-bank-table__value"><strong>{{service.legal_name}}</strong></div></td>
-    </tr>
-  </table>
   <section class="doc-section">
     <h2 class="doc-section__title">Сведения по счету</h2>
     <table class="doc-meta-table">
@@ -617,12 +617,11 @@ def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
     <div class="doc-note">{{service.payment_purpose}}</div>
   </section>
   <table class="doc-totals-table">
-    <tr><td>Итого</td><td>{{totals.subtotal_display}}</td></tr>
-    {{#totals.has_taxes}}<tr><td>В том числе налоги и сборы</td><td>{{totals.taxes_display}}</td></tr>{{/totals.has_taxes}}
-    {{#totals.has_prepayment}}<tr><td>Предоплата</td><td>{{totals.prepayment_display}}</td></tr>{{/totals.has_prepayment}}
-    <tr class="doc-totals-table__grand"><td>Всего к оплате</td><td>{{totals.due_display}}</td></tr>
+    <tr><td>Итого</td><td>{{invoice.subtotal_display}}</td></tr>
+    <tr><td>В том числе НДС (5%)</td><td>{{invoice.vat_display}}</td></tr>
+    <tr class="doc-totals-table__grand"><td>Всего к оплате</td><td>{{invoice.total_display}}</td></tr>
   </table>
-  <div class="doc-invoice-words">Сумма прописью: <strong>{{totals.due_words_display}}</strong></div>
+  <div class="doc-invoice-words">Сумма прописью: <strong>{{invoice.total_words_display}}</strong></div>
   <section class="doc-section">
     <h2 class="doc-section__title">Подписи</h2>
     <table class="doc-signatures-table">
@@ -695,24 +694,23 @@ def builtin_template_records() -> tuple[PrintTemplateRecord, ...]:
     <table class="doc-table"><thead><tr><th>Наименование</th><th class="doc-table__narrow">Кол-во</th><th class="doc-table__sum">Цена</th><th class="doc-table__sum">Сумма</th></tr></thead><tbody>
       {{#line_items}}<tr><td>{{section_label}}: {{name}}</td><td class="doc-table__narrow">{{quantity_display}}</td><td class="doc-table__sum">{{price_display}}</td><td class="doc-table__sum">{{total_display}}</td></tr>{{/line_items}}
       {{^line_items}}<tr><td class="doc-table__empty" colspan="4">Номенклатура не заполнена</td></tr>{{/line_items}}
-    </tbody><tfoot><tr><td colspan="3">Всего</td><td class="doc-table__sum">{{totals.grand_display}}</td></tr></tfoot></table>
+    </tbody><tfoot><tr><td colspan="3">Всего</td><td class="doc-table__sum">{{invoice.total_display}}</td></tr></tfoot></table>
   </section>
   <section class="doc-section">
     <h2 class="doc-section__title">Сведения по заказу</h2>
     <table class="doc-meta-table">
       <tr>
         <td><div class="doc-label">Автомобиль</div><div class="doc-value">{{vehicle.display_name}} · {{vehicle.license_plate_display}} · VIN {{vehicle.vin_display}}</div></td>
-        <td><div class="doc-label">Налоговый режим</div><div class="doc-value">{{service.tax_label}}</div></td>
+        <td><div class="doc-label">Налоговый режим</div><div class="doc-value">{{invoice.tax_label}}</div></td>
         <td><div class="doc-label">Назначение платежа</div><div class="doc-value">{{service.payment_purpose}}</div></td>
       </tr>
     </table>
   </section>
   <table class="doc-totals-table">
-    <tr><td>Налоговый режим</td><td>{{service.tax_label}}</td></tr>
-    <tr><td>Итого по счету-фактуре</td><td>{{totals.grand_display}}</td></tr>
-    {{#totals.has_taxes}}<tr><td>Налоги и сборы</td><td>{{totals.taxes_display}}</td></tr>{{/totals.has_taxes}}
-    {{#totals.has_prepayment}}<tr><td>Предоплата</td><td>{{totals.prepayment_display}}</td></tr>{{/totals.has_prepayment}}
-    <tr class="doc-totals-table__grand"><td>К оплате</td><td>{{totals.due_display}}</td></tr>
+    <tr><td>Налоговый режим</td><td>{{invoice.tax_label}}</td></tr>
+    <tr><td>Итого по счету-фактуре</td><td>{{invoice.subtotal_display}}</td></tr>
+    <tr><td>В том числе НДС (5%)</td><td>{{invoice.vat_display}}</td></tr>
+    <tr class="doc-totals-table__grand"><td>К оплате</td><td>{{invoice.total_display}}</td></tr>
   </table>
   <section class="doc-section">
     <h2 class="doc-section__title">Подписи</h2>

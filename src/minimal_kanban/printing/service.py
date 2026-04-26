@@ -1269,6 +1269,14 @@ class PrintModuleService:
         payment_summary_display = {
             f"{key}_display": _money_display(value) for key, value in payment_summary.items()
         }
+        invoice_base_total = payment_summary["base_total"]
+        invoice_tax_rate = Decimal("0.05")
+        invoice_tax_amount = (
+            invoice_base_total * invoice_tax_rate / (Decimal("1") + invoice_tax_rate)
+        )
+        invoice_tax_display = _money_display(invoice_tax_amount)
+        invoice_total_display = _money_display(invoice_base_total)
+        invoice_total_words_display = _money_words_display(invoice_base_total)
         selected_due = (
             payment_summary["noncash_due"]
             if order.payment_method == REPAIR_ORDER_PAYMENT_METHOD_CASHLESS
@@ -1428,6 +1436,18 @@ class PrintModuleService:
                 "has_taxes": payment_summary["taxes_and_fees"] != Decimal("0"),
                 "has_prepayment": payment_summary["total_paid"] != Decimal("0"),
                 "has_payment_summary": True,
+            },
+            "invoice": {
+                "tax_label": "НДС (5%)",
+                "tax_rate_display": "5%",
+                "subtotal": invoice_base_total,
+                "subtotal_display": invoice_total_display,
+                "vat": invoice_tax_amount,
+                "vat_display": invoice_tax_display,
+                "total": invoice_base_total,
+                "total_display": invoice_total_display,
+                "total_words_display": invoice_total_words_display,
+                "has_vat": invoice_tax_amount != Decimal("0"),
             },
             "meta": {
                 "warnings": warnings,
