@@ -108,7 +108,40 @@ class PrintServiceProfile:
     def from_dict(cls, payload: Any) -> PrintServiceProfile:
         if not isinstance(payload, dict):
             return cls()
-        values = {item.name: payload[item.name] for item in fields(cls) if item.name in payload}
+        defaults = cls()
+        values = defaults.to_dict()
+        text_limits = {
+            "company_name": 120,
+            "legal_name": 160,
+            "address": 240,
+            "phone": 80,
+            "reception_phone": 80,
+            "spare_parts_phone": 80,
+            "email": 120,
+            "website": 120,
+            "work_hours": 160,
+            "inn": 32,
+            "kpp": 32,
+            "ogrn": 32,
+            "bank_name": 160,
+            "bik": 32,
+            "settlement_account": 64,
+            "correspondent_account": 64,
+            "tax_label": 48,
+            "payment_purpose": 240,
+        }
+        for item in fields(cls):
+            if item.name not in payload:
+                continue
+            raw = payload[item.name]
+            if raw is None:
+                continue
+            if item.name in text_limits:
+                cleaned = _clean_text(raw, limit=text_limits[item.name])
+                if cleaned:
+                    values[item.name] = cleaned
+            else:
+                values[item.name] = raw
         return cls(**values)
 
 
@@ -155,13 +188,22 @@ class PrintModuleSettings:
     def from_dict(cls, payload: Any) -> PrintModuleSettings:
         if not isinstance(payload, dict):
             return cls()
+        defaults = cls()
+        service_profile_payload = defaults.service_profile.to_dict()
+        if isinstance(payload.get("service_profile"), dict):
+            for key, value in payload["service_profile"].items():
+                if value is None:
+                    continue
+                if isinstance(value, str) and not value.strip():
+                    continue
+                service_profile_payload[str(key)] = value
         return cls(
-            default_printer=payload.get("default_printer", ""),
-            copies=payload.get("copies", 1),
-            paper_size=payload.get("paper_size", "A4"),
-            orientation=payload.get("orientation", "portrait"),
-            default_template_ids=payload.get("default_template_ids", {}),
-            service_profile=PrintServiceProfile.from_dict(payload.get("service_profile", {})),
+            default_printer=payload.get("default_printer", defaults.default_printer),
+            copies=payload.get("copies", defaults.copies),
+            paper_size=payload.get("paper_size", defaults.paper_size),
+            orientation=payload.get("orientation", defaults.orientation),
+            default_template_ids=payload.get("default_template_ids", defaults.default_template_ids),
+            service_profile=PrintServiceProfile.from_dict(service_profile_payload),
         )
 
 

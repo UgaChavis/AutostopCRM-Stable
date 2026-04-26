@@ -135,6 +135,29 @@ class PrintingServiceTests(unittest.TestCase):
         )
         self.assertTrue(inspection_document["supports_form_fill"])
 
+    def test_workspace_prefills_service_profile_when_settings_are_blank(self) -> None:
+        self.service._settings_path.write_text(
+            (
+                '{"service_profile":{"company_name":"","legal_name":"","address":"","phone":"",'
+                '"reception_phone":"","spare_parts_phone":"","email":"","website":"",'
+                '"work_hours":"","inn":"","kpp":"","ogrn":"","bank_name":"","bik":"",'
+                '"settlement_account":"","correspondent_account":"","tax_label":"",'
+                '"payment_purpose":""}}'
+            ),
+            encoding="utf-8",
+        )
+
+        workspace = self.service.workspace(self.card)
+        profile = workspace["settings"]["service_profile"]
+
+        self.assertEqual(profile["company_name"], "Auto Stop")
+        self.assertEqual(profile["legal_name"], "ИП Гришкявичус Константин Владиславович")
+        self.assertEqual(profile["address"], "660012, г. Красноярск, ул. Семафорная, 80, стр. 4")
+        self.assertEqual(profile["reception_phone"], "288-14-15")
+        self.assertEqual(profile["spare_parts_phone"], "+7 (963) 184-76-76")
+        self.assertEqual(profile["website"], "autostop124.ru")
+        self.assertEqual(profile["tax_label"], "Без НДС")
+
     def test_repair_order_context_includes_brand_logo_asset(self) -> None:
         context = self.service._build_document_context(
             self.card,
